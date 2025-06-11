@@ -1,0 +1,24 @@
+<div class="sign-in-container">
+  <h1>Fill other details</h1>
+  <div class="member-name">{{ member.name }}</div>
+  <form (ngSubmit)="signIn()">
+    <label>email</label>
+    <input type="email" [(ngModel)]="email" name="email" placeholder="Enter email" autocomplete="off" />
+
+    <label>password</label>
+    <input type="password" [(ngModel)]="password" name="password" placeholder="Enter password" autocomplete="off" />
+
+    <label>gender</label>
+    <select [(ngModel)]="gender" name="gender">
+      <option value="">Select gender</option>
+      <option value="male">Male</option>
+      <option value="female">Female</option>
+      <option value="other">Other</option>
+    </select>
+
+    <label>height (cm)</label>
+    <input type="number" [(ngModel)]="height" name="height" placeholder="Enter height" />
+
+    <button type="submit" class="sign-in-btn">Sign in</button>
+  </form>
+</div>

@@ -1,0 +1,68 @@
+.sign-in-container {
+  max-width: 400px;
+  margin: 4rem auto;
+  padding: 2.5rem 2rem;
+  background: #fff;
+  border-radius: 1.5rem;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
+  text-align: left;
+}
+
+h1 {
+  text-align: left;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+  color: #222;
+}
+
+.member-name {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: #1677ff;
+}
+
+form label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-weight: 500;
+  color: #222;
+}
+
+form input,
+form select {
+  width: 100%;
+  padding: 0.8rem;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  margin-bottom: 1.2rem;
+  background: #f3f4f6;
+  outline: none;
+  transition: border 0.2s;
+}
+
+form input:focus,
+form select:focus {
+  border: 1.5px solid #1677ff;
+  background: #fff;
+}
+
+.sign-in-btn {
+  background: #1677ff;
+  color: #fff;
+  border: none;
+  padding: 0.9rem 0;
+  border-radius: 0.6rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 1rem;
+  transition: background 0.2s;
+}
+
+.sign-in-btn:hover {
+  background: #125fcc;
+}

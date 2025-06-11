@@ -1,0 +1,151 @@
+.dashboard-container {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  background-color: #f5f5f5;
+}
+
+.sidebar {
+  width: 250px;
+  background-color: #ffffff;
+  border-right: 1px solid #e0e0e0;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.logo-container {
+  padding: 10px;
+  text-align: center;
+  
+  .logo {
+    max-width: 150px;
+    height: auto;
+  }
+}
+
+.nav-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: #666;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  i {
+    font-size: 1.2rem;
+    width: 24px;
+    text-align: center;
+  }
+
+  &:hover {
+    background-color: #f5f5f5;
+    color: #333;
+  }
+
+  &.active {
+    background-color: #007bff;
+    color: white;
+  }
+}
+
+.main-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.content-header {
+  margin-bottom: 24px;
+  
+  h1 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+  }
+}
+
+.content-body {
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+// Mobile Responsiveness
+@media (max-width: 768px) {
+  .dashboard-container {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 10px;
+  }
+
+  .nav-menu {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 10px;
+  }
+
+  .nav-item {
+    white-space: nowrap;
+  }
+
+  .main-content {
+    padding: 15px;
+  }
+
+  .content-body {
+    padding: 15px;
+  }
+}
+
+.dashboard-navbar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  background: rgba(36, 41, 54, 0.55);
+  backdrop-filter: blur(14px);
+  border-radius: 18px;
+  margin: 2rem auto 2.5rem auto;
+  padding: 0.5rem 1.5rem;
+  box-shadow: 0 4px 24px 0 rgba(59,130,246,0.07);
+  max-width: 520px;
+}
+.dashboard-navbar button {
+  background: none;
+  border: none;
+  color: #b6c6e3;
+  font-size: 1.13rem;
+  font-weight: 600;
+  padding: 0.7rem 1.6rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+  letter-spacing: 0.03em;
+}
+.dashboard-navbar button.active {
+  background: #3b82f6;
+  color: #fff;
+  box-shadow: 0 2px 8px 0 rgba(59,130,246,0.13);
+}
+.dashboard-navbar button:hover:not(.active) {
+  background: rgba(59,130,246,0.10);
+  color: #3b82f6;
+} 

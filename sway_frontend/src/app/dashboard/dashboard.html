@@ -1,0 +1,67 @@
+<!-- Dashboard Layout -->
+<div class="dashboard-container">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo-container">
+      <img src="assets/logo.png" alt="Sway Logo" class="logo">
+    </div>
+    
+    <nav class="nav-menu">
+      <a class="nav-item" [class.active]="currentView === 'formations'" (click)="setView('formations')">
+        <i class="fas fa-users"></i>
+        <span>Formations</span>
+      </a>
+      <a class="nav-item" [class.active]="currentView === 'roster'" (click)="setView('roster')">
+        <i class="fas fa-users"></i>
+        <span>Roster</span>
+      </a>
+      <a class="nav-item" [class.active]="currentView === 'videos'" (click)="setView('videos')">
+        <i class="fas fa-video"></i>
+        <span>Videos</span>
+      </a>
+      <a class="nav-item" [class.active]="currentView === 'calendar'" (click)="setView('calendar')">
+        <i class="fas fa-calendar"></i>
+        <span>Calendar</span>
+      </a>
+      <a class="nav-item" [class.active]="currentView === 'polls'" (click)="setView('polls')">
+        <i class="fas fa-poll"></i>
+        <span>Polls</span>
+      </a>
+      <a class="nav-item" [class.active]="currentView === 'feedback'" (click)="setView('feedback')">
+        <i class="fas fa-comment-alt"></i>
+        <span>Feedback</span>
+      </a>
+    </nav>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="main-content">
+    <div class="content-header">
+      <h1>{{ currentView | titlecase }}</h1>
+    </div>
+    
+    <div class="content-body">
+      <!-- Dynamic content will be loaded here based on currentView -->
+      <ng-container [ngSwitch]="currentView">
+        <div *ngSwitchCase="'formations'">
+          <app-formations></app-formations>
+        </div>
+        <div *ngSwitchCase="'roster'">
+          <app-dashboard-roster></app-dashboard-roster>
+        </div>
+        <div *ngSwitchCase="'videos'">
+          <!-- Videos content will go here -->
+        </div>
+        <div *ngSwitchCase="'calendar'">
+          <!-- Calendar content will go here -->
+        </div>
+        <div *ngSwitchCase="'polls'">
+          <!-- Polls content will go here -->
+        </div>
+        <div *ngSwitchCase="'feedback'">
+          <!-- Feedback content will go here -->
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div> 

@@ -1,0 +1,11 @@
+<div class="roster-page-container">
+  <h2>Team Roster</h2>
+  <div class="roster-list">
+    <div class="roster-member" *ngFor="let member of members">
+      <span class="member-name">{{ member.name }}</span>
+      <span class="member-role">{{ member.role }}</span>
+    </div>
+  </div>
+  <!-- Only captains see this button -->
+  <button *ngIf="isCaptain" (click)="editRoster()">Edit Roster</button>
+</div> 

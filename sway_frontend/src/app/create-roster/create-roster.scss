@@ -1,0 +1,116 @@
+.roster-container {
+  max-width: 98vw;
+  margin: 1.5rem auto 0 auto;
+  padding: 1rem 0.5rem;
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+
+h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #222;
+}
+
+.roster-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  overflow-x: auto;
+  display: block;
+}
+
+.roster-table th,
+.roster-table td {
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem 0.3rem;
+  text-align: left;
+}
+
+.roster-table th {
+  background: #f3f4f6;
+  font-weight: 600;
+  color: #333;
+}
+
+.roster-table td {
+  background: #fff;
+}
+
+.roster-input {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 0.4rem;
+  font-size: 1rem;
+  background: #f9fafb;
+  outline: none;
+  transition: border 0.2s;
+}
+
+.roster-input:focus {
+  border: 1.5px solid #1677ff;
+  background: #fff;
+}
+
+button[type="button"], .go-dashboard-btn, .submit-btn {
+  width: 100%;
+  margin: 0.5rem 0 0.5rem 0;
+  padding: 0.7rem 0;
+  font-size: 1.1rem;
+  border-radius: 0.5rem;
+}
+
+button[type="button"]:hover {
+  background: #e5e7eb;
+}
+
+.submit-btn:hover {
+  background: #125fcc;
+}
+
+.roster-member {
+  cursor: pointer;
+  padding: 0.5rem 0;
+  transition: background 0.2s;
+}
+.roster-member:hover {
+  background: #f3f4f6;
+}
+
+.go-dashboard-btn {
+  background: #1677ff;
+  color: #fff;
+  border: none;
+  padding: 0.7rem 2rem;
+  border-radius: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 1.5rem;
+  transition: background 0.2s;
+}
+.go-dashboard-btn:hover {
+  background: #125fcc;
+}
+
+@media (max-width: 600px) {
+  .roster-container {
+    padding: 0.5rem 0.2rem;
+    border-radius: 0.7rem;
+  }
+  .roster-table th, .roster-table td {
+    font-size: 0.95rem;
+    padding: 0.3rem 0.2rem;
+  }
+  .dashboard-header, .dashboard-content {
+    padding: 0.5rem !important;
+  }
+  .dashboard-cards {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}

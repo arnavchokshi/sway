@@ -1,0 +1,56 @@
+<div class="formations-container">
+  <div class="segments-grid">
+    <!-- List all segments -->
+    <ng-container *ngIf="segments.length > 0; else noSegments">
+      <div class="segment-card" *ngFor="let segment of segments" (click)="goToSegment(segment._id)">
+        <button class="delete-segment-btn" (click)="deleteSegment(segment._id); $event.stopPropagation()">
+          <span class="material-icons">delete</span>
+        </button>
+        <div class="card-content">
+          <i class="fas fa-layer-group"></i>
+          <span>{{ segment.name }}</span>
+        </div>
+      </div>
+    </ng-container>
+    <ng-template #noSegments>
+      <div class="no-segments">No segments yet. Create your first segment!</div>
+    </ng-template>
+
+    <!-- New Segment Card -->
+    <div class="segment-card new-segment" (click)="goToCreateSegment()">
+      <div class="card-content">
+        <i class="fas fa-plus"></i>
+        <span>Add New Segment</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Segment Creation Modal -->
+  <div class="modal-backdrop" *ngIf="showSegmentModal">
+    <div class="modal">
+      <h2>Create New Segment</h2>
+      <form (ngSubmit)="submitSegmentModal()">
+        <label>
+          Name
+          <input type="text" [(ngModel)]="newSegmentName" name="name" required />
+        </label>
+        <label>
+          Depth (ft)
+          <input type="number" [(ngModel)]="newSegmentDepth" name="depth" min="1" required />
+        </label>
+        <label>
+          Width (ft)
+          <input type="number" [(ngModel)]="newSegmentWidth" name="width" min="1" required />
+        </label>
+        <label>
+          Divisions
+          <input type="number" [(ngModel)]="newSegmentDivisions" name="divisions" min="1" required />
+        </label>
+        <div class="modal-actions">
+          <button type="submit" class="submit-btn">Create</button>
+          <button type="button" (click)="closeSegmentModal()" class="cancel-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div> 

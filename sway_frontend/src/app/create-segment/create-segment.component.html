@@ -1,0 +1,129 @@
+<div class="segment-page-container">
+  <div class="roster-sidebar">
+    <h3>Team Roster</h3>
+    <ul>
+      <li *ngFor="let dancer of roster">
+        <button class="roster-add-btn" (click)="addPerformerFromRoster(dancer)">{{ dancer.name }}</button>
+      </li>
+    </ul>
+    <button class="dummy-btn" (click)="addDummyPerformer()">+ Add Dummy Performer</button>
+  </div>
+  <div class="stage-area">
+    <div class="stage-label">BACKSTAGE</div>
+    <div class="stage-dimensions">
+      <span class="stage-width">{{ width }} ft</span>
+      <span class="stage-depth">{{ depth }} ft</span>
+    </div>
+    <!-- Add Performer Dropdown -->
+    <div class="add-performer-row" *ngIf="availablePerformers.length > 0">
+      <select [(ngModel)]="selectedAddPerformer">
+        <option [ngValue]="null">Add Performer...</option>
+        <option *ngFor="let member of availablePerformers" [ngValue]="member">{{ member.name }}</option>
+      </select>
+      <button class="add-performer-btn" [disabled]="!selectedAddPerformer" (click)="addPerformer(selectedAddPerformer); selectedAddPerformer = null;">Add</button>
+    </div>
+    <!-- Edit Stage Button -->
+    <button class="edit-stage-btn" (click)="openEditModal()">
+      <span class="material-icons">edit</span> Edit Stage
+    </button>
+    <!-- Save Segment Button -->
+    <button class="save-segment-btn" (click)="saveSegment()">
+      <span class="material-icons">save</span> Save
+    </button>
+    <!-- Edit Modal -->
+    <div class="edit-modal-backdrop" *ngIf="showEditModal">
+      <div class="edit-modal">
+        <h2>Edit Stage</h2>
+        <form (ngSubmit)="submitEditModal()">
+          <label>Width (ft):
+            <input type="number" min="8" max="64" [(ngModel)]="editWidth" name="editWidth" required />
+          </label>
+          <label>Depth (ft):
+            <input type="number" min="8" max="48" [(ngModel)]="editDepth" name="editDepth" required />
+          </label>
+          <label>Divisions:
+            <input type="number" min="1" max="8" [(ngModel)]="editDivisions" name="editDivisions" required />
+          </label>
+          <div class="modal-actions">
+            <button type="button" (click)="closeEditModal()">Cancel</button>
+            <button type="submit" class="save">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="stage-grid-outer"
+         #stageRef
+         [style.width.px]="stageWidthPx"
+         [style.height.px]="stageHeightPx">
+      <!-- SVG for movement lines -->
+      <svg class="movement-lines" [style.width.px]="stageWidthPx" [style.height.px]="stageHeightPx">
+        <!-- Path lines -->
+        <path *ngFor="let performer of performers"
+               [attr.d]="getPerformerPath(performer.id)"
+               class="movement-line"
+               [style.display]="getPreviousPosition(performer.id) ? 'block' : 'none'"/>
+      </svg>
+
+      <!-- Main grid lines: vertical -->
+      <div *ngFor="let x of mainVerticals" class="main-vertical" [style.left.px]="x"></div>
+      <!-- Main grid lines: horizontal -->
+      <div *ngFor="let y of mainHorizontals" class="main-horizontal" [style.top.px]="y"></div>
+      <!-- Subgrid lines: vertical -->
+      <div *ngFor="let x of subVerticals" class="sub-vertical" [style.left.px]="x"></div>
+      <!-- Subgrid lines: horizontal -->
+      <div *ngFor="let y of subHorizontals" class="sub-horizontal" [style.top.px]="y"></div>
+      <!-- Previous position indicators -->
+      <div *ngFor="let performer of performers" 
+           class="performer previous-position"
+           [ngStyle]="getPreviousPositionStyle(performer.id)">
+        {{performer.name}}
+      </div>
+      <!-- Current performers -->
+      <div *ngFor="let performer of performers" 
+           class="performer"
+           [ngStyle]="getPerformerStyle(performer)"
+           (mousedown)="onDragStart($event, performer)"
+           (touchstart)="onDragStart($event, performer)">
+        {{performer.name}}
+      </div>
+      <!-- Stage border -->
+      <div class="stage-border"></div>
+    </div>
+    <!-- Formation Navigation (moved to bottom) -->
+    <div class="formation-nav formation-nav-bottom">
+      <button class="formation-arrow" (click)="prevFormation()" [disabled]="currentFormationIndex === 0">
+        <span class="material-icons">chevron_left</span>
+      </button>
+      <span class="formation-label">Formation {{ currentFormationIndex + 1 }} of {{ formations.length }}</span>
+      <button class="formation-arrow" (click)="onNextFormationClick()" [disabled]="currentFormationIndex === formations.length - 1">
+        <span class="material-icons">chevron_right</span>
+      </button>
+      <button class="add-formation-btn" (click)="addFormation()">
+        <span class="material-icons">add</span> Add Formation
+      </button>
+    </div>
+
+    <!-- Timeline Bar for Formations and Animation Durations -->
+    <div class="formation-timeline-bar">
+      <div class="formation-timeline">
+        <ng-container *ngFor="let formation of formations; let i = index">
+          <div class="formation-timeline-box" [class.active]="i === currentFormationIndex">
+            Formation {{ i + 1 }}
+          </div>
+          <!-- Show slider between boxes, not after last -->
+          <ng-container *ngIf="i < formations.length - 1">
+            <div class="timeline-slider-container">
+              <div class="slider-label">{{ animationDurations[i] | number:'1.1-1' }}s</div>
+              <input type="range" min="0.2" max="5" step="0.1" [(ngModel)]="animationDurations[i]" class="timeline-slider" />
+            </div>
+          </ng-container>
+        </ng-container>
+      </div>
+    </div>
+    <input type="file" accept=".mp3,audio/mp3" (change)="onMusicFileSelected($event)">
+    <audio *ngIf="signedMusicUrl" [src]="signedMusicUrl" controls style="margin-top: 1rem; width: 100%;">
+      Your browser does not support the audio element.
+    </audio>
+  </div>
+</div>
+ 
