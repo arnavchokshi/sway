@@ -14,6 +14,7 @@ import { AuthService } from '../../services/auth.service';
 })
 export class FormationsComponent implements OnInit {
   segments: any[] = [];
+  isCaptain = false;
 
   // Modal state and form fields
   showSegmentModal = false;
@@ -29,6 +30,8 @@ export class FormationsComponent implements OnInit {
   ) {}
 
   ngOnInit() {
+    const currentUser = this.authService.getCurrentUser();
+    this.isCaptain = currentUser?.captain || false;
     this.loadSegments();
   }
 
@@ -37,7 +40,20 @@ export class FormationsComponent implements OnInit {
     if (currentUser?.team?._id) {
       this.segmentService.getSegmentsForTeam(currentUser.team._id).subscribe({
         next: (res) => {
-          this.segments = res.segments;
+          if (this.isCaptain) {
+            // Captains can see all segments
+            this.segments = res.segments;
+          } else {
+            // Non-captains can only see segments they're in
+            this.segments = res.segments.filter(segment => {
+              // Check if any formation in the segment includes the current user
+              return segment.formations?.some((formation: any[]) => 
+                formation.some((performer: any) => 
+                  performer.user === currentUser._id || performer.user?._id === currentUser._id
+                )
+              );
+            });
+          }
         },
         error: (err) => {
           console.error('Failed to load segments:', err);

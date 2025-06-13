@@ -1,4 +1,4 @@
-import { Component, OnInit, ElementRef, ViewChild, Renderer2 } from '@angular/core';
+import { Component, OnInit, ElementRef, ViewChild, Renderer2, AfterViewChecked, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -7,6 +7,7 @@ import { AuthService } from '../services/auth.service';
 import { SegmentService } from '../services/segment.service';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { environment } from '../../environments/environment';
+import WaveSurfer from 'wavesurfer.js';
 
 interface Performer {
   id: string;
@@ -29,8 +30,9 @@ interface Performer {
     ])
   ]
 })
-export class CreateSegmentComponent implements OnInit {
+export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestroy {
   @ViewChild('stageRef') stageRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('timelineBarRef') timelineBarRef!: ElementRef<HTMLDivElement>;
 
   roster: any[] = [];
   segment: any = null;
@@ -82,8 +84,33 @@ export class CreateSegmentComponent implements OnInit {
 
   // Add this property to the class:
   animatedPositions: { [id: string]: { x: number, y: number } } = {};
+  inTransition = false;
 
   signedMusicUrl: string | null = null;
+  waveSurfer: WaveSurfer | null = null;
+  isPlaying = false;
+
+  private waveformInitializedForUrl: string | null = null;
+
+  formationDurations: number[] = [];
+  playbackTimer: any = null;
+  playbackTime = 0;
+  playingFormationIndex = 0;
+
+  waveformWidthPx = 900; // Match the default stage grid width, can be dynamic
+  resizingFormationIndex: number | null = null;
+  resizingStartX: number = 0;
+  resizingStartDuration: number = 0;
+
+  resizingTransitionIndex: number | null = null;
+  resizingTransitionStartX: number = 0;
+  resizingTransitionStartDuration: number = 0;
+
+  pixelsPerSecond = 100; // You can adjust this for zoom level
+
+  activeRosterTab: 'team' | 'segment' = 'team';
+  teamRoster: any[] = [];
+  segmentRoster: any[] = [];
 
   constructor(
     private teamService: TeamService,
@@ -94,7 +121,14 @@ export class CreateSegmentComponent implements OnInit {
   ) {}
 
   get performers(): Performer[] {
-    return this.formations[this.currentFormationIndex] || [];
+    if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
+      // Return animated positions during transition
+      return (this.formations[this.playingFormationIndex] || []).map(p => ({
+        ...p,
+        ...this.animatedPositions[p.id]
+      }));
+    }
+    return this.formations[this.playingFormationIndex] || [];
   }
 
   set performers(val: Performer[]) {
@@ -121,52 +155,22 @@ export class CreateSegmentComponent implements OnInit {
           if (currentUser?.team?._id) {
             this.teamService.getTeamById(currentUser.team._id).subscribe({
               next: (res) => {
-                this.roster = res.team.members || [];
-                // Load all formations or create one if missing
-                const backendFormations = this.segment.formations && this.segment.formations.length > 0 ? this.segment.formations : [[]];
-                console.log('Loading formations:', backendFormations);
+                this.teamRoster = res.team.members || [];
                 
-                this.formations = backendFormations.map((formation: any[]) =>
-                  formation.map((p: any) => {
-                    console.log('Loading performer:', p);
-                    if (p.isDummy || p.user === null) {
-                      // Restore dummy performer with a new dummy ID
-                      const dummyId = `dummy-${this.dummyCounter++}`;
-                      return {
-                        id: dummyId,
-                        name: p.dummyName || 'Dummy',
-                        x: p.x,
-                        y: p.y
-                      };
-                    }
-                    // Regular performer
-                    const member = this.roster.find(m => m._id === p.user || m._id === p.user?._id);
-                    return {
-                      id: member?._id || p.user,
-                      name: member?.name || 'Unknown',
-                      x: p.x,
-                      y: p.y
-                    };
-                  })
-                );
-                console.log('Final formations:', this.formations);
-                
-                // If no formations or empty, create one with all roster at center
-                if (this.formations.length === 0 || this.formations[0].length === 0) {
-                  this.formations = [this.roster.map(member => ({
-                    id: member._id,
-                    name: member.name,
-                    x: this.width / 2,
-                    y: this.depth / 2
-                  }))];
-                }
-                // Load animationDurations from backend if present
-                if (Array.isArray(this.segment.animationDurations)) {
-                  this.animationDurations = this.segment.animationDurations;
-                } else {
-                  this.animationDurations = Array(Math.max(0, this.formations.length - 1)).fill(1);
-                }
+                // Initialize with one empty formation
+                this.formations = [[]];
+                this.formationDurations = [5]; // 5 seconds default
+                this.animationDurations = [];
                 this.currentFormationIndex = 0;
+
+                // Update segment roster based on the segment's roster
+                if (this.segment.roster) {
+                  this.segmentRoster = this.teamRoster.filter(member => 
+                    this.segment.roster.includes(member._id)
+                  );
+                } else {
+                  this.segmentRoster = [];
+                }
               },
               error: (err) => {
                 console.error('Failed to load team roster:', err);
@@ -236,10 +240,21 @@ export class CreateSegmentComponent implements OnInit {
     // Clone current formation, no custom path
     const clone = this.performers.map(p => ({ ...p }));
     this.formations.push(clone);
+    this.formationDurations.push(5); // Default to 5 seconds
+    
+    // Add animation duration for the transition from previous formation
     if (this.formations.length > 1) {
-      this.animationDurations.push(1);
+      this.animationDurations.push(1); // Default to 1 second transition
     }
+    
     this.currentFormationIndex = this.formations.length - 1;
+
+    // Force a reflow to ensure the timeline updates
+    setTimeout(() => {
+      if (this.timelineBarRef) {
+        this.timelineBarRef.nativeElement.scrollLeft = this.getTimelinePixelWidth();
+      }
+    }, 0);
   }
 
   // Performer management
@@ -253,13 +268,24 @@ export class CreateSegmentComponent implements OnInit {
       { id: member._id, name: member.name, x: this.width / 2, y: this.depth / 2 }
     ]);
   }
-  addPerformerFromRoster(member: any) {
-    // Only add if not already present in current formation
-    if (!this.performers.some(p => p.id === member._id)) {
-      this.performers = [
-        ...this.performers,
-        { id: member._id, name: member.name, x: this.width / 2, y: this.depth / 2 }
-      ];
+  addPerformerFromRoster(dancer: any) {
+    // Add the dancer to all formations
+    this.formations = this.formations.map(formation => {
+      // Check if dancer is already in this formation
+      if (!formation.some(p => p.id === dancer._id)) {
+        return [...formation, {
+          id: dancer._id,
+          name: dancer.name,
+          x: this.width / 2,
+          y: this.depth / 2
+        }];
+      }
+      return formation;
+    });
+
+    // Update segment roster if not already included
+    if (!this.segmentRoster.some(m => m._id === dancer._id)) {
+      this.segmentRoster = [...this.segmentRoster, dancer];
     }
   }
   addDummyPerformer() {
@@ -455,7 +481,21 @@ export class CreateSegmentComponent implements OnInit {
         return { x: p.x, y: p.y, user: p.id };
       })
     );
-    this.segmentService.updateSegment(this.segment._id, { formations, animationDurations: this.animationDurations }).subscribe({
+
+    // Get unique user IDs from all formations (excluding dummy performers)
+    const roster = Array.from(new Set(
+      formations.flatMap(formation => 
+        formation
+          .filter(p => p.user) // Filter out dummy performers
+          .map(p => p.user)
+      )
+    ));
+
+    this.segmentService.updateSegment(this.segment._id, { 
+      formations, 
+      animationDurations: this.animationDurations,
+      roster // Add the roster to the update
+    }).subscribe({
       next: () => alert('Segment saved!'),
       error: () => alert('Failed to save segment!')
     });
@@ -567,10 +607,313 @@ export class CreateSegmentComponent implements OnInit {
     if (!this.segment?._id) return;
     this.segmentService.getMusicUrl(this.segment._id).subscribe({
       next: ({ url }) => {
-        this.signedMusicUrl = url; // store in a property
+        this.signedMusicUrl = url;
+        this.initWaveform();
       },
       error: () => alert('Failed to get music URL')
     });
+  }
+
+  initWaveform() {
+    if (this.waveSurfer) {
+      this.waveSurfer.destroy();
+    }
+    this.waveSurfer = WaveSurfer.create({
+      container: '#waveform',
+      waveColor: '#3b82f6',
+      progressColor: '#1e40af',
+      height: 80,
+      barWidth: 2,
+      barRadius: 2,
+      cursorColor: '#fff'
+    });
+    this.waveSurfer.load(this.signedMusicUrl!);
+    this.waveSurfer.on('finish', () => {
+      this.isPlaying = false;
+    });
+  }
+
+  togglePlay() {
+    if (this.waveSurfer) {
+      this.waveSurfer.playPause();
+      this.isPlaying = this.waveSurfer.isPlaying();
+      if (this.isPlaying) {
+        this.startFormationPlayback();
+      } else {
+        this.stopFormationPlayback();
+      }
+    }
+  }
+
+  startFormationPlayback() {
+    this.playbackTime = 0;
+    this.stopFormationPlayback();
+    this.playbackTimer = setInterval(() => {
+      if (!this.waveSurfer) return;
+      this.playbackTime = this.waveSurfer.getCurrentTime();
+      let t = 0;
+      let found = false;
+      for (let i = 0; i < this.formations.length; i++) {
+        const hold = this.formationDurations[i] || 4;
+        if (this.playbackTime < t + hold) {
+          this.playingFormationIndex = i;
+          this.inTransition = false;
+          this.animatedPositions = {};
+          found = true;
+          break;
+        }
+        t += hold;
+        if (i < this.animationDurations.length) {
+          const trans = this.animationDurations[i] || 1;
+          if (this.playbackTime < t + trans) {
+            // During transition, animate between i and i+1
+            this.playingFormationIndex = i + 1;
+            this.inTransition = true;
+            const progress = (this.playbackTime - t) / trans;
+            this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+            found = true;
+            break;
+          }
+          t += trans;
+        }
+      }
+      if (!found) {
+        // If past all, show last formation
+        this.playingFormationIndex = this.formations.length - 1;
+        this.inTransition = false;
+        this.animatedPositions = {};
+      }
+    }, 30);
+  }
+
+  interpolateFormations(fromIdx: number, toIdx: number, progress: number) {
+    const from = this.formations[fromIdx] || [];
+    const to = this.formations[toIdx] || [];
+    const pos: { [id: string]: { x: number, y: number } } = {};
+    // Map by performer id
+    const fromMap: { [id: string]: Performer } = {};
+    from.forEach(p => { fromMap[p.id] = p; });
+    const toMap: { [id: string]: Performer } = {};
+    to.forEach(p => { toMap[p.id] = p; });
+    const allIds = Array.from(new Set([...Object.keys(fromMap), ...Object.keys(toMap)]));
+    allIds.forEach(id => {
+      const start = fromMap[id] || toMap[id];
+      const end = toMap[id] || fromMap[id];
+      pos[id] = {
+        x: start.x + (end.x - start.x) * progress,
+        y: start.y + (end.y - start.y) * progress
+      };
+    });
+    return pos;
+  }
+
+  stopFormationPlayback() {
+    if (this.playbackTimer) {
+      clearInterval(this.playbackTimer);
+      this.playbackTimer = null;
+    }
+  }
+
+  ngAfterViewChecked() {
+    if (
+      this.signedMusicUrl &&
+      document.getElementById('waveform') &&
+      this.waveformInitializedForUrl !== this.signedMusicUrl
+    ) {
+      this.initWaveform();
+      this.waveformInitializedForUrl = this.signedMusicUrl;
+    }
+  }
+
+  ngOnDestroy() {
+    this.stopFormationPlayback();
+    if (this.waveSurfer) {
+      this.waveSurfer.destroy();
+    }
+  }
+
+  jumpToFormation(index: number) {
+    this.currentFormationIndex = index;
+    // Calculate the time offset for the start of this formation
+    let t = 0;
+    for (let i = 0; i < index; i++) {
+      t += (this.formationDurations[i] || 4);
+      if (i < this.animationDurations.length) {
+        t += (this.animationDurations[i] || 1);
+      }
+    }
+    if (this.waveSurfer) {
+      this.waveSurfer.seekTo(t / this.waveSurfer.getDuration());
+      this.isPlaying = this.waveSurfer.isPlaying();
+    }
+    this.playingFormationIndex = index;
+  }
+
+  // Returns the total timeline duration (formations + transitions)
+  getTimelineTotalDuration(): number {
+    let total = 0;
+    for (let i = 0; i < this.formations.length; i++) {
+      total += this.formationDurations[i] || 4;
+      if (i < this.animationDurations.length) {
+        total += this.animationDurations[i] || 1;
+      }
+    }
+    return total;
+  }
+
+  getFormationPercent(i: number): number {
+    const total = this.getTimelineTotalDuration();
+    return total ? ((this.formationDurations[i] || 4) / total) * 100 : 0;
+  }
+  getTransitionPercent(i: number): number {
+    const total = this.getTimelineTotalDuration();
+    return total ? ((this.animationDurations[i] || 1) / total) * 100 : 0;
+  }
+  getPlayheadPercent(): number {
+    const total = this.getTimelineTotalDuration();
+    return total ? (this.playbackTime / total) * 100 : 0;
+  }
+
+  // Returns the formation index for a given time in the audio
+  getFormationAtTime(time: number): number {
+    let t = 0;
+    for (let i = 0; i < this.formations.length; i++) {
+      const hold = this.formationDurations[i] || 4;
+      if (time < t + hold) {
+        return i;
+      }
+      t += hold;
+      if (i < this.animationDurations.length) {
+        const trans = this.animationDurations[i] || 1;
+        if (time < t + trans) {
+          // During transition, return the next formation index
+          return i + 1;
+        }
+        t += trans;
+      }
+    }
+    // If past all, return last formation
+    return this.formations.length - 1;
+  }
+
+  onFormationResizeStart(event: MouseEvent, i: number) {
+    console.log('Formation resize start', i);
+    event.stopPropagation();
+    this.resizingFormationIndex = i;
+    this.resizingStartX = event.clientX;
+    this.resizingStartDuration = this.formationDurations[i];
+    window.addEventListener('mousemove', this.onFormationResizeMove);
+    window.addEventListener('mouseup', this.onFormationResizeEnd);
+  }
+
+  onFormationResizeMove = (event: MouseEvent) => {
+    console.log('Formation resize move');
+    if (this.resizingFormationIndex === null) return;
+    const dx = event.clientX - this.resizingStartX;
+    const durationPx = this.waveformWidthPx || 1; // prevent divide by zero
+    const timelineDuration = this.getTimelineTotalDuration() || 1;
+    const startDuration = this.resizingStartDuration || 1;
+    console.log({ dx, durationPx, timelineDuration, startDuration });
+    let newDuration = startDuration + (dx / durationPx) * timelineDuration;
+    newDuration = Math.max(0.2, newDuration); // minimum duration
+    if (isNaN(newDuration)) {
+      console.warn('newDuration is NaN', { startDuration, dx, durationPx, timelineDuration });
+      return;
+    }
+    this.formationDurations[this.resizingFormationIndex] = newDuration;
+    this.formationDurations = [...this.formationDurations]; // force change detection
+    console.log('formationDurations', this.formationDurations);
+  };
+
+  onFormationResizeEnd = () => {
+    console.log('Formation resize end');
+    this.resizingFormationIndex = null;
+    window.removeEventListener('mousemove', this.onFormationResizeMove);
+    window.removeEventListener('mouseup', this.onFormationResizeEnd);
+  };
+
+  getFormationFlex(i: number): number {
+    if (!this.waveSurfer || !this.waveSurfer.getDuration()) return (this.formationDurations[i] || 4);
+    return (this.formationDurations[i] || 4);
+  }
+
+  getTransitionFlex(i: number): number {
+    if (!this.waveSurfer || !this.waveSurfer.getDuration()) return (this.animationDurations[i] || 1);
+    return (this.animationDurations[i] || 1);
+  }
+
+  onTransitionResizeStart(event: MouseEvent, i: number) {
+    event.stopPropagation();
+    this.resizingTransitionIndex = i;
+    this.resizingTransitionStartX = event.clientX;
+    this.resizingTransitionStartDuration = this.animationDurations[i];
+    window.addEventListener('mousemove', this.onTransitionResizeMove);
+    window.addEventListener('mouseup', this.onTransitionResizeEnd);
+  }
+
+  onTransitionResizeMove = (event: MouseEvent) => {
+    if (this.resizingTransitionIndex === null) return;
+    const dx = event.clientX - this.resizingTransitionStartX;
+    const durationPx = this.waveformWidthPx;
+    const total = this.getTimelineTotalDuration();
+    let newDuration = this.resizingTransitionStartDuration + (dx / durationPx) * total;
+    newDuration = Math.max(0.2, newDuration); // minimum duration
+    this.animationDurations[this.resizingTransitionIndex] = newDuration;
+    this.animationDurations = [...this.animationDurations]; // force change detection
+  };
+
+  onTransitionResizeEnd = () => {
+    this.resizingTransitionIndex = null;
+    window.removeEventListener('mousemove', this.onTransitionResizeMove);
+    window.removeEventListener('mouseup', this.onTransitionResizeEnd);
+  };
+
+  getTimelinePixelWidth(): number {
+    // Calculate total width needed for all formations and transitions
+    let totalWidth = 0;
+    for (let i = 0; i < this.formations.length; i++) {
+      totalWidth += this.getFormationPixelWidth(i);
+      if (i < this.animationDurations.length) {
+        totalWidth += this.getTransitionPixelWidth(i);
+      }
+    }
+    return Math.max(totalWidth, this.waveformWidthPx);
+  }
+
+  getFormationPixelWidth(i: number): number {
+    const duration = this.formationDurations[i] || 5;
+    // Each second is 100 pixels wide
+    return Math.max(duration * 100, 110); // Minimum width of 110px
+  }
+
+  getTransitionPixelWidth(i: number): number {
+    const duration = this.animationDurations[i] || 1;
+    // Each second is 100 pixels wide
+    return Math.max(duration * 100, 40); // Minimum width of 40px
+  }
+
+  getPlayheadPixel(): number {
+    return this.playbackTime * this.pixelsPerSecond;
+  }
+
+  selectPerformer(performer: Performer) {
+    this.selectedPerformerId = performer.id;
+  }
+
+  deleteDancer() {
+    if (!this.selectedPerformerId) return;
+
+    // Remove the dancer from all formations
+    this.formations = this.formations.map(formation => 
+      formation.filter(p => p.id !== this.selectedPerformerId)
+    );
+
+    // Remove from segment roster
+    this.segmentRoster = this.segmentRoster.filter(
+      m => m._id !== this.selectedPerformerId
+    );
+
+    this.selectedPerformerId = null;
   }
 }
  

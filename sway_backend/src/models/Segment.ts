@@ -15,6 +15,7 @@ interface Segment extends Document {
   width: number;
   divisions: number;
   animationDurations: number[];
+  formationDurations: number[];
   musicUrl: string;
 }
 
@@ -33,6 +34,7 @@ const SegmentSchema = new Schema<Segment>({
   width: { type: Number, default: 32 },
   divisions: { type: Number, default: 3 },
   animationDurations: [{ type: Number, default: 1 }],
+  formationDurations: [{ type: Number, default: 4 }],
   musicUrl: { type: String }
 });
 

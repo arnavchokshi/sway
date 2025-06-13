@@ -3,7 +3,7 @@
     <!-- List all segments -->
     <ng-container *ngIf="segments.length > 0; else noSegments">
       <div class="segment-card" *ngFor="let segment of segments" (click)="goToSegment(segment._id)">
-        <button class="delete-segment-btn" (click)="deleteSegment(segment._id); $event.stopPropagation()">
+        <button class="delete-segment-btn" *ngIf="isCaptain" (click)="deleteSegment(segment._id); $event.stopPropagation()">
           <span class="material-icons">delete</span>
         </button>
         <div class="card-content">
@@ -16,8 +16,8 @@
       <div class="no-segments">No segments yet. Create your first segment!</div>
     </ng-template>
 
-    <!-- New Segment Card -->
-    <div class="segment-card new-segment" (click)="goToCreateSegment()">
+    <!-- New Segment Card - Only visible to captains -->
+    <div class="segment-card new-segment" *ngIf="isCaptain" (click)="goToCreateSegment()">
       <div class="card-content">
         <i class="fas fa-plus"></i>
         <span>Add New Segment</span>

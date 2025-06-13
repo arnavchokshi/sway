@@ -17,4 +17,4 @@ export class DashboardComponent {
   setView(view: string): void {
     this.currentView = view;
   }
-} 
+}

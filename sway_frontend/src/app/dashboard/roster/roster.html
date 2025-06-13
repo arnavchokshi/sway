@@ -7,5 +7,67 @@
     </div>
   </div>
   <!-- Only captains see this button -->
-  <button *ngIf="isCaptain" (click)="editRoster()">Edit Roster</button>
+  <button *ngIf="isCaptain" (click)="editRoster()" class="edit-roster-btn">Edit Roster</button>
+</div>
+
+<!-- Edit Roster Modal -->
+<div class="edit-modal-backdrop" *ngIf="showEditModal">
+  <div class="edit-modal">
+    <h2>Edit Team Roster</h2>
+    
+    <!-- Add New Member -->
+    <div class="add-member-section">
+      <h3>Add New Member</h3>
+      <form (ngSubmit)="addNewMember()" class="add-member-form">
+        <input 
+          type="text" 
+          [(ngModel)]="newMemberName" 
+          name="newMemberName"
+          placeholder="Enter member name"
+          class="member-input"
+          required
+          [disabled]="isAddingMember"
+        />
+        <button 
+          type="submit" 
+          class="add-member-btn"
+          [disabled]="isAddingMember"
+        >
+          {{ isAddingMember ? 'Adding...' : 'Add Member' }}
+        </button>
+      </form>
+      <div *ngIf="errorMessage" class="error-message">
+        {{ errorMessage }}
+      </div>
+    </div>
+
+    <!-- Current Members -->
+    <div class="current-members-section">
+      <h3>Current Members</h3>
+      <div class="members-list">
+        <div class="member-item" *ngFor="let member of members">
+          <span class="member-name">{{ member.name }}</span>
+          <div class="member-actions">
+            <button 
+              (click)="toggleCaptainStatus(member)" 
+              class="toggle-captain-btn"
+              [class.is-captain]="member.captain"
+            >
+              {{ member.captain ? 'Remove Captain' : 'Make Captain' }}
+            </button>
+            <button 
+              (click)="removeMember(member._id)" 
+              class="remove-member-btn"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button (click)="closeEditModal()" class="close-btn">Close</button>
+    </div>
+  </div>
 </div> 

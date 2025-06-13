@@ -1,12 +1,12 @@
-const express = require('express');
-const cors = require('cors');
-const mongoose = require('mongoose');
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import mongoose from 'mongoose';
 require('dotenv/config');
-const bcrypt = require('bcrypt');
-const { User } = require('./models/User');
-const { Team } = require('./models/Team');
-const { Segment } = require('./models/Segment');
-const AWS = require('aws-sdk');
+import bcrypt from 'bcrypt';
+import { User } from './models/User';
+import { Team } from './models/Team';
+import { Segment } from './models/Segment';
+import AWS from 'aws-sdk';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -89,6 +89,12 @@ app.patch('/api/users/:id', async (req, res) => {
   try {
     const userId = req.params.id;
     const update = req.body;
+    
+    // If password is being updated, hash it
+    if (update.password) {
+      update.password = await bcrypt.hash(update.password, 10);
+    }
+    
     const user = await User.findByIdAndUpdate(userId, update, { new: true })
       .populate('team', 'name _id'); // Populate the team field
     if (!user) {
@@ -166,18 +172,22 @@ app.post('/api/segments', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
+  console.log('Login attempt:', { email });
   try {
     const user = await User.findOne({ email }).populate('team');
+    console.log('Found user:', user ? 'Yes' : 'No');
     if (!user) return res.status(400).json({ error: 'User not found' });
 
     // If you use bcrypt for password hashing
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log('Password match:', isMatch ? 'Yes' : 'No');
     if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
     // Don't send password back
     const { password: _, ...userData } = user.toObject();
     res.json({ user: userData });
   } catch (err) {
+    console.error('Login error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -275,6 +285,81 @@ app.get('/api/segment/:id/music-url', async (req, res) => {
     res.json({ url });
   } catch (err) {
     res.status(500).json({ error: 'Failed to generate signed URL' });
+  }
+});
+
+app.post('/api/teams/:id/members', async (req: Request, res: Response) => {
+  try {
+    const teamId = req.params.id;
+    const { name } = req.body;
+
+    // Create a new user for this member
+    const user = new User({
+      name,
+      team: teamId,
+      captain: false
+    });
+    await user.save();
+
+    // Add the user to the team's members array
+    const team = await Team.findByIdAndUpdate(
+      teamId,
+      { $addToSet: { members: user._id } },
+      { new: true }
+    ).populate('members');
+
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    res.json({ message: 'Member added successfully', team });
+  } catch (error: unknown) {
+    console.error('Error adding team member:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to add team member' });
+  }
+});
+
+app.get('/api/users/:id', async (req: Request, res: Response) => {
+  try {
+    const user = await User.findById(req.params.id).populate('team');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    // Don't send password back
+    const { password: _, ...userData } = user.toObject();
+    res.json(userData);
+  } catch (error: unknown) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to fetch user' });
+  }
+});
+
+app.patch('/api/teams/:teamId/members/:memberId', async (req: Request, res: Response) => {
+  try {
+    const { teamId, memberId } = req.params;
+    const { captain } = req.body;
+
+    // Update the user's captain status
+    const user = await User.findByIdAndUpdate(
+      memberId,
+      { captain },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get the updated team with populated members
+    const team = await Team.findById(teamId).populate('members');
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    res.json({ message: 'Member role updated', team });
+  } catch (error: unknown) {
+    console.error('Error updating member role:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update member role' });
   }
 });
 

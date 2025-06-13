@@ -28,13 +28,16 @@ export class Login {
       password: this.password
     }).subscribe({
       next: (response: any) => {
+        console.log('Login response:', response);
         // Store user data in AuthService
-        this.authService.setCurrentUser({
+        const userData = {
           _id: response.user._id,
           name: response.user.name,
           team: response.user.team,
           captain: response.user.captain
-        });
+        };
+        console.log('Setting user data:', userData);
+        this.authService.setCurrentUser(userData);
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {
