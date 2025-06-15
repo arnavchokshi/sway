@@ -11,8 +11,8 @@ export class SegmentService {
 
   constructor(private http: HttpClient) {}
 
-  createSegment(teamId: string, name: string, depth: number, width: number, divisions: number): Observable<any> {
-    return this.http.post(this.apiUrl, { teamId, name, depth, width, divisions });
+  createSegment(teamId: string, name: string, depth: number, width: number, divisions: number, stylesInSegment: any[]): Observable<any> {
+    return this.http.post(this.apiUrl, { teamId, name, depth, width, divisions, stylesInSegment });
   }
 
   getSegmentsForTeam(teamId: string) {

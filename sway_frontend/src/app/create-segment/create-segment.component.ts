@@ -120,6 +120,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   hoveredTimelineTime: number | null = null;
   hoveredTimelineX: number | null = null;
 
+  isMobile = false;
+
+  unifiedFormationInterval: any = null;
+
   constructor(
     private teamService: TeamService,
     private authService: AuthService,
@@ -144,6 +148,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   }
 
   ngOnInit() {
+    // Detect iPhone or small mobile
+    this.isMobile = /iPhone|iPod|Android.*Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 500;
     const segmentId = this.route.snapshot.queryParamMap.get('id') || this.route.snapshot.paramMap.get('id');
     const currentUser = this.authService.getCurrentUser();
     this.isCaptain = currentUser?.captain || false;
@@ -225,7 +231,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   }
 
   calculateStage() {
-    this.pixelsPerFoot = 20;
+    this.pixelsPerFoot = this.isMobile ? 7 : 20;
     this.stageWidthPx = this.width * this.pixelsPerFoot;
     this.stageHeightPx = this.depth * this.pixelsPerFoot;
     // Main lines
@@ -264,15 +270,41 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     this.subHorizontals = this.subHorizontals.sort((a, b) => a - b);
   }
 
-  // Formation navigation
+  // Helper to go to a specific formation index and update all relevant state
+  goToFormation(index: number) {
+    this.currentFormationIndex = index;
+    this.playingFormationIndex = index;
+    
+    // Simply add up all formation and transition times before this index
+    let t = 0;
+    for (let i = 0; i < index; i++) {
+      t += (this.formationDurations[i] || 4);
+      if (i < this.animationDurations.length) {
+        t += (this.animationDurations[i] || 1);
+      }
+    }
+    
+    this.playbackTime = t;
+    if (this.waveSurfer && this.waveSurfer.getDuration()) {
+      this.waveSurfer.seekTo(t / this.waveSurfer.getDuration());
+      this.isPlaying = this.waveSurfer.isPlaying();
+    }
+  }
+
   prevFormation() {
-    if (this.currentFormationIndex > 0) this.currentFormationIndex--;
+    if (this.currentFormationIndex > 0) {
+      this.goToFormation(this.currentFormationIndex - 1);
+    }
   }
 
   onNextFormationClick() {
-    if (!this.isAnimating && this.currentFormationIndex < this.formations.length - 1) {
-      this.animateToNextFormation();
+    if (this.currentFormationIndex < this.formations.length - 1) {
+      this.goToFormation(this.currentFormationIndex + 1);
     }
+  }
+
+  jumpToFormation(index: number) {
+    this.goToFormation(index);
   }
 
   addFormation() {
@@ -802,26 +834,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     if (this.waveSurfer) {
       this.waveSurfer.destroy();
     }
+    if (this.unifiedFormationInterval) {
+      clearInterval(this.unifiedFormationInterval);
+    }
   }
 
-  jumpToFormation(index: number) {
-    this.currentFormationIndex = index;
-    // Calculate the time offset for the start of this formation
-    let t = 0;
-    for (let i = 0; i < index; i++) {
-      t += (this.formationDurations[i] || 4);
-      if (i < this.animationDurations.length) {
-        t += (this.animationDurations[i] || 1);
-      }
-    }
-    if (this.waveSurfer) {
-      this.waveSurfer.seekTo(t / this.waveSurfer.getDuration());
-      this.isPlaying = this.waveSurfer.isPlaying();
-    }
-    this.playingFormationIndex = index;
-  }
-
-  // Returns the total timeline duration (formations + transitions)
   getTimelineTotalDuration(): number {
     let total = 0;
     for (let i = 0; i < this.formations.length; i++) {
@@ -830,7 +847,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
         total += this.animationDurations[i] || 1;
       }
     }
-    return total;
+    return Math.max(total, 1); // Ensure we never return 0 to avoid division by zero
   }
 
   getFormationPercent(i: number): number {
@@ -850,7 +867,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     return total ? (this.playbackTime / total) * 100 : 0;
   }
 
-  // Returns the formation index for a given time in the audio
   getFormationAtTime(time: number): number {
     let t = 0;
     for (let i = 0; i < this.formations.length; i++) {
@@ -1156,6 +1172,38 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       return percent * (this.waveformWidthPx || 1);
     }
     return this.getPlayheadPixel();
+  }
+
+  toggleUnifiedPlay() {
+    if (this.signedMusicUrl && this.waveSurfer) {
+      // If audio is present, use audio controls
+      this.togglePlay();
+      return;
+    }
+    // No audio: animate through formations
+    if (!this.isPlaying) {
+      this.isPlaying = true;
+      this.unifiedFormationInterval = setInterval(() => {
+        if (this.currentFormationIndex < this.formations.length - 1) {
+          this.currentFormationIndex++;
+          // Set playbackTime to the start time of the current formation
+          let t = 0;
+          for (let i = 0; i < this.currentFormationIndex; i++) {
+            t += this.formationDurations[i] || 4;
+            if (i < this.animationDurations.length) {
+              t += this.animationDurations[i] || 1;
+            }
+          }
+          this.playbackTime = t;
+        } else {
+          this.isPlaying = false;
+          clearInterval(this.unifiedFormationInterval);
+        }
+      }, 1200); // 1.2s per formation (adjust as needed)
+    } else {
+      this.isPlaying = false;
+      clearInterval(this.unifiedFormationInterval);
+    }
   }
 }
  

@@ -2,6 +2,11 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
+export interface Style {
+  name: string;
+  color: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -24,5 +29,18 @@ export class TeamService {
 
   removeTeamMember(teamId: string, memberId: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/teams/${teamId}/members/${memberId}`);
+  }
+
+  // Style management methods
+  addStyle(teamId: string, style: Style): Observable<any> {
+    return this.http.post(`${this.apiUrl}/teams/${teamId}/styles`, style);
+  }
+
+  updateStyle(teamId: string, styleIndex: number, style: Style): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/teams/${teamId}/styles/${styleIndex}`, style);
+  }
+
+  deleteStyle(teamId: string, styleIndex: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/teams/${teamId}/styles/${styleIndex}`);
   }
 } 

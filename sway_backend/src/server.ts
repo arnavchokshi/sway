@@ -101,7 +101,7 @@ app.patch('/api/users/:id', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     res.json({ message: 'User updated', user });
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error updating user:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update user' });
   }
@@ -142,13 +142,15 @@ app.get('/api/team-by-join-code/:joinCode', async (req, res) => {
 
 app.post('/api/segments', async (req, res) => {
   try {
-    const { teamId, name, depth, width, divisions, animationDurations } = req.body;
+    const { teamId, name, depth, width, divisions, animationDurations, stylesInSegment } = req.body;
     // Find the team to verify it exists
     const team = await Team.findById(teamId);
     if (!team) {
       return res.status(404).json({ error: 'Team not found' });
     }
-
+    // Only allow styles that exist in the team's styles array
+    const validStyleNames = (team.styles || []).map(s => s.name);
+    const filteredStyles = (Array.isArray(stylesInSegment) ? stylesInSegment : []).filter(s => validStyleNames.includes(s));
     // Create the segment with provided name and grid settings
     const segment = new Segment({
       name,
@@ -159,12 +161,12 @@ app.post('/api/segments', async (req, res) => {
       width,
       divisions,
       animationDurations: Array.isArray(animationDurations) ? animationDurations : [1],
-      musicUrl: ''
+      musicUrl: '',
+      stylesInSegment: filteredStyles
     });
-
     await segment.save();
     res.status(201).json({ message: 'Segment created', segment });
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error creating segment:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create segment' });
   }
@@ -224,15 +226,26 @@ app.get('/api/segment/:id', async (req, res) => {
 
 app.patch('/api/segment/:id', async (req, res) => {
   try {
+    const update = req.body;
+    // Only allow stylesInSegment to be updated if provided
+    if (update.stylesInSegment) {
+      const segment = await Segment.findById(req.params.id);
+      if (!segment) return res.status(404).json({ error: 'Segment not found' });
+      const team = await Team.findById(segment.team);
+      if (!team) return res.status(404).json({ error: 'Team not found' });
+      const validStyleNames = (team.styles || []).map(s => s.name);
+      update.stylesInSegment = (Array.isArray(update.stylesInSegment) ? update.stylesInSegment : []).filter(s => validStyleNames.includes(s));
+    }
     const segment = await Segment.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      update,
       { new: true }
     );
     if (!segment) return res.status(404).json({ error: 'Segment not found' });
     res.json({ message: 'Segment updated', segment });
-  } catch (error) {
-    res.status(500).json({ error: error.message || 'Failed to update segment' });
+  } catch (error: any) {
+    console.error('Error updating segment:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update segment' });
   }
 });
 
@@ -313,7 +326,7 @@ app.post('/api/teams/:id/members', async (req: Request, res: Response) => {
     }
 
     res.json({ message: 'Member added successfully', team });
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error adding team member:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to add team member' });
   }
@@ -328,7 +341,7 @@ app.get('/api/users/:id', async (req: Request, res: Response) => {
     // Don't send password back
     const { password: _, ...userData } = user.toObject();
     res.json(userData);
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error fetching user:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to fetch user' });
   }
@@ -357,9 +370,79 @@ app.patch('/api/teams/:teamId/members/:memberId', async (req: Request, res: Resp
     }
 
     res.json({ message: 'Member role updated', team });
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error updating member role:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update member role' });
+  }
+});
+
+// Add style to team
+app.post('/api/teams/:id/styles', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, color } = req.body;
+
+    const team = await Team.findByIdAndUpdate(
+      id,
+      { $push: { styles: { name, color } } },
+      { new: true }
+    ).populate('members');
+
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    res.json({ message: 'Style added successfully', team });
+  } catch (error: any) {
+    console.error('Error adding style:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to add style' });
+  }
+});
+
+// Update style
+app.patch('/api/teams/:teamId/styles/:styleIndex', async (req: Request, res: Response) => {
+  try {
+    const { teamId, styleIndex } = req.params;
+    const { name, color } = req.body;
+
+    const team = await Team.findById(teamId);
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    if (!team.styles[styleIndex]) {
+      return res.status(404).json({ error: 'Style not found' });
+    }
+
+    team.styles[styleIndex] = { name, color };
+    await team.save();
+
+    const updatedTeam = await Team.findById(teamId).populate('members');
+    res.json({ message: 'Style updated successfully', team: updatedTeam });
+  } catch (error: any) {
+    console.error('Error updating style:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update style' });
+  }
+});
+
+// Delete style
+app.delete('/api/teams/:teamId/styles/:styleIndex', async (req: Request, res: Response) => {
+  try {
+    const { teamId, styleIndex } = req.params;
+
+    const team = await Team.findById(teamId);
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    team.styles.splice(parseInt(styleIndex), 1);
+    await team.save();
+
+    const updatedTeam = await Team.findById(teamId).populate('members');
+    res.json({ message: 'Style deleted successfully', team: updatedTeam });
+  } catch (error: any) {
+    console.error('Error deleting style:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete style' });
   }
 });
 

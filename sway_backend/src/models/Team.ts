@@ -1,5 +1,11 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
+// Interface for Style
+interface IStyle {
+  name: string;
+  color: string;
+}
+
 // Interface for Team document
 export interface ITeam extends Document {
   name: string;
@@ -7,6 +13,7 @@ export interface ITeam extends Document {
   members: mongoose.Types.ObjectId[]; // Array of User IDs
   owner: mongoose.Types.ObjectId; // User ID of the team owner
   joinCode: string;
+  styles: IStyle[]; // Array of styles with colors
 }
 
 // Team Schema
@@ -36,6 +43,18 @@ const TeamSchema = new Schema<ITeam>(
       required: true,
       unique: true,
     },
+    styles: [{
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+      color: {
+        type: String,
+        required: true,
+        trim: true,
+      }
+    }],
   },
 );
 

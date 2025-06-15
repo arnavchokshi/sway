@@ -4,6 +4,7 @@ import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SegmentService } from '../../services/segment.service';
 import { AuthService } from '../../services/auth.service';
+import { TeamService } from '../../services/team.service';
 
 @Component({
   selector: 'app-formations',
@@ -21,12 +22,14 @@ export class FormationsComponent implements OnInit {
   newSegmentName = '';
   newSegmentDepth = 24;
   newSegmentWidth = 32;
-  newSegmentDivisions = 3;
+  newSegmentStyles: string[] = [];
+  teamStyles: any[] = [];
 
   constructor(
     private segmentService: SegmentService,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private teamService: TeamService
   ) {}
 
   ngOnInit() {
@@ -71,7 +74,18 @@ export class FormationsComponent implements OnInit {
     this.newSegmentName = '';
     this.newSegmentDepth = 24;
     this.newSegmentWidth = 32;
-    this.newSegmentDivisions = 3;
+    this.newSegmentStyles = [];
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser?.team?._id) {
+      this.teamService.getTeamById(currentUser.team._id).subscribe({
+        next: (res) => {
+          this.teamStyles = res.team.styles || [];
+        },
+        error: (err) => {
+          this.teamStyles = [];
+        }
+      });
+    }
   }
 
   closeSegmentModal() {
@@ -86,7 +100,8 @@ export class FormationsComponent implements OnInit {
         this.newSegmentName,
         this.newSegmentDepth,
         this.newSegmentWidth,
-        this.newSegmentDivisions
+        0, // divisions removed
+        this.newSegmentStyles
       ).subscribe({
           next: (response) => {
           this.loadSegments();
@@ -116,5 +131,19 @@ export class FormationsComponent implements OnInit {
       next: () => this.loadSegments(),
       error: (err) => alert('Failed to delete segment!')
     });
+  }
+
+  isStyleSelected(style: any): boolean {
+    return this.newSegmentStyles.includes(style.name);
+  }
+
+  toggleStyle(style: any, checked: boolean): void {
+    if (checked) {
+      if (!this.newSegmentStyles.includes(style.name)) {
+        this.newSegmentStyles.push(style.name);
+      }
+    } else {
+      this.newSegmentStyles = this.newSegmentStyles.filter(s => s !== style.name);
+    }
   }
 } 

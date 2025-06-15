@@ -1,73 +1,101 @@
-<div class="roster-page-container">
-  <h2>Team Roster</h2>
-  <div class="roster-list">
-    <div class="roster-member" *ngFor="let member of members">
-      <span class="member-name">{{ member.name }}</span>
-      <span class="member-role">{{ member.role }}</span>
-    </div>
-  </div>
-  <!-- Only captains see this button -->
-  <button *ngIf="isCaptain" (click)="editRoster()" class="edit-roster-btn">Edit Roster</button>
-</div>
-
-<!-- Edit Roster Modal -->
-<div class="edit-modal-backdrop" *ngIf="showEditModal">
-  <div class="edit-modal">
-    <h2>Edit Team Roster</h2>
-    
-    <!-- Add New Member -->
-    <div class="add-member-section">
-      <h3>Add New Member</h3>
-      <form (ngSubmit)="addNewMember()" class="add-member-form">
-        <input 
-          type="text" 
-          [(ngModel)]="newMemberName" 
-          name="newMemberName"
-          placeholder="Enter member name"
-          class="member-input"
-          required
-          [disabled]="isAddingMember"
-        />
-        <button 
-          type="submit" 
-          class="add-member-btn"
-          [disabled]="isAddingMember"
-        >
-          {{ isAddingMember ? 'Adding...' : 'Add Member' }}
-        </button>
-      </form>
-      <div *ngIf="errorMessage" class="error-message">
-        {{ errorMessage }}
-      </div>
-    </div>
-
-    <!-- Current Members -->
-    <div class="current-members-section">
-      <h3>Current Members</h3>
-      <div class="members-list">
-        <div class="member-item" *ngFor="let member of members">
-          <span class="member-name">{{ member.name }}</span>
-          <div class="member-actions">
-            <button 
-              (click)="toggleCaptainStatus(member)" 
-              class="toggle-captain-btn"
-              [class.is-captain]="member.captain"
-            >
-              {{ member.captain ? 'Remove Captain' : 'Make Captain' }}
-            </button>
-            <button 
-              (click)="removeMember(member._id)" 
-              class="remove-member-btn"
-            >
-              Remove
-            </button>
-          </div>
+<div class="roster-container popup-gap">
+  <button class="close-btn-absolute" (click)="closeAndSave()" aria-label="Close">&times;</button>
+  <!-- Styles Section -->
+  <div class="styles-section prominent">
+    <h2 class="section-title prominent">Styles</h2>
+    <div class="section-subheader">Add styles to connect segments and dancers. Use each dancer's skill level in these styles to visualize their strengths on stage and help design formations.</div>
+    <div class="styles-list compact">
+      <div *ngFor="let style of styles; let i = index" class="style-item compact">
+        <div class="style-color" [style.background-color]="style.color"></div>
+        <span>{{ style.name }}</span>
+        <div class="style-actions">
+          <button (click)="startEditStyle(i)">Edit</button>
+          <button (click)="deleteStyle(i)">Delete</button>
         </div>
       </div>
     </div>
 
-    <div class="modal-actions">
-      <button (click)="closeEditModal()" class="close-btn">Close</button>
+    <!-- Add/Edit Style Form -->
+    <div class="style-form compact">
+      <input 
+        type="text" 
+        [(ngModel)]="newStyle.name" 
+        placeholder="Style name"
+        [disabled]="editingStyleIndex !== null">
+      <input 
+        type="color" 
+        [(ngModel)]="newStyle.color">
+      <button 
+        *ngIf="editingStyleIndex === null" 
+        (click)="addStyle()"
+        [disabled]="!newStyle.name">
+        Add Style
+      </button>
+      <div *ngIf="editingStyleIndex !== null" class="edit-actions">
+        <button (click)="updateStyle()">Save</button>
+        <button (click)="cancelStyleEdit()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Roster Table -->
+  <div class="edit-roster-section prominent">
+    <h2 class="section-title prominent">Edit Roster</h2>
+    <div class="section-subheader">Add a new member, they'll see their name and fill out their info for you. (excpet skill level ofc)</div>
+    <div class="roster-table-wrapper">
+      <table class="roster-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Skill Level</th>
+            <th>Height</th>
+            <th>Captain</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let member of members; let i = index">
+            <td>
+              <input type="text" [(ngModel)]="member.name" (blur)="updateMemberField(member, 'name', member.name)" />
+            </td>
+            <td>
+              <div class="skill-level-vertical-align" [style.gridTemplateRows]="'repeat(' + styles.length + ', 1fr)'">
+                <ng-container *ngFor="let style of styles; let s = index">
+                  <div class="slider-inline-row skill-row-{{s}}">
+                    <input type="range" min="1" max="5" [(ngModel)]="member.skillLevels[style.name]" (change)="updateMemberSkill(member, style.name, member.skillLevels[style.name])" [ngStyle]="{'accent-color': style.color}" />
+                    <span class="slider-value">{{ (member.skillLevels[style.name] || 1) + '/5' }}</span>
+                  </div>
+                </ng-container>
+              </div>
+            </td>
+            <td>
+              <div class="height-inputs">
+                <input type="number" min="0" max="8" [(ngModel)]="member.feet" (change)="updateMemberHeight(member, 'feet', member.feet ?? 0)" placeholder="ft" class="height-feet" />
+                <span class="height-sep">'</span>
+                <input type="number" min="0" max="11" [(ngModel)]="member.inches" (change)="updateMemberHeight(member, 'inches', member.inches ?? 0)" placeholder="in" class="height-inches" />
+                <span class="height-sep">&quot;</span>
+              </div>
+            </td>
+            <td>
+              <label class="switch">
+                <input type="checkbox" [(ngModel)]="member.captain" (change)="toggleCaptainStatus(member)" />
+                <span class="slider round"></span>
+              </label>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- Add Member Form at bottom -->
+    <div class="add-member-form add-bottom">
+      <input 
+        type="text" 
+        [(ngModel)]="newMemberName" 
+        placeholder="New member name">
+      <button 
+        (click)="addNewMember()" 
+        [disabled]="!newMemberName">
+        Add Member
+      </button>
     </div>
   </div>
 </div> 

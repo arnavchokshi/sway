@@ -4,57 +4,92 @@
 
 .segments-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 2fr));
   gap: 20px;
   padding: 20px 0;
 }
 
 .segment-card {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  background: rgba(102, 98, 98, 0.32);
+  border-radius: 18px;
+  box-shadow: 0 4px 16px 0 rgba(31, 38, 135, 0.13);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1.5px solid rgba(255,255,255,0.25);
   transition: all 0.2s ease;
   cursor: pointer;
   position: relative;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-}
-
-.new-segment {
-  border: 2px dashed #ccc;
-  height: 200px;
+  min-height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fafafa;
+  overflow: hidden;
 
+  &:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 8px 24px rgba(99,102,241,0.13);
+    border-color: #6366f1;
+  }
+}
+
+.segment-grid-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(0deg, rgba(255,255,255,0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.18) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 1;
+}
+
+.segment-name {
+  position: relative;
+  z-index: 1;
+  font-size: 3.35rem;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, #6366f1 0%, #27819df7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.08);
+}
+
+.new-segment {
+  border: 2px dashed #a69333;
+  background: rgba(255,255,255,0.13);
+  border-radius: 18px;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   .card-content {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    color: #666;
-
+    color: #a69333;
     i {
       font-size: 24px;
-      color: #007bff;
+      color: #a69333;
     }
-
     span {
       font-size: 16px;
-      font-weight: 500;
+      font-weight: 600;
     }
   }
-
   &:hover {
-    border-color: #007bff;
-    background: #f8f9ff;
-
+    border-color: #6366f1;
+    background: rgba(99,102,241,0.10);
     .card-content {
-      color: #007bff;
+      color: #6366f1;
     }
   }
 }
@@ -188,4 +223,160 @@
 
 .delete-segment-btn .material-icons {
   font-size: 1.3rem;
+}
+
+.frosted-glass-modal {
+  background: rgba(40, 30, 60, 0.55);
+  border-radius: 18px;
+  box-shadow: 0 8px 32px rgba(59,130,246,0.18);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 2px solid rgba(255,255,255,0.18);
+  color: #fff;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+}
+
+.frosted-glass-modal h2 {
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
+.frosted-glass-modal label {
+  color: #b3b3c6;
+  font-weight: 600;
+  font-size: 1.08rem;
+  margin-bottom: 0.7rem;
+  letter-spacing: 0.01em;
+}
+
+.frosted-glass-modal input[type="text"],
+.frosted-glass-modal input[type="number"] {
+  background: rgba(255,255,255,0.13);
+  color: #fff;
+  border: 1.5px solid #6366f1;
+  border-radius: 10px;
+  font-size: 1.13rem;
+  font-weight: 500;
+  padding: 0.7rem 1rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0.2rem;
+  outline: none;
+  transition: border 0.18s;
+}
+
+.frosted-glass-modal input[type="text"]:focus,
+.frosted-glass-modal input[type="number"]:focus {
+  border-color: #3b82f6;
+}
+
+.styles-section-modal {
+  margin: 1.3rem 0 1.1rem 0;
+  padding: 1rem 1.2rem 1.1rem 1.2rem;
+  background: rgba(60, 50, 90, 0.32);
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.10);
+}
+
+.styles-section-modal > div:first-child {
+  color: #fff;
+  font-size: 1.13rem;
+  font-weight: 700;
+  margin-bottom: 0.7rem;
+  letter-spacing: 0.01em;
+}
+
+.styles-list-modal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 32px;
+  margin-top: 0.2rem;
+  justify-content: flex-start;
+}
+
+.style-checkbox-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  font-size: 1.08em;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 16px 18px 18px 18px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.07);
+  transition: background 0.13s, box-shadow 0.13s, transform 0.13s, border 0.13s;
+  min-width: 100px;
+  border: 2.5px solid transparent;
+  box-shadow: none;
+  user-select: none;
+}
+
+.style-checkbox-modal.selected {
+  background: rgba(99,102,241,0.18);
+  border: 2.5px solid #6366f1;
+  box-shadow: 0 4px 16px rgba(99,102,241,0.13);
+  transform: scale(1.04);
+}
+
+.style-checkbox-modal:hover {
+  background: rgba(99,102,241,0.13);
+  box-shadow: 0 2px 8px rgba(99,102,241,0.10);
+}
+
+.style-checkbox-modal input[type="checkbox"] {
+  display: none;
+}
+
+.style-color-modal {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.13);
+  margin-bottom: 2px;
+}
+
+.style-checkbox-modal span:last-child {
+  color: #b3b3c6;
+  font-size: 1.08em;
+  font-weight: 700;
+  margin-top: 2px;
+  letter-spacing: 0.01em;
+}
+
+.modal-actions button.submit-btn {
+  background: #2563eb;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 10px;
+  font-size: 1.13rem;
+  padding: 0.7rem 2.2rem;
+  margin-right: 0.7rem;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.10);
+  transition: background 0.18s;
+}
+
+.modal-actions button.submit-btn:hover {
+  background: #3b82f6;
+}
+
+.modal-actions button.cancel-btn {
+  background: #fff;
+  color: #444;
+  font-weight: 700;
+  border-radius: 10px;
+  font-size: 1.13rem;
+  padding: 0.7rem 2.2rem;
+  border: 1.5px solid #e5e7eb;
+  transition: background 0.18s, color 0.18s;
+}
+
+.modal-actions button.cancel-btn:hover {
+  background: #e5e7eb;
+  color: #222;
 } 

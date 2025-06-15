@@ -123,6 +123,18 @@
       <!-- Stage border -->
       <div class="stage-border"></div>
     </div>
+    <!-- Play Button (always visible, controls formations and audio if present) -->
+    <div class="unified-play-btn-row">
+      <button class="unified-play-btn" (click)="toggleUnifiedPlay()">
+        <span class="material-icons">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
+      </button>
+      <button class="unified-arrow-btn" (click)="prevFormation()">
+        <span class="material-icons">chevron_left</span>
+      </button>
+      <button class="unified-arrow-btn" (click)="onNextFormationClick()">
+        <span class="material-icons">chevron_right</span>
+      </button>
+    </div>
     <!-- Timeline and waveform stacked together -->
     <div class="timeline-audio-stack">
       <div class="formation-timeline-bar simplified-timeline"

@@ -280,4 +280,605 @@
     width: 100%;
     justify-content: space-between;
   }
+}
+
+.roster-container {
+  padding: 32px 0;
+  max-width: 900px;
+  margin: 0 auto;
+  background: none;
+}
+
+.roster-header {
+  margin-bottom: 32px;
+  h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.03em;
+    margin-bottom: 0;
+  }
+}
+
+.styles-section, .edit-roster-section {
+  background: rgba(245, 247, 250, 0.92);
+  border-radius: 18px;
+  box-shadow: 0 2px 16px 0 rgba(59,130,246,0.07);
+  padding: 1.7rem 2rem 2rem 2rem;
+  margin-bottom: 2.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.styles-section h3, .edit-roster-section h3 {
+  color: #2563eb;
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 1.2rem;
+  letter-spacing: 0.01em;
+}
+
+.styles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.style-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.style-color {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.style-actions button {
+  background: none;
+  border: none;
+  color: #46a6ff;
+  font-size: 1.1rem;
+  margin-left: 4px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: background 0.13s;
+}
+.style-actions button:hover {
+  background: #e0e7ef;
+  color: #2563eb;
+}
+
+.style-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  box-shadow: none;
+  margin-bottom: 0;
+
+  input[type="text"] {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 1rem;
+    background: #fff;
+  }
+
+  input[type="color"] {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 4px;
+    background: #fff;
+  }
+
+  button {
+    padding: 7px 16px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-weight: 500;
+  }
+  button:disabled {
+    background: #93c5fd;
+    cursor: not-allowed;
+  }
+}
+
+.edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.add-member-form {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+
+  input {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 1rem;
+    background: #fff;
+  }
+
+  button {
+    padding: 7px 16px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-weight: 500;
+  }
+  button:disabled {
+    background: #93c5fd;
+    cursor: not-allowed;
+  }
+}
+
+.roster-table-wrapper {
+  overflow-x: auto;
+}
+
+.roster-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 1.2rem;
+  background: none;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.roster-table th, .roster-table td {
+  padding: 0.7rem 0.7rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 1rem;
+}
+
+.roster-table th {
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+  border: none;
+}
+
+.roster-table tr {
+  background: transparent;
+}
+
+.roster-table tbody tr:nth-child(even) {
+  background: #f3f4f6;
+}
+
+.roster-table tbody tr:nth-child(odd) {
+  background: #f8fafc;
+}
+
+.roster-table tr:last-child td {
+  border-bottom: none;
+}
+
+.roster-table input[type="text"],
+.roster-table select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  font-size: 1rem;
+  background: #fff;
+}
+
+.roster-table input[type="range"] {
+  width: 80px;
+  accent-color: #3b82f6;
+  margin-right: 0.5rem;
+}
+
+.roster-table button {
+  margin-right: 0.2rem;
+  padding: 4px 8px;
+  background: none;
+  color: #2563eb;
+  border: none;
+  border-radius: 4px;
+  font-size: 1.15rem;
+  cursor: pointer;
+  transition: background 0.13s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.roster-table button:hover {
+  background: #e0e7ef;
+  color: #1d4ed8;
+}
+
+.skill-level-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.skill-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0;
+}
+
+.skill-style-label {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 60px;
+  font-size: 0.97rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+.style-color-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid #e5e7eb;
+  margin-right: 2px;
+}
+
+@media (max-width: 700px) {
+  .roster-container {
+    padding: 12px 0;
+  }
+  .styles-section, .edit-roster-section {
+    padding: 1rem 0.5rem 1.2rem 0.5rem;
+  }
+  .roster-table th, .roster-table td {
+    padding: 0.4rem 0.3rem;
+    font-size: 0.95rem;
+  }
+}
+
+.styles-section.no-bg, .edit-roster-section.no-bg {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.styles-list.compact {
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.style-item.compact {
+  padding: 4px 6px;
+  font-size: 0.97rem;
+  background: none;
+  border-radius: 4px;
+}
+
+.style-form.compact {
+  padding: 4px 6px;
+  gap: 6px;
+  font-size: 0.97rem;
+  background: none;
+  border-radius: 4px;
+}
+
+/**** Apple-style toggle switch for captain status ****/
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 22px;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+input:checked + .slider {
+  background-color: #3b82f6;
+}
+input:checked + .slider:before {
+  transform: translateX(16px);
+}
+.slider.round {
+  border-radius: 22px;
+}
+
+/**** Skill slider alignment ****/
+.skill-level-stack.align-left {
+  align-items: flex-start;
+}
+.skill-slider-row.align-left {
+  justify-content: flex-start;
+}
+
+/**** Add member at bottom spacing ****/
+.add-member-form.add-bottom {
+  margin-top: 1.5rem;
+}
+
+.height-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.height-feet, .height-inches {
+  width: 2.5em;
+  padding: 6px 6px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  background: #f8fafc;
+  color: #222;
+  text-align: right;
+  transition: border 0.15s, box-shadow 0.15s;
+}
+.height-feet:focus, .height-inches:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px #3b82f633;
+  outline: none;
+}
+.height-sep {
+  color: #64748b;
+  font-size: 1.1em;
+  margin: 0 2px;
+}
+
+/**** Modernize all inputs, selects, sliders ****/
+.roster-table input[type="text"],
+.roster-table input[type="number"],
+.roster-table select {
+  background: #f8fafc;
+  border: 1.5px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  color: #222;
+  padding: 6px 8px;
+  transition: border 0.15s, box-shadow 0.15s;
+}
+.roster-table input[type="text"]:focus,
+.roster-table input[type="number"]:focus,
+.roster-table select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px #3b82f633;
+  outline: none;
+}
+
+.roster-table input[type="range"] {
+  width: 80px;
+  accent-color: #3b82f6;
+  margin-right: 0.5rem;
+  background: transparent;
+}
+
+/**** Compact and modern style for style section ****/
+.styles-list.compact .style-item.compact {
+  font-size: 0.95rem;
+  gap: 6px;
+  padding: 2px 2px;
+}
+.styles-list.compact {
+  gap: 2px;
+}
+.style-form.compact {
+  gap: 4px;
+  padding: 2px 2px;
+}
+
+.popup-gap {
+  margin-top: 48px;
+  margin-bottom: 48px;
+}
+
+.section-title.prominent {
+  margin-top: -3rem;
+  margin-bottom: 1.1rem;
+  padding: 0 0 0.2rem 0;
+  font-size: 2rem;
+  font-weight: 800;
+  border-radius: 12px;
+  letter-spacing: 0.01em;
+  text-align: left;
+}
+
+.styles-section.prominent {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+  margin-bottom: 2.2rem;
+  padding-top: 0;
+}
+
+.edit-roster-section.prominent {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0;
+}
+
+.styles-section.prominent .section-title {
+  color: #ffffff;
+}
+
+.edit-roster-section.prominent .section-title {
+  color: #f5f5f5;
+}
+
+/* Remove gender column styles if any */
+.roster-table th:nth-child(4),
+.roster-table td:nth-child(4) {
+  /* This was gender, now captain, so nothing to remove */
+}
+
+@media (max-width: 700px) {
+  .popup-gap {
+    margin-top: 16px;
+    margin-bottom: 16px;
+  }
+  .styles-section.prominent, .edit-roster-section.prominent {
+    padding: 1rem 0.5rem 1rem 0.5rem;
+  }
+  .section-title.prominent {
+    font-size: 1.2rem;
+    padding: 0.3rem 0;
+  }
+}
+
+.skill-level-vertical-align {
+  display: grid;
+  grid-auto-flow: row;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.slider-inline-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.slider-value {
+  min-width: 1.8em;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.95em;
+  color: #5559e1;
+  border-radius: 6px;
+  padding: 1px 6px;
+  margin-left: 0.2rem;
+  box-shadow: 0 1px 4px rgba(59,130,246,0.08);
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  display: inline-block;
+}
+
+.roster-table input[type="range"] {
+  width: 80px;
+  accent-color: inherit;
+  margin-right: 0;
+  background: transparent;
+}
+
+/* Remove unused skill-level-stack and skill-slider-row if not used */
+.skill-level-stack, .skill-slider-row { display: none !important; }
+
+.section-subheader {
+  display: inline-block;
+  font-size: 1.08rem;
+  color: #ffffff;
+  background: linear-gradient(90deg, #c1a22655 20%, #355ecf61 100%);
+  border-radius: 2em;
+  padding: 0.55em 1.5em;
+  font-weight: 500;
+  margin-bottom: 1.3rem;
+  margin-top: 0.2rem;
+  box-shadow: 0 2px 12px 0 rgba(59,130,246,0.07);
+  letter-spacing: 0.01em;
+  border: 1.5px solid #e3e8ff;
+}
+
+.close-btn-absolute {
+  position: absolute;
+  top: -2rem;
+  right: 32px;
+  z-index: 10;
+  background: #fff;
+  color: #2563eb;
+  border: none;
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  box-shadow: 0 2px 12px 0 rgba(59,130,246,0.10);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.close-btn-absolute:hover {
+  background: #2563eb;
+  color: #fff;
+}
+
+.save-btn {
+  display: block;
+  margin-left: auto;
+  margin-top: 2.2rem;
+  background: #2563eb;
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 2em;
+  padding: 0.7em 2.2em;
+  box-shadow: 0 2px 12px 0 rgba(59,130,246,0.10);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.save-btn:hover {
+  background: #1741a6;
+}
+
+.roster-container.popup-gap {
+  position: relative;
+  margin-top: 48px;
+  margin-bottom: 48px;
 } 
