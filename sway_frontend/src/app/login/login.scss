@@ -1,68 +1,78 @@
 .login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background-color: #f5f5f5;
-  padding: 20px;
+  display: unset;
+  justify-content: unset;
+  align-items: unset;
+  min-height: unset;
+  background-color: unset;
+  padding: unset;
 }
 
 .login-box {
-  background: white;
-  padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   width: 100%;
   max-width: 400px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 h1 {
   text-align: center;
-  color: #333;
+  color: #6366f1;
   margin-bottom: 2rem;
   font-size: 1.8rem;
+  font-weight: 700;
 }
 
 .form-group {
   margin-bottom: 1.5rem;
+  width: 100%;
 }
 
 label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #555;
-  font-weight: 500;
+  color: #a69333;
+  font-weight: 600;
 }
 
 input {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ddd;
+  border: 1.5px solid #6366f1;
   border-radius: 6px;
   font-size: 1rem;
   transition: border-color 0.2s;
+  background: rgba(255,255,255,0.92);
+  color: #222;
+  backdrop-filter: blur(2px);
+}
 
-  &:focus {
-    outline: none;
-    border-color: #007bff;
-  }
+input:focus {
+  outline: none;
+  border-color: #a69333;
 }
 
 .login-button {
   width: 100%;
   padding: 0.75rem;
-  background-color: #007bff;
+  background: linear-gradient(90deg, #6366f1 0%, #a69333 100%);
   color: white;
   border: none;
   border-radius: 6px;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background 0.2s;
+  margin-top: 0.5rem;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.08);
+}
 
-  &:hover {
-    background-color: #0056b3;
-  }
+.login-button:hover {
+  background: linear-gradient(90deg, #a69333 0%, #6366f1 100%);
 }
 
 .home-button {
@@ -86,14 +96,20 @@ input {
 // Mobile responsiveness
 @media (max-width: 480px) {
   .login-box {
-    padding: 1.5rem;
+    padding: 0;
   }
-
   h1 {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
+    margin-bottom: 1.2rem;
   }
-
-  input, .login-button, .home-button {
-    padding: 0.875rem;
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  input, .login-button {
+    padding: 0.9rem 0.7rem;
+    font-size: 1rem;
+  }
+  .login-button {
+    margin-top: 0.3rem;
   }
 }

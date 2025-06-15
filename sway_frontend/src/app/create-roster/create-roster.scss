@@ -5,6 +5,7 @@
   background: #fff;
   border-radius: 1rem;
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  padding-top: 3.2rem;
 }
 
 h2 {
@@ -101,6 +102,7 @@ button[type="button"]:hover {
   .roster-container {
     padding: 0.5rem 0.2rem;
     border-radius: 0.7rem;
+    padding-top: 2.2rem;
   }
   .roster-table th, .roster-table td {
     font-size: 0.95rem;
@@ -112,5 +114,48 @@ button[type="button"]:hover {
   .dashboard-cards {
     flex-direction: column;
     gap: 1rem;
+  }
+  .progress-bar-label {
+    font-size: 0.95rem;
+    top: 10px;
+  }
+  .progress-bar {
+    height: 7px;
+  }
+}
+
+.progress-bar-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  z-index: 100;
+  background: transparent;
+  margin-bottom: 0;
+}
+.progress-bar {
+  height: 8px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #6366f1 0%, #a69333 100%);
+  transition: width 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+.progress-bar-label {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  color: #6366f1;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.5px;
+}
+@media (max-width: 600px) {
+  .progress-bar-label {
+    font-size: 0.95rem;
+    top: 10px;
+  }
+  .progress-bar {
+    height: 7px;
   }
 }

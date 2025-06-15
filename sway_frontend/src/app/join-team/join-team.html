@@ -1,18 +1,64 @@
-<div class="join-team-container">
+<div class="join-team-bg">
+  <div class="join-team-container">
     <h2>Join a Team</h2>
-    <input [(ngModel)]="joinCode" name="joinCode" placeholder="Enter team join code" class="join-code-input" />
+    <input [(ngModel)]="joinCode" name="joinCode" placeholder="Enter team join code" class="join-code-input" (keyup.enter)="joinTeam()" />
     <button (click)="joinTeam()" class="join-btn">Join</button>
-  </div>
-  
-  <!-- Roster Popup -->
-  <div class="roster-popup" *ngIf="showRoster">
-    <div class="roster-popup-content">
-      <h3>Team Roster</h3>
-      <ul>
-        <li *ngFor="let member of roster" (click)="goToSignIn(member)" class="roster-member">
-          {{ member.name || member['name'] }}
-        </li>
-      </ul>
-      <button (click)="closeRoster()">Close</button>
+
+    <div *ngIf="showRoster">
+      <div class="roster-list-label">Select your name:</div>
+      <div class="roster-list-scroll">
+        <div *ngFor="let member of sortedRoster" class="roster-list-item">
+          <span>{{ member.name }}</span>
+          <ng-container *ngIf="member.email; else showButton">
+            <span class="has-account-label">has made an account</span>
+          </ng-container>
+          <ng-template #showButton>
+            <button class="this-is-me-btn" (click)="openProfilePopup(member)">This is me</button>
+          </ng-template>
+        </div>
+      </div>
+      <div class="cant-find-info">If you don't see your name, contact your captain.</div>
     </div>
   </div>
+
+  <!-- Profile Completion Popup -->
+  <div class="profile-popup-overlay" *ngIf="showProfilePopup">
+    <div class="profile-popup">
+      <h3>Finish your profile</h3>
+      <form (ngSubmit)="submitProfile()">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" [(ngModel)]="profileForm.name" name="profileName" required />
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" [(ngModel)]="profileForm.email" name="profileEmail" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" [(ngModel)]="profileForm.password" name="profilePassword" required />
+        </div>
+        <div class="form-group">
+          <label>Height</label>
+          <div class="height-fields">
+            <input type="number" min="0" max="8" [(ngModel)]="profileForm.heightFeet" name="profileHeightFeet" placeholder="ft" required />
+            <span class="height-sep">ft</span>
+            <input type="number" min="0" max="11" [(ngModel)]="profileForm.heightInches" name="profileHeightInches" placeholder="in" required />
+            <span class="height-sep">in</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Gender</label>
+          <select [(ngModel)]="profileForm.gender" name="profileGender" required>
+            <option value="">Select gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <button type="submit" class="profile-submit-btn">Submit & Go to Dashboard</button>
+      </form>
+      <button class="profile-cancel-btn" (click)="closeProfilePopup()">Cancel</button>
+    </div>
+  </div>
+</div>

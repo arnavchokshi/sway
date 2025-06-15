@@ -123,3 +123,267 @@
   z-index: 10;
   pointer-events: auto;
 }
+
+.landing-bg {
+  min-height: 100vh;
+  width: 100vw;
+  background: linear-gradient(135deg, #5303a4 0%, #6f5d1d 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  overflow: hidden;
+}
+
+.landing-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem 4rem 0 4rem;
+}
+
+.logo {
+  font-size: 2.5rem;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.nav-links a {
+  color: #fff;
+  text-decoration: none;
+  font-size: 1.1rem;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+.nav-links a:hover {
+  opacity: 1;
+}
+
+.login-btn {
+  background: #222;
+  color: #fff;
+  border: none;
+  border-radius: 2rem;
+  padding: 0.7rem 1.5rem;
+  font-size: 1.1rem;
+  margin-left: 1.5rem;
+  cursor: pointer;
+}
+
+.landing-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+}
+
+.headline {
+  font-size: 3rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  line-height: 1.1;
+}
+
+.highlight {
+  color: #a69333; /* pink/purple */
+}
+
+.subheadline {
+  font-size: 1.3rem;
+  text-align: center;
+  margin-bottom: 2.5rem;
+  color: #cbd5e1;
+}
+.cta-btn-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 400px;
+  min-height: 80px;
+  perspective: 1000px;
+}
+
+.cta-btn {
+  background: linear-gradient(90deg, #6366f1 0%, #d946ef 100%);
+  color: #fff;
+  border: none;
+  border-radius: 2rem;
+  padding: 1rem 2.5rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(100, 0, 200, 0.2);
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 2;
+  width: 280px;
+  height: 56px;
+
+  &.splitting {
+    // Morph into a circle
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    font-size: 0;
+    padding: 0;
+    // Split into two positions
+    transform: translate(-50%, -50%) scale(0.1);
+    opacity: 0;
+  }
+}
+
+.split-btns {
+  display: flex;
+  gap: 2rem;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition-delay: 0.4s; // Start after the button morphs
+  pointer-events: none;
+
+  &.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.split-btn {
+  background: linear-gradient(90deg, #6366f1 0%, #d946ef 100%);
+  color: #fff;
+  border: none;
+  border-radius: 50%; // Start as circles
+  padding: 1rem 2rem;
+  font-size: 0; // Start with no text
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(100, 0, 200, 0.2);
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transform: scale(0);
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:nth-child(1) {
+    background: linear-gradient(90deg, #6366f1 0%, #7c3aed 100%);
+    transition-delay: 0.5s;
+  }
+
+  &:nth-child(2) {
+    background: linear-gradient(90deg, #d946ef 0%, #6366f1 100%);
+    transition-delay: 0.6s;
+  }
+}
+
+.split-btns.active .split-btn {
+  // Expand to full button size
+  transform: scale(1);
+  border-radius: 2rem;
+  font-size: 1.1rem;
+  width: auto;
+  height: auto;
+  padding: 1rem 2rem;
+
+  &:hover {
+    transform: scale(1.05) translateY(-2px);
+    box-shadow: 0 8px 30px rgba(100, 0, 200, 0.4);
+    filter: brightness(1.1);
+  }
+}
+
+// Add a pulsing effect during the morph
+.cta-btn.splitting::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  background: inherit;
+  border-radius: inherit;
+  transform: translate(-50%, -50%);
+  animation: pulse-split 0.8s ease-in-out;
+  z-index: -1;
+}
+
+@keyframes pulse-split {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+  }
+}
+
+.login-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.login-popup-content {
+  background: linear-gradient(135deg, rgba(14, 18, 214, 0.206) 0%, rgba(136, 117, 22, 0.116) 100%);
+  border-radius: 18px;
+  padding: 2.5rem 2rem 2rem 2rem;
+  width: 90%;
+  max-width: 400px;
+  position: relative;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 480px) {
+  .login-popup-content {
+    width: 98vw;
+    max-width: 98vw;
+    min-width: unset;
+    padding: 1.2rem 0.5rem 1rem 0.5rem;
+    border-radius: 10px;
+  }
+}

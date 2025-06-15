@@ -1,6 +1,11 @@
-<div class="create-team-container">
-    <h1>Create a team</h1>
-    <form (ngSubmit)="createUser()">
+<div class="create-user-bg">
+  <div class="create-team-container">
+    <h1 class="captain-heading">Hey Captain</h1>
+    <form (ngSubmit)="createTeamAndUser()">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" [(ngModel)]="name" name="name" placeholder="Enter your name" required />
+      </div>
       <div class="form-group">
         <label>Email</label>
         <input type="email" [(ngModel)]="email" name="email" placeholder="Enter email" required />
@@ -10,10 +15,20 @@
         <input type="password" [(ngModel)]="password" name="password" placeholder="Enter password" required />
       </div>
       <div class="form-group">
-        <label>Name</label>
-        <input type="text" [(ngModel)]="name" name="name" placeholder="Enter your name" />
+        <label>Team Name</label>
+        <input type="text" [(ngModel)]="teamName" name="teamName" placeholder="Enter team name" required />
       </div>
-      <button type="submit" class="create-btn">Create your team</button>
+      <button type="submit" class="create-btn">Create Team</button>
     </form>
   </div>
+
+  <!-- Join Code Popup -->
+  <div class="join-code-popup-overlay" *ngIf="showJoinCodePopup">
+    <div class="join-code-popup">
+      <div class="join-code-title">Your team's join code is</div>
+      <div class="join-code-value">{{ joinCode }}</div>
+      <button class="go-dashboard-btn" (click)="goToDashboard()">Go to Dashboard</button>
+    </div>
+  </div>
+</div>
   

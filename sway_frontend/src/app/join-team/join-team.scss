@@ -1,82 +1,339 @@
+body, .join-team-bg {
+  min-height: 100vh;
+  width: 100vw;
+  background: linear-gradient(135deg, #5303a4 0%, #6f5d1d 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+// Ensure the container is above the background
 .join-team-container {
-    max-width: 400px;
-    margin: 3rem auto;
-    padding: 2rem;
-    background: #fff;
-    border-radius: 1rem;
-    text-align: center;
+  position: relative;
+  z-index: 1;
+  max-width: 500px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 3rem 2.5rem 2.5rem 2.5rem;
+  background: linear-gradient(135deg, rgba(14, 18, 227, 0.124) 0%, rgba(112, 95, 9, 0.102) 100%);
+  border-radius: 22px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+h2 {
+  color: #6366f1;
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+}
+
+label {
+  font-weight: 600;
+  color: #a69333;
+  margin-bottom: 0.5rem;
+}
+
+.join-code-input {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1.5px solid #6366f1;
+  border-radius: 6px;
+  font-size: 1rem;
+  background: rgba(255,255,255,0.92);
+  color: #222;
+  outline: none;
+  transition: border 0.2s;
+  backdrop-filter: blur(2px);
+}
+
+.join-code-input:focus {
+  border: 1.5px solid #a69333;
+  background: #fff;
+}
+
+.join-btn {
+  background: linear-gradient(90deg, #6366f1 0%, #a69333 100%);
+  color: #fff;
+  border: none;
+  padding: 0.75rem 2.5rem;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: background 0.2s;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.08);
+}
+
+.join-btn:hover {
+  background: linear-gradient(90deg, #a69333 0%, #6366f1 100%);
+}
+
+@media (max-width: 600px) {
+  .join-team-container {
+    max-width: 98vw;
+    width: 98vw;
+    padding: 1.2rem 0.5rem 1rem 0.5rem;
+    border-radius: 12px;
   }
-  
-  .join-code-input {
-    width: 80%;
-    padding: 0.7rem;
-    margin-bottom: 1rem;
-    border: 1.5px solid #e5e7eb;
-    border-radius: 0.5rem;
+  h2 {
+    font-size: 1.1rem;
+    margin-bottom: 1.2rem;
+  }
+  .join-code-input, .join-btn {
+    padding: 0.9rem 0.7rem;
     font-size: 1rem;
   }
-  
   .join-btn {
-    background: #1677ff;
-    color: #fff;
-    border: none;
-    padding: 0.7rem 2rem;
-    border-radius: 0.5rem;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
-    margin-top: 1rem;
-    transition: background 0.2s;
+    margin-top: 0.3rem;
   }
-  
-  .join-btn:hover {
-    background: #125fcc;
-  }
-  
-  .roster-popup {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-  
-  .roster-popup-content {
-    background: #fff;
-    padding: 2rem 2.5rem;
-    border-radius: 1rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    text-align: center;
-  }
-  
-  .roster-popup-content h3 {
-    margin-bottom: 1rem;
-  }
-  
-  .roster-popup-content ul {
-    list-style: none;
-    padding: 0;
-    margin-bottom: 1rem;
-  }
-  
-  .roster-popup-content li {
-    margin: 0.5rem 0;
-    font-size: 1.1rem;
-  }
-  
-  .roster-member {
-    cursor: pointer;
-    padding: 0.5rem 1rem;
-    border-radius: 0.4rem;
-    background: #f3f4f6;
-    font-size: 1.1rem;
-    margin-bottom: 0.5rem;
-    transition: background 0.2s;
-  }
-  
-  .roster-member:hover {
-    background: #1677ff;
-    color: #fff;
-  }
+}
+
+.roster-popup {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.roster-popup-content {
+  background: #fff;
+  padding: 2rem 2.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  text-align: center;
+}
+
+.roster-popup-content h3 {
+  margin-bottom: 1rem;
+}
+
+.roster-popup-content ul {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 1rem;
+}
+
+.roster-popup-content li {
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+}
+
+.roster-member {
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  background: #f3f4f6;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  transition: background 0.2s;
+}
+
+.roster-member:hover {
+  background: #1677ff;
+  color: #fff;
+}
+
+.roster-list-label {
+  color: #a69333;
+  font-weight: 700;
+  margin: 2rem 0 0.5rem 0;
+  text-align: left;
+  font-size: 1.1rem;
+}
+
+.roster-list-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+  background: rgba(255,255,255,0.08);
+  border-radius: 10px;
+  margin-bottom: 1.2rem;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.07);
+  padding: 0.5rem 0.2rem;
+}
+
+.roster-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid rgba(99,102,241,0.08);
+  font-size: 1.08rem;
+  color: #fff;
+}
+.roster-list-item:last-child {
+  border-bottom: none;
+}
+
+.this-is-me-btn {
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-left: 1rem;
+  box-shadow: 0 1px 4px rgba(99,102,241,0.08);
+}
+.this-is-me-btn:hover {
+  background: #4f46e5;
+}
+
+.cant-find-link {
+  color: #fff;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-top: 1.2rem;
+  font-size: 1.05rem;
+  text-align: center;
+  transition: color 0.2s;
+}
+.cant-find-link:hover {
+  color: #a69333;
+}
+
+.cant-find-info {
+  color: #fff;
+  font-size: 1.05rem;
+  text-align: center;
+  margin-top: 1.2rem;
+  opacity: 0.85;
+  font-style: italic;
+}
+
+.profile-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.profile-popup {
+  background: linear-gradient(135deg, rgba(99,102,241,0.97) 0%, rgba(166,147,51,0.93) 100%);
+  border-radius: 18px;
+  padding: 2.2rem 1.5rem 1.5rem 1.5rem;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 320px;
+  max-width: 95vw;
+}
+
+.profile-popup h3 {
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin-bottom: 1.2rem;
+}
+
+.profile-popup .form-group {
+  width: 100%;
+  margin-bottom: 1.1rem;
+}
+
+.profile-popup label {
+  color: #fff;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  display: block;
+}
+
+.profile-popup input,
+.profile-popup select {
+  width: 100%;
+  padding: 0.7rem;
+  border: 1.5px solid #6366f1;
+  border-radius: 6px;
+  font-size: 1rem;
+  margin-bottom: 0.2rem;
+  background: rgba(255,255,255,0.92);
+  color: #222;
+  outline: none;
+  transition: border 0.2s;
+  backdrop-filter: blur(2px);
+}
+
+.profile-popup input:focus,
+.profile-popup select:focus {
+  border: 1.5px solid #a69333;
+  background: #fff;
+}
+
+.height-fields {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.height-sep {
+  color: #fff;
+  font-size: 1rem;
+  margin: 0 0.2rem;
+}
+
+.profile-submit-btn {
+  width: 100%;
+  background: linear-gradient(90deg, #6366f1 0%, #a69333 100%);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.8rem 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 0.7rem;
+  transition: background 0.2s;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.08);
+}
+.profile-submit-btn:hover {
+  background: linear-gradient(90deg, #a69333 0%, #6366f1 100%);
+}
+
+.profile-cancel-btn {
+  background: none;
+  color: #fff;
+  border: none;
+  font-size: 1rem;
+  margin-top: 0.7rem;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+.profile-cancel-btn:hover {
+  color: #a69333;
+}
+
+.has-account-label {
+  color: #a69333;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-left: 1rem;
+  opacity: 0.85;
+}

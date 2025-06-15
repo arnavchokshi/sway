@@ -1,8 +1,38 @@
-<div class="home-container">
-  <div class="welcome-card">
-    <h1>Welcome to Sway!</h1>
-    <button class="get-started-btn" (click)="CreateUser()">Create Team</button>
-    <button class="get-started-btn" (click)="JoinTeam()">Join a Team</button>
-    <button class="get-started-btn" (click)="goToLogin()">Log in</button>
+<div class="landing-bg">
+  <nav class="landing-nav">
+    <div class="logo">F</div>
+    <div class="nav-links">
+      <button class="get-started-btn" (click)="goToLogin()">Log in</button>
+    </div>
+  </nav>
+  <div class="landing-center">
+    <div class="headline">
+      The <span class="highlight">collaborative</span> stage<br />management tool
+    </div>
+    <div class="subheadline">
+      Collaborate to track all the moving pieces in your production synced to music.
+    </div>
+    <div class="cta-btn-wrapper" (mouseenter)="onMouseEnter()" (mouseleave)="onMouseLeave()">
+      <button 
+        class="cta-btn"
+        [class.splitting]="showSplit"
+        (transitionend)="onAnimationComplete()">
+        Get started
+      </button>
+      <div 
+        class="split-btns"
+        [class.active]="showSplit"
+        (transitionend)="onAnimationComplete()">
+        <button class="split-btn" (click)="CreateUser()">Create Team</button>
+        <button class="split-btn" (click)="JoinTeam()">Join a Team</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Login Popup -->
+<div class="login-popup-overlay" *ngIf="showLoginPopup" (click)="closeLoginPopup()">
+  <div class="login-popup-content" (click)="$event.stopPropagation()">
+    <app-login (close)="closeLoginPopup()"></app-login>
   </div>
 </div>

@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, EventEmitter, Output } from '@angular/core';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
@@ -15,6 +15,7 @@ import { AuthService } from '../services/auth.service';
 export class Login {
   email: string = '';
   password: string = '';
+  @Output() close = new EventEmitter<void>();
 
   constructor(
     private router: Router,
@@ -38,6 +39,7 @@ export class Login {
         };
         console.log('Setting user data:', userData);
         this.authService.setCurrentUser(userData);
+        this.close.emit();
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {

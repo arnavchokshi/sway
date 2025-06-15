@@ -1,62 +1,205 @@
+.create-user-bg {
+  min-height: 100vh;
+  width: 100vw;
+  background: linear-gradient(135deg, #5303a4 0%, #6f5d1d 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 0;
+}
+
 .create-team-container {
-    max-width: 600px;
-    margin: 3rem auto 0 auto;
-    padding: 2rem 2.5rem;
-    background: #fff;
-    border-radius: 1rem;
+  max-width: 500px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 3rem 2.5rem 2.5rem 2.5rem;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  display: block;
+  position: relative;
+  z-index: 1;
+  padding-top: 3.2rem;
+}
+
+h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+  color: #6366f1;
+  text-align: center;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+}
+
+label {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #a69333;
+}
+
+input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1.5px solid #6366f1;
+  border-radius: 6px;
+  font-size: 1rem;
+  background: rgba(255,255,255,0.92);
+  color: #222;
+  margin-bottom: 0.2rem;
+  outline: none;
+  transition: border 0.2s;
+  backdrop-filter: blur(2px);
+}
+
+input:focus {
+  border: 1.5px solid #a69333;
+  background: #fff;
+}
+
+.create-btn {
+  background: linear-gradient(90deg, #6366f1 0%, #a69333 100%);
+  color: #fff;
+  border: none;
+  padding: 0.75rem 2.5rem;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 1rem;
+  float: right;
+  transition: background 0.2s;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.08);
+}
+
+.create-btn:hover {
+  background: linear-gradient(90deg, #a69333 0%, #6366f1 100%);
+}
+
+@media (max-width: 600px) {
+  .create-team-container {
+    max-width: 98vw;
+    width: 98vw;
+    padding: 2.2rem 0.5rem 1rem 0.5rem;
+    border-radius: 0;
+    padding-top: 2.2rem;
   }
-  
   h1 {
-    font-size: 2rem;
-    font-weight: 700;
-    margin-bottom: 2rem;
+    font-size: 1.2rem;
+    margin-bottom: 1.2rem;
   }
-  
   .form-group {
-    margin-bottom: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+    margin-bottom: 1rem;
   }
-  
-  label {
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-    color: #222;
-  }
-  
-  input {
-    width: 100%;
-    padding: 0.9rem;
-    border: 1.5px solid #e5e7eb;
-    border-radius: 0.5rem;
+  input, .create-btn {
+    padding: 0.9rem 0.7rem;
     font-size: 1rem;
-    background: #f3f4f6;
-    margin-bottom: 0.2rem;
-    outline: none;
-    transition: border 0.2s;
   }
-  
-  input:focus {
-    border: 1.5px solid #1677ff;
-    background: #fff;
-  }
-  
   .create-btn {
-    background: #1677ff;
-    color: #fff;
-    border: none;
-    padding: 0.7rem 2.5rem;
-    border-radius: 0.5rem;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
-    float: right;
-    margin-top: 1rem;
-    transition: background 0.2s;
+    margin-top: 0.3rem;
   }
-  
-  .create-btn:hover {
-    background: #125fcc;
+  .progress-bar-label {
+    font-size: 0.95rem;
+    top: 10px;
   }
+  .progress-bar {
+    top: 20px;
+    height: 7px;
+  }
+}
+
+.captain-heading {
+  font-size: 2.5rem;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 2.5rem;
+  background: linear-gradient(90deg, #6366f1 0%, #a69333 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+  letter-spacing: 1px;
+  filter: brightness(1.2) drop-shadow(0 2px 8px #6366f1aa);
+}
+
+.progress-bar-wrapper, .progress-bar, .progress-bar-label {
+  display: none !important;
+}
+
+.join-code-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.684);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.join-code-popup {
+  background: linear-gradient(135deg, rgba(99,102,241,0.95) 0%, rgba(166,147,51,0.92) 100%);
+  border-radius: 18px;
+  padding: 2.5rem 2rem 2rem 2rem;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.498);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 320px;
+  max-width: 90vw;
+}
+
+.join-code-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 1.2rem;
+  text-align: center;
+}
+
+.join-code-value {
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(90deg, #fff 0%, #a69333 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+  margin-bottom: 2rem;
+  letter-spacing: 2px;
+  text-align: center;
+}
+
+.go-dashboard-btn {
+  background: linear-gradient(90deg, #6366f1 0%, #a69333 100%);
+  color: #fff;
+  border: none;
+  padding: 0.9rem 2.5rem;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.08);
+}
+
+.go-dashboard-btn:hover {
+  background: linear-gradient(90deg, #a69333 0%, #6366f1 100%);
+}
   

@@ -46,12 +46,16 @@ export class FormationsComponent implements OnInit {
           } else {
             // Non-captains can only see segments they're in
             this.segments = res.segments.filter(segment => {
-              // Check if any formation in the segment includes the current user
-              return segment.formations?.some((formation: any[]) => 
-                formation.some((performer: any) => 
+              // Check if user is in the roster OR in any formation
+              const inRoster = segment.roster?.some((id: any) =>
+                id === currentUser._id || id?._id === currentUser._id
+              );
+              const inFormation = segment.formations?.some((formation: any[]) =>
+                formation.some((performer: any) =>
                   performer.user === currentUser._id || performer.user?._id === currentUser._id
                 )
               );
+              return inRoster || inFormation;
             });
           }
         },

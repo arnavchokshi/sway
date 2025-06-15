@@ -34,6 +34,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   @ViewChild('stageRef') stageRef!: ElementRef<HTMLDivElement>;
   @ViewChild('timelineBarRef') timelineBarRef!: ElementRef<HTMLDivElement>;
 
+  isCaptain = false;
+  currentUserId: string = '';
+  spotlightRadius = 80; // pixels
+  spotlightOpacity = 0.35; // 35% opacity for the dark overlay
   roster: any[] = [];
   segment: any = null;
   depth = 24; // feet
@@ -112,6 +116,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   teamRoster: any[] = [];
   segmentRoster: any[] = [];
 
+  hoveredFormationIndex: number | null = null;
+  hoveredTimelineTime: number | null = null;
+  hoveredTimelineX: number | null = null;
+
   constructor(
     private teamService: TeamService,
     private authService: AuthService,
@@ -137,6 +145,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
 
   ngOnInit() {
     const segmentId = this.route.snapshot.queryParamMap.get('id') || this.route.snapshot.paramMap.get('id');
+    const currentUser = this.authService.getCurrentUser();
+    this.isCaptain = currentUser?.captain || false;
+    this.currentUserId = currentUser?._id || '';
+    
     if (segmentId) {
       this.segmentService.getSegmentById(segmentId).subscribe({
         next: (res) => {
@@ -150,19 +162,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
           this.divisions = this.segment.divisions;
           this.calculateStage();
 
-          // Load roster as before
-          const currentUser = this.authService.getCurrentUser();
+          // Load roster first
           if (currentUser?.team?._id) {
             this.teamService.getTeamById(currentUser.team._id).subscribe({
               next: (res) => {
                 this.teamRoster = res.team.members || [];
-                
-                // Initialize with one empty formation
-                this.formations = [[]];
-                this.formationDurations = [5]; // 5 seconds default
-                this.animationDurations = [];
-                this.currentFormationIndex = 0;
-
                 // Update segment roster based on the segment's roster
                 if (this.segment.roster) {
                   this.segmentRoster = this.teamRoster.filter(member => 
@@ -171,6 +175,35 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
                 } else {
                   this.segmentRoster = [];
                 }
+
+                // Now map the formations with user data
+                if (this.segment.formations && this.segment.formations.length > 0) {
+                  this.formations = this.segment.formations.map((formation: any[]) => 
+                    formation.map((p: { isDummy?: boolean; dummyName?: string; x: number; y: number; user?: string }) => {
+                      if (p.isDummy) {
+                        return {
+                          id: `dummy-${this.dummyCounter++}`,
+                          name: p.dummyName,
+                          x: p.x,
+                          y: p.y
+                        };
+                      } else {
+                        const user = this.teamRoster.find(m => m._id === p.user);
+                        return {
+                          id: p.user,
+                          name: user ? user.name : 'Unknown',
+                          x: p.x,
+                          y: p.y
+                        };
+                      }
+                    })
+                  );
+                } else {
+                  this.formations = [[]];
+                }
+                this.formationDurations = this.segment.formationDurations && this.segment.formationDurations.length > 0 ? this.segment.formationDurations : [5];
+                this.animationDurations = this.segment.animationDurations || [];
+                this.currentFormationIndex = 0;
               },
               error: (err) => {
                 console.error('Failed to load team roster:', err);
@@ -182,6 +215,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
           console.error('Failed to load segment:', err);
         }
       });
+    } else {
+      // Only set defaults if creating a new segment
+      this.formations = [[]];
+      this.formationDurations = [5];
+      this.animationDurations = [];
+      this.currentFormationIndex = 0;
     }
   }
 
@@ -290,7 +329,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   }
   addDummyPerformer() {
     const dummyId = `dummy-${this.dummyCounter++}`;
-    const dummyName = `Dummy ${this.dummyCounter - 1}`;
+    const dummyName = `${this.dummyCounter - 1}`;
     // Add dummy performer to all formations
     this.formations = this.formations.map(formation => [
       ...formation,
@@ -414,6 +453,25 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     return prevPerformer ? { x: prevPerformer.x, y: prevPerformer.y } : null;
   }
 
+  getSpotlightStyle() {
+    const currentUserPerformer = this.performers.find(p => p.id === this.currentUserId);
+    if (!currentUserPerformer) return {};
+
+    const x = currentUserPerformer.x * this.pixelsPerFoot;
+    const y = currentUserPerformer.y * this.pixelsPerFoot;
+
+    return {
+      'pointer-events': 'none',
+      'position': 'absolute',
+      'top': '0',
+      'left': '0',
+      'width': this.stageWidthPx + 'px',
+      'height': this.stageHeightPx + 'px',
+      'z-index': 10,
+      'background': `radial-gradient(circle ${this.spotlightRadius}px at ${x}px ${y}px, transparent 0%, transparent 70%, rgba(0,0,0,${this.spotlightOpacity}) 100%)`
+    };
+  }
+
   getPerformerStyle(performer: Performer) {
     const performerSize = 30; // px
     // Use animated positions if animating
@@ -423,11 +481,24 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       x = this.animatedPositions[performer.id].x;
       y = this.animatedPositions[performer.id].y;
     }
-    return {
+
+    const isCurrentUser = performer.id === this.currentUserId;
+    const baseStyle = {
       left: x * this.pixelsPerFoot - performerSize / 2 + 'px',
       top: y * this.pixelsPerFoot - performerSize / 2 + 'px',
       zIndex: this.draggingId === performer.id ? 1000 : 10
     };
+
+    if (isCurrentUser) {
+      return {
+        ...baseStyle,
+        boxShadow: '0 0 15px rgba(255, 255, 255, 0.8)',
+        border: '2px solid white',
+        borderRadius: '50%'
+      };
+    }
+
+    return baseStyle;
   }
 
   getPreviousPositionStyle(performerId: string) {
@@ -493,6 +564,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
 
     this.segmentService.updateSegment(this.segment._id, { 
       formations, 
+      formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
       roster // Add the roster to the update
     }).subscribe({
@@ -762,13 +834,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   }
 
   getFormationPercent(i: number): number {
-    const total = this.getTimelineTotalDuration();
-    return total ? ((this.formationDurations[i] || 4) / total) * 100 : 0;
+    if (!this.waveSurfer || !this.waveSurfer.getDuration()) return 0;
+    const duration = this.formationDurations[i] || 5;
+    return (duration / this.waveSurfer.getDuration()) * 100;
   }
+
   getTransitionPercent(i: number): number {
-    const total = this.getTimelineTotalDuration();
-    return total ? ((this.animationDurations[i] || 1) / total) * 100 : 0;
+    if (!this.waveSurfer || !this.waveSurfer.getDuration()) return 0;
+    const duration = this.animationDurations[i] || 1;
+    return (duration / this.waveSurfer.getDuration()) * 100;
   }
+
   getPlayheadPercent(): number {
     const total = this.getTimelineTotalDuration();
     return total ? (this.playbackTime / total) * 100 : 0;
@@ -914,6 +990,172 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     );
 
     this.selectedPerformerId = null;
+  }
+
+  getFormationStartPercent(i: number): number {
+    if (!this.waveSurfer || !this.waveSurfer.getDuration()) return 0;
+    let total = 0;
+    for (let j = 0; j < i; j++) {
+      total += this.formationDurations[j] || 5;
+      if (j < this.animationDurations.length) {
+        total += this.animationDurations[j] || 1;
+      }
+    }
+    return (total / this.waveSurfer.getDuration()) * 100;
+  }
+
+  getTransitionStartPercent(i: number): number {
+    if (!this.waveSurfer || !this.waveSurfer.getDuration()) return 0;
+    let total = 0;
+    for (let j = 0; j <= i; j++) {
+      total += this.formationDurations[j] || 5;
+      if (j < i) {
+        total += this.animationDurations[j] || 1;
+      }
+    }
+    return (total / this.waveSurfer.getDuration()) * 100;
+  }
+
+  getTimelineBarAtCursor(x: number): { type: 'formation' | 'transition', index: number, startPx: number, widthPx: number } | null {
+    // Find which formation or transition bar the cursor is over
+    let px = 0;
+    for (let i = 0; i < this.formations.length; i++) {
+      const width = this.getFormationPixelWidth(i);
+      if (x >= px && x < px + width) {
+        return { type: 'formation', index: i, startPx: px, widthPx: width };
+      }
+      px += width;
+      if (i < this.animationDurations.length) {
+        const tWidth = this.getTransitionPixelWidth(i);
+        if (x >= px && x < px + tWidth) {
+          return { type: 'transition', index: i, startPx: px, widthPx: tWidth };
+        }
+        px += tWidth;
+      }
+    }
+    return null;
+  }
+
+  getFormationStartAudioTime(i: number): number {
+    // Returns the audio time at which this formation starts
+    if (!this.waveSurfer || !this.waveSurfer.getDuration()) return 0;
+    let timelineTotal = this.getTimelineTotalDuration();
+    let audioDuration = this.waveSurfer.getDuration();
+    let t = 0;
+    for (let j = 0; j < i; j++) {
+      t += this.formationDurations[j] || 4;
+      if (j < this.animationDurations.length) {
+        t += this.animationDurations[j] || 1;
+      }
+    }
+    return (t / timelineTotal) * audioDuration;
+  }
+
+  getFormationAudioDuration(i: number): number {
+    // Returns the audio duration for this formation
+    if (!this.waveSurfer || !this.waveSurfer.getDuration()) return 0;
+    let timelineTotal = this.getTimelineTotalDuration();
+    let audioDuration = this.waveSurfer.getDuration();
+    const duration = this.formationDurations[i] || 4;
+    return (duration / timelineTotal) * audioDuration;
+  }
+
+  // Returns the timeline time (in seconds) at the start of a formation
+  getFormationStartTimelineTime(i: number): number {
+    let t = 0;
+    for (let j = 0; j < i; j++) {
+      t += this.formationDurations[j] || 4;
+      if (j < this.animationDurations.length) {
+        t += this.animationDurations[j] || 1;
+      }
+    }
+    return t;
+  }
+
+  getTransitionStartTimelineTime(i: number): number {
+    // Returns the timeline time at which this transition starts
+    let t = 0;
+    for (let j = 0; j <= i; j++) {
+      t += this.formationDurations[j] || 4;
+      if (j < i) {
+        t += this.animationDurations[j] || 1;
+      }
+    }
+    return t;
+  }
+
+  onTimelineMouseMove(event: MouseEvent) {
+    const bar = this.timelineBarRef?.nativeElement;
+    if (!bar || !this.waveSurfer || !this.waveSurfer.getDuration()) return;
+    const rect = bar.getBoundingClientRect();
+    const x = event.clientX - rect.left + bar.scrollLeft;
+    this.hoveredTimelineX = x;
+    const barInfo = this.getTimelineBarAtCursor(x);
+    if (barInfo) {
+      let timelineTime = 0;
+      if (barInfo.type === 'formation') {
+        const percentInFormation = Math.max(0, Math.min(1, (x - barInfo.startPx) / barInfo.widthPx));
+        const formationStartTimeline = this.getFormationStartTimelineTime(barInfo.index);
+        const formationDurationTimeline = this.formationDurations[barInfo.index] || 4;
+        timelineTime = formationStartTimeline + percentInFormation * formationDurationTimeline;
+      } else if (barInfo.type === 'transition') {
+        const percentInTransition = Math.max(0, Math.min(1, (x - barInfo.startPx) / barInfo.widthPx));
+        const transitionStartTimeline = this.getTransitionStartTimelineTime(barInfo.index);
+        const transitionDurationTimeline = this.animationDurations[barInfo.index] || 1;
+        timelineTime = transitionStartTimeline + percentInTransition * transitionDurationTimeline;
+      }
+      this.hoveredTimelineTime = timelineTime;
+    } else {
+      this.hoveredTimelineTime = null;
+    }
+  }
+
+  onTimelineMouseLeave() {
+    this.hoveredTimelineTime = null;
+    this.hoveredTimelineX = null;
+  }
+
+  onTimelineClick(event: MouseEvent) {
+    const bar = this.timelineBarRef?.nativeElement;
+    if (!bar || !this.waveSurfer || !this.waveSurfer.getDuration()) return;
+    const rect = bar.getBoundingClientRect();
+    const x = event.clientX - rect.left + bar.scrollLeft;
+    const barInfo = this.getTimelineBarAtCursor(x);
+    let timelineTime = null;
+    if (barInfo) {
+      if (barInfo.type === 'formation') {
+        const percentInFormation = Math.max(0, Math.min(1, (x - barInfo.startPx) / barInfo.widthPx));
+        const formationStartTimeline = this.getFormationStartTimelineTime(barInfo.index);
+        const formationDurationTimeline = this.formationDurations[barInfo.index] || 4;
+        timelineTime = formationStartTimeline + percentInFormation * formationDurationTimeline;
+      } else if (barInfo.type === 'transition') {
+        const percentInTransition = Math.max(0, Math.min(1, (x - barInfo.startPx) / barInfo.widthPx));
+        const transitionStartTimeline = this.getTransitionStartTimelineTime(barInfo.index);
+        const transitionDurationTimeline = this.animationDurations[barInfo.index] || 1;
+        timelineTime = transitionStartTimeline + percentInTransition * transitionDurationTimeline;
+      }
+    }
+    if (timelineTime !== null && this.waveSurfer && this.waveSurfer.getDuration()) {
+      const audioDuration = this.waveSurfer.getDuration();
+      // Clamp to audio duration
+      const audioTime = Math.max(0, Math.min(timelineTime, audioDuration));
+      this.waveSurfer.seekTo(audioTime / audioDuration);
+      this.isPlaying = this.waveSurfer.isPlaying();
+      this.playbackTime = audioTime;
+      this.hoveredTimelineTime = audioTime;
+    }
+  }
+
+  getHoveredPlayheadPixel(): number {
+    if (this.hoveredTimelineX !== null) {
+      return this.hoveredTimelineX;
+    }
+    if (this.hoveredTimelineTime !== null && this.waveSurfer && this.waveSurfer.getDuration()) {
+      const audioDuration = this.waveSurfer.getDuration();
+      const percent = this.hoveredTimelineTime / audioDuration;
+      return percent * (this.waveformWidthPx || 1);
+    }
+    return this.getPlayheadPixel();
   }
 }
  

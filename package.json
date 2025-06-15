@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "aws-sdk": "^2.1692.0"
+    "aws-sdk": "^2.1692.0",
+    "framer-motion": "^12.18.1"
   }
 }
