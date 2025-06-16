@@ -8,13 +8,18 @@ import { SegmentService } from '../services/segment.service';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { environment } from '../../environments/environment';
 import WaveSurfer from 'wavesurfer.js';
+import { Subject } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
 
 interface Performer {
   id: string;
   name: string;
   x: number; // in feet
   y: number; // in feet
-  skillLevel?: number; // 1-5 for skill level
+  skillLevels: { [styleName: string]: number }; // Map of style name to skill level (1-5)
+  height?: number; // in feet
+  isDummy?: boolean;
+  dummyName?: string;
 }
 
 interface Style {
@@ -141,13 +146,41 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   showColorBySkill = false;
   selectedStyle: Style | null = null;
 
+  private saveSubject = new Subject<void>();
+  private autoSaveDebounceTime = 2000; // 2 seconds
+  lastSaveTime: Date | null = null;
+
+  // Side Panel State
+  activePanel: 'roster' | 'details' = 'roster';
+  showAddPerformerDropdown = false;
+  showUserAssignmentDropdown = false;
+
+  selectedPerformerIds: Set<string> = new Set();
+  hoveredPerformerId: string | null = null;
+  isShiftPressed = false;
+
+  // Add new property to track initial positions of all selected performers
+  private selectedPerformersInitialPositions: { [id: string]: { x: number, y: number } } = {};
+
+  // Add these properties at the top of the class with other properties
+  private dragStartX: number = 0;
+  private dragStartY: number = 0;
+  private readonly DRAG_THRESHOLD = 5; // pixels
+
   constructor(
     private teamService: TeamService,
     private authService: AuthService,
     private segmentService: SegmentService,
     private route: ActivatedRoute,
     private renderer: Renderer2
-  ) {}
+  ) {
+    // Set up auto-save subscription
+    this.saveSubject.pipe(
+      debounceTime(this.autoSaveDebounceTime)
+    ).subscribe(() => {
+      this.saveSegment();
+    });
+  }
 
   get performers(): Performer[] {
     if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
@@ -158,6 +191,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       }));
     }
     return this.formations[this.playingFormationIndex] || [];
+  }
+
+  get selectedPerformer(): Performer | null {
+    if (!this.selectedPerformerId) return null;
+    return this.performers.find(p => p.id === this.selectedPerformerId) || null;
   }
 
   set performers(val: Performer[]) {
@@ -176,7 +214,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       this.segmentService.getSegmentById(segmentId).subscribe({
         next: (res) => {
           this.segment = res.segment;
-          console.log('Loaded segment:', this.segment);
+          console.log('Loaded segment data:', JSON.stringify(this.segment, null, 2));
           if (this.segment?.musicUrl) {
             this.getSignedMusicUrl();
           }
@@ -191,6 +229,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
             this.teamService.getTeamById(currentUser.team._id).subscribe({
               next: (res) => {
                 this.teamRoster = res.team.members || [];
+                console.log('Loaded team roster:', JSON.stringify(this.teamRoster, null, 2));
                 // Update segment roster based on the segment's roster
                 if (this.segment.roster) {
                   this.segmentRoster = this.teamRoster.filter(member => 
@@ -200,31 +239,72 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
                   this.segmentRoster = [];
                 }
 
+                // Create a map to track dummy performers across formations
+                const dummyMap = new Map<string, { id: string, name: string }>();
+
                 // Now map the formations with user data
                 if (this.segment.formations && this.segment.formations.length > 0) {
+                  console.log('Loading formations from segment:', JSON.stringify(this.segment.formations, null, 2));
                   this.formations = this.segment.formations.map((formation: any[]) => 
-                    formation.map((p: { isDummy?: boolean; dummyName?: string; x: number; y: number; user?: string }) => {
-                      if (p.isDummy) {
-                        return {
-                          id: `dummy-${this.dummyCounter++}`,
-                          name: p.dummyName,
+                    formation.map((p: { 
+                      isDummy?: boolean; 
+                      dummyName?: string; 
+                      name?: string;
+                      x: number; 
+                      y: number; 
+                      user?: string; 
+                      id?: string; 
+                      skillLevel?: number; 
+                      height?: number; 
+                      _id?: string 
+                    }) => {
+                      console.log('Processing performer:', JSON.stringify(p, null, 2));
+                      // Check if this is a dummy performer by looking for isDummy flag or null user
+                      if (p.isDummy || p.user === null) {
+                        // Use the existing dummy ID if available, or create a new one
+                        const dummyId = p.id || `dummy-${this.dummyCounter++}`;
+                        
+                        // If we haven't seen this dummy before, create a new entry
+                        if (!dummyMap.has(dummyId)) {
+                          // Extract the number from the dummy name or ID
+                          const dummyNumber = p.dummyName || p.name || dummyId.split('-')[1];
+                          dummyMap.set(dummyId, {
+                            id: dummyId,
+                            name: dummyNumber
+                          });
+                        }
+
+                        const dummyInfo = dummyMap.get(dummyId)!;
+                        const dummyPerformer = {
+                          id: dummyInfo.id,
+                          name: dummyInfo.name,
                           x: p.x,
-                          y: p.y
+                          y: p.y,
+                          skillLevels: {},
+                          height: p.height || 5.5,
+                          isDummy: true,
+                          dummyName: dummyInfo.name
                         };
+                        console.log('Reconstructed dummy performer:', JSON.stringify(dummyPerformer, null, 2));
+                        return dummyPerformer;
                       } else {
                         const user = this.teamRoster.find(m => m._id === p.user);
+                        console.log('Found user for performer:', { user, performer: p });
                         // Get skill level for the selected style if available
-                        const skillLevel = user?.skillLevels?.[this.selectedStyle?.name.toLowerCase() || ''] || 1;
+                        const skillLevel = user?.skillLevels?.[this.selectedStyle?.name.toLowerCase() || ''] || p.skillLevel || 1;
                         return {
                           id: p.user,
                           name: user ? user.name : 'Unknown',
                           x: p.x,
                           y: p.y,
-                          skillLevel
+                          skillLevels: { ...(user?.skillLevels || {}) },
+                          height: p.height || user?.height,
+                          isDummy: false
                         };
                       }
                     })
                   );
+                  console.log('Reconstructed formations:', JSON.stringify(this.formations, null, 2));
                 } else {
                   this.formations = [[]];
                 }
@@ -249,6 +329,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       this.animationDurations = [];
       this.currentFormationIndex = 0;
     }
+
+    // Always load team styles for the skill sliders
+    if (currentUser?.team?._id) {
+      this.teamService.getTeamById(currentUser.team._id).subscribe({
+        next: (res) => {
+          this.teamStyles = res.team.styles || [];
+        },
+        error: (err) => {
+          console.error('Failed to load team styles:', err);
+        }
+      });
+    }
+
+    // Add keyboard event listeners for shift key
+    window.addEventListener('keydown', this.handleKeyDown);
+    window.addEventListener('keyup', this.handleKeyUp);
   }
 
   calculateStage() {
@@ -331,48 +427,58 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   }
 
   addFormation() {
-    // Clone current formation, no custom path
-    const clone = this.performers.map(p => ({ ...p }));
-    this.formations.push(clone);
-    this.formationDurations.push(5); // Default to 5 seconds
+    // Get the current formation's performers
+    const currentFormation = this.formations[this.currentFormationIndex];
     
-    // Add animation duration for the transition from previous formation
-    if (this.formations.length > 1) {
-      this.animationDurations.push(1); // Default to 1 second transition
+    // Create a deep copy of the current formation's performers
+    const newFormation = currentFormation.map(performer => ({
+      ...performer,
+      x: performer.x,
+      y: performer.y
+    }));
+    
+    // Add the new formation with copied performers
+    this.formations.push(newFormation);
+    this.formationDurations.push(5); // Default duration
+    this.animationDurations.push(2); // Default transition duration
+
+    // If we have a segment ID, save immediately
+    if (this.segment?._id) {
+      this.saveSegment();
+    } else {
+      // Otherwise trigger auto-save
+      this.triggerAutoSave();
     }
-    
-    this.currentFormationIndex = this.formations.length - 1;
-
-    // Force a reflow to ensure the timeline updates
-    setTimeout(() => {
-      if (this.timelineBarRef) {
-        this.timelineBarRef.nativeElement.scrollLeft = this.getTimelinePixelWidth();
-      }
-    }, 0);
   }
 
-  // Performer management
-  removePerformer(performerId: string) {
-    this.formations = this.formations.map(formation => formation.filter(p => p.id !== performerId));
-  }
   addPerformer(member: any) {
-    // Add to all formations at center
-    this.formations = this.formations.map(formation => [
-      ...formation,
-      { id: member._id, name: member.name, x: this.width / 2, y: this.depth / 2 }
-    ]);
+    const newPerformer: Performer = {
+      id: member._id || `dummy-${this.dummyCounter++}`,
+      name: member.name || `Dummy ${this.dummyCounter}`,
+      x: 0,
+      y: 0,
+      skillLevels: {}
+    };
+    this.formations[this.currentFormationIndex].push(newPerformer);
+    this.triggerAutoSave();
   }
   addPerformerFromRoster(dancer: any) {
     // Add the dancer to all formations
     this.formations = this.formations.map(formation => {
       // Check if dancer is already in this formation
       if (!formation.some(p => p.id === dancer._id)) {
-        return [...formation, {
-          id: dancer._id,
-          name: dancer.name,
-          x: this.width / 2,
-          y: this.depth / 2
-        }];
+        return [
+          ...formation,
+          {
+            id: dancer._id,
+            name: dancer.name,
+            x: this.width / 2,
+            y: this.depth / 2,
+            skillLevels: { ...(dancer.skillLevels || {}) },
+            height: dancer.height || 5.5,
+            isDummy: false
+          }
+        ];
       }
       return formation;
     });
@@ -381,15 +487,36 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     if (!this.segmentRoster.some(m => m._id === dancer._id)) {
       this.segmentRoster = [...this.segmentRoster, dancer];
     }
+    this.triggerAutoSave();
   }
   addDummyPerformer() {
-    const dummyId = `dummy-${this.dummyCounter++}`;
-    const dummyName = `${this.dummyCounter - 1}`;
-    // Add dummy performer to all formations
-    this.formations = this.formations.map(formation => [
-      ...formation,
-      { id: dummyId, name: dummyName, x: this.width / 2, y: this.depth / 2 }
-    ]);
+    const dummyId = `dummy-${this.dummyCounter}`;
+    const dummyName = `${this.dummyCounter}`;
+    console.log('Creating new dummy performer:', { id: dummyId, name: dummyName });
+    
+    // Add the dummy performer to the current formation
+    const newFormation = [...this.formations[this.currentFormationIndex]];
+    newFormation.push({
+      id: dummyId,
+      name: dummyName,
+      x: this.width / 2,  // Place in middle of stage width
+      y: this.depth / 2,  // Place in middle of stage depth
+      isDummy: true,
+      dummyName: dummyName,
+      skillLevels: {},
+      height: 5.5
+    });
+    
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.dummyCounter++;
+    console.log('Formations after adding dummy:', JSON.stringify(this.formations, null, 2));
+    
+    // If we have a segment ID, save immediately
+    if (this.segment?._id) {
+      this.saveSegment();
+    } else {
+      this.triggerAutoSave();
+    }
   }
   get availablePerformers() {
     // Members not in current formation (ignore dummy performers)
@@ -401,38 +528,59 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
 
   // --- Drag and Drop Logic ---
   onDragStart(event: MouseEvent | TouchEvent, performer: Performer) {
-    this.draggingId = performer.id;
-    let clientX = 0, clientY = 0;
-    if (event instanceof MouseEvent) {
-      clientX = event.clientX;
-      clientY = event.clientY;
-    } else {
-      clientX = event.touches[0].clientX;
-      clientY = event.touches[0].clientY;
-    }
-    const stageRect = this.stageRef.nativeElement.getBoundingClientRect();
-    this.dragOffset.x = clientX - (stageRect.left + performer.x * this.pixelsPerFoot);
-    this.dragOffset.y = clientY - (stageRect.top + performer.y * this.pixelsPerFoot);
-    this.renderer.listen('window', 'mousemove', this.onDragMove.bind(this));
-    this.renderer.listen('window', 'touchmove', this.onDragMove.bind(this));
-    this.renderer.listen('window', 'mouseup', this.onDragEnd.bind(this));
-    this.renderer.listen('window', 'touchend', this.onDragEnd.bind(this));
     event.preventDefault();
+    event.stopPropagation();
+
+    // Store the initial mouse position
+    this.dragStartX = 'touches' in event ? event.touches[0].clientX : event.clientX;
+    this.dragStartY = 'touches' in event ? event.touches[0].clientY : event.clientY;
+
+    // If we're not holding shift, clear other selections
+    if (!this.isShiftPressed) {
+      this.selectedPerformerIds.clear();
+    }
+    
+    // Add this performer to selection
+    this.selectedPerformerIds.add(performer.id);
+    this.selectedPerformerId = performer.id;
+
+    this.draggingId = performer.id;
+    const rect = this.stageRef.nativeElement.getBoundingClientRect();
+    this.dragOffset = {
+      x: (this.dragStartX - rect.left) - (performer.x * this.pixelsPerFoot),
+      y: (this.dragStartY - rect.top) - (performer.y * this.pixelsPerFoot)
+    };
+
+    // Store initial positions of all selected performers
+    this.selectedPerformersInitialPositions = {};
+    this.performers.forEach(p => {
+      if (this.selectedPerformerIds.has(p.id)) {
+        this.selectedPerformersInitialPositions[p.id] = { x: p.x, y: p.y };
+      }
+    });
+
+    // Add event listeners for drag and end
+    this.renderer.listen('document', 'mousemove', this.onDragMove);
+    this.renderer.listen('document', 'touchmove', this.onDragMove);
+    this.renderer.listen('document', 'mouseup', this.onDragEnd);
+    this.renderer.listen('document', 'touchend', this.onDragEnd);
   }
 
   onDragMove = (event: MouseEvent | TouchEvent) => {
     if (!this.draggingId) return;
-    let clientX = 0, clientY = 0;
-    if (event instanceof MouseEvent) {
-      clientX = event.clientX;
-      clientY = event.clientY;
-    } else {
-      clientX = event.touches[0].clientX;
-      clientY = event.touches[0].clientY;
-    }
-    const stageRect = this.stageRef.nativeElement.getBoundingClientRect();
-    let x = (clientX - stageRect.left - this.dragOffset.x) / this.pixelsPerFoot;
-    let y = (clientY - stageRect.top - this.dragOffset.y) / this.pixelsPerFoot;
+
+    // Calculate the distance moved
+    const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX;
+    const clientY = 'touches' in event ? event.touches[0].clientY : event.clientY;
+    const dx = clientX - this.dragStartX;
+    const dy = clientY - this.dragStartY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // If we haven't moved past the threshold yet, don't start dragging
+    if (distance < this.DRAG_THRESHOLD) return;
+
+    let x = (clientX - this.stageRef.nativeElement.getBoundingClientRect().left - this.dragOffset.x) / this.pixelsPerFoot;
+    let y = (clientY - this.stageRef.nativeElement.getBoundingClientRect().top - this.dragOffset.y) / this.pixelsPerFoot;
 
     // Calculate all possible grid positions (main + subgrid)
     const gridPositionsX: number[] = [];
@@ -479,17 +627,79 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     x = Math.max(0, Math.min(this.width, x));
     y = Math.max(0, Math.min(this.depth, y));
 
-    this.performers = this.performers.map(p =>
-      p.id === this.draggingId ? { ...p, x, y } : p
-    );
+    // Calculate the movement delta from the initial position
+    const draggedPerformer = this.performers.find(p => p.id === this.draggingId);
+    if (draggedPerformer && this.selectedPerformersInitialPositions[this.draggingId]) {
+      const initialPos = this.selectedPerformersInitialPositions[this.draggingId];
+      const deltaX = x - initialPos.x;
+      const deltaY = y - initialPos.y;
+
+      // Move all selected performers by the same delta
+      this.performers = this.performers.map(p => {
+        if (this.selectedPerformerIds.has(p.id)) {
+          const initialPos = this.selectedPerformersInitialPositions[p.id];
+          if (initialPos) {
+            let newX = initialPos.x + deltaX;
+            let newY = initialPos.y + deltaY;
+            
+            // Clamp to stage boundaries
+            newX = Math.max(0, Math.min(this.width, newX));
+            newY = Math.max(0, Math.min(this.depth, newY));
+            
+            // Snap to grid
+            newX = snapToGrid(newX, gridPositionsX);
+            newY = snapToGrid(newY, gridPositionsY);
+            
+            return { ...p, x: newX, y: newY };
+          }
+        }
+        return p;
+      });
+    }
+
+    this.triggerAutoSave();
   };
 
-  onDragEnd = () => {
+  onDragEnd = (event: MouseEvent | TouchEvent) => {
+    if (!this.draggingId) return;
+
+    // Calculate the distance moved
+    const clientX = 'touches' in event ? event.changedTouches[0].clientX : event.clientX;
+    const clientY = 'touches' in event ? event.changedTouches[0].clientY : event.clientY;
+    const dx = clientX - this.dragStartX;
+    const dy = clientY - this.dragStartY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // If we haven't moved past the threshold, treat it as a click
+    if (distance < this.DRAG_THRESHOLD) {
+      const performer = this.performers.find(p => p.id === this.draggingId);
+      if (performer) {
+        this.onPerformerClick(performer);
+      }
+    }
+
     this.draggingId = null;
+    this.triggerAutoSave();
   };
 
   onPerformerClick(performer: Performer) {
-    this.selectedPerformerId = this.selectedPerformerId === performer.id ? null : performer.id;
+    if (this.isShiftPressed) {
+      // Toggle selection for this performer
+      if (this.selectedPerformerIds.has(performer.id)) {
+        this.selectedPerformerIds.delete(performer.id);
+        if (this.selectedPerformerId === performer.id) {
+          this.selectedPerformerId = null;
+        }
+      } else {
+        this.selectedPerformerIds.add(performer.id);
+        this.selectedPerformerId = performer.id;
+      }
+    } else {
+      // Single selection
+      this.selectedPerformerIds.clear();
+      this.selectedPerformerIds.add(performer.id);
+      this.selectedPerformerId = performer.id;
+    }
   }
 
   getPreviousPosition(performerId: string): { x: number, y: number } | null {
@@ -538,10 +748,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     }
 
     const isCurrentUser = performer.id === this.currentUserId;
+    const isSelected = this.isPerformerSelected(performer);
+    const isHovered = this.isPerformerHovered(performer);
+
     const baseStyle = {
       left: x * this.pixelsPerFoot - performerSize / 2 + 'px',
       top: y * this.pixelsPerFoot - performerSize / 2 + 'px',
-      zIndex: this.draggingId === performer.id ? 1000 : 10
+      zIndex: this.draggingId === performer.id ? 1000 : (isSelected ? 100 : (isHovered ? 50 : 10))
     };
 
     if (isCurrentUser) {
@@ -604,54 +817,71 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   }
 
   submitEditModal() {
-    this.width = this.editWidth;
     this.depth = this.editDepth;
+    this.width = this.editWidth;
     this.divisions = this.editDivisions;
     this.segmentName = this.editSegmentName;
-    if (this.segment) {
-      this.segment.styles = this.editSelectedStyles;
-      this.segment.stylesInSegment = this.editSelectedStyles.map(s => s.name);
-      
-      // Save to backend
+    this.calculateStage();
+    this.closeEditModal();
+
+    // Save changes to backend
+    if (this.segment?._id) {
       this.segmentService.updateSegment(this.segment._id, {
         name: this.segmentName,
-        width: this.width,
         depth: this.depth,
+        width: this.width,
         divisions: this.divisions,
         styles: this.editSelectedStyles,
         stylesInSegment: this.editSelectedStyles.map(s => s.name)
       }).subscribe({
         next: () => {
-          this.calculateStage();
-          this.showEditModal = false;
+          this.lastSaveTime = new Date();
+          console.log('Stage settings updated successfully');
+          // Trigger auto-save after successful backend save
+          this.triggerAutoSave();
         },
         error: (err) => {
-          console.error('Failed to save segment:', err);
-          alert('Failed to save segment changes');
+          console.error('Failed to update stage settings:', err);
+          alert('Failed to save stage settings. Please try again.');
         }
       });
+    } else {
+      // If no segment ID (new segment), just trigger auto-save
+      this.triggerAutoSave();
     }
   }
 
   saveSegment() {
     if (!this.segment?._id) return;
+    console.log('Saving segment, current formations:', JSON.stringify(this.formations, null, 2));
     // Save all formations as arrays of {x, y, user}, including dummy performers
     const formations = this.formations.map(formation =>
       formation.map(p => {
         if (p?.id && p.id.startsWith('dummy-')) {
-          // For dummy performers, store the name and position
+          // For dummy performers, store all necessary information
           const dummyData = {
             x: p.x,
             y: p.y,
             user: null,
             isDummy: true,
-            dummyName: p.name
+            dummyName: p.name,  // Use the exact name from the performer
+            id: p.id,  // Preserve the exact ID
+            skillLevels: p.skillLevels,
+            height: p.height || 5.5
           };
+          console.log('Saving dummy performer:', JSON.stringify(dummyData, null, 2));
           return dummyData;
         }
-        return { x: p.x, y: p.y, user: p.id };
+        return { 
+          x: p.x, 
+          y: p.y, 
+          user: p.id,
+          skillLevels: p.skillLevels,
+          height: p.height || 5.5
+        };
       })
     );
+    console.log('Formations to be saved:', JSON.stringify(formations, null, 2));
 
     // Get unique user IDs from all formations (excluding dummy performers)
     const roster = Array.from(new Set(
@@ -662,7 +892,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       )
     ));
 
-    this.segmentService.updateSegment(this.segment._id, { 
+    const updateData = { 
       formations, 
       formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
@@ -670,9 +900,19 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       name: this.segmentName,
       styles: this.editSelectedStyles,
       stylesInSegment: this.editSelectedStyles.map(s => s.name)
-    }).subscribe({
-      next: () => alert('Segment saved!'),
-      error: () => alert('Failed to save segment!')
+    };
+    console.log('Sending update data to backend:', JSON.stringify(updateData, null, 2));
+
+    this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
+      next: () => {
+        console.log('Segment saved successfully');
+        this.lastSaveTime = new Date();
+      },
+      error: (err) => {
+        console.error('Failed to save segment:', err);
+        // Log the exact data that caused the error
+        console.error('Error data:', JSON.stringify(updateData, null, 2));
+      }
     });
   }
 
@@ -775,6 +1015,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
         alert('Failed to get S3 upload URL');
       }
     });
+    this.triggerAutoSave();
   }
 
   // Add method to get signed URL for playing music
@@ -908,6 +1149,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     if (this.unifiedFormationInterval) {
       clearInterval(this.unifiedFormationInterval);
     }
+    window.removeEventListener('keydown', this.handleKeyDown);
+    window.removeEventListener('keyup', this.handleKeyUp);
   }
 
   getTimelineTotalDuration(): number {
@@ -1060,7 +1303,35 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   }
 
   selectPerformer(performer: Performer) {
-    this.selectedPerformerId = performer.id;
+    if (this.isShiftPressed) {
+      // Multi-select mode
+      if (this.selectedPerformerIds.has(performer.id)) {
+        // If already selected, remove from selection
+        this.selectedPerformerIds.delete(performer.id);
+        // Update primary selection if needed
+        if (this.selectedPerformerId === performer.id) {
+          this.selectedPerformerId = this.selectedPerformerIds.size > 0 ? 
+            Array.from(this.selectedPerformerIds)[0] : null;
+        }
+      } else {
+        // If not selected, add to selection
+        this.selectedPerformerIds.add(performer.id);
+        this.selectedPerformerId = performer.id;
+      }
+    } else {
+      // Single select mode
+      if (this.selectedPerformerIds.has(performer.id)) {
+        // If already selected, deselect
+        this.selectedPerformerIds.clear();
+        this.selectedPerformerId = null;
+      } else {
+        // If not selected, select only this one
+        this.selectedPerformerIds.clear();
+        this.selectedPerformerIds.add(performer.id);
+        this.selectedPerformerId = performer.id;
+      }
+    }
+    this.triggerAutoSave();
   }
 
   deleteDancer() {
@@ -1347,7 +1618,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
         });
         return {
           ...performer,
-          skillLevel
+          skillLevels: {
+            [style.name.toLowerCase()]: skillLevel
+          }
         };
       })
     );
@@ -1405,6 +1678,199 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       };
       requestAnimationFrame(animate);
     });
+  }
+
+  // Add new method for triggering auto-save
+  private triggerAutoSave() {
+    this.saveSubject.next();
+  }
+
+  toggleAddPerformerDropdown() {
+    this.showAddPerformerDropdown = !this.showAddPerformerDropdown;
+    if (this.showAddPerformerDropdown) {
+      this.showUserAssignmentDropdown = false;
+    }
+  }
+
+  toggleUserAssignmentDropdown() {
+    this.showUserAssignmentDropdown = !this.showUserAssignmentDropdown;
+  }
+
+  isDummyPerformer(performer: Performer): boolean {
+    return performer.id.startsWith('dummy-');
+  }
+
+  convertToDummy(performer: Performer) {
+    // Create a new dummy performer with the same properties
+    const dummyPerformer: Performer = {
+      id: `dummy-${this.dummyCounter++}`,
+      name: `Dummy ${this.dummyCounter}`,
+      x: performer.x,
+      y: performer.y,
+      skillLevels: {},
+      height: performer.height,
+      isDummy: true,
+      dummyName: `Dummy ${this.dummyCounter}`
+    };
+
+    // Replace the performer in the current formation
+    const index = this.performers.findIndex(p => p.id === performer.id);
+    if (index !== -1) {
+      this.performers[index] = dummyPerformer;
+      this.triggerAutoSave();
+    }
+  }
+
+  assignDummyToUser(dummyPerformer: Performer, user: any) {
+    // Create a new performer with the user's properties
+    const newPerformer: Performer = {
+      id: user._id,
+      name: user.name,
+      x: dummyPerformer.x,
+      y: dummyPerformer.y,
+      skillLevels: user.skillLevels || {},
+      height: user.height || 5.5
+    };
+
+    // Replace the dummy performer in the current formation
+    const index = this.performers.findIndex(p => p.id === dummyPerformer.id);
+    if (index !== -1) {
+      this.performers[index] = newPerformer;
+      this.triggerAutoSave();
+    }
+  }
+
+  updatePerformerName() {
+    if (!this.selectedPerformer) return;
+    // Update in teamRoster as well
+    const user = this.teamRoster.find(m => m._id === this.selectedPerformer!.id);
+    if (user && this.teamService) {
+      user.name = this.selectedPerformer.name;
+      this.teamService.updateUser(user._id, { name: user.name }).subscribe();
+    }
+    this.triggerAutoSave();
+  }
+
+  updatePerformerHeight() {
+    if (!this.selectedPerformer) return;
+    // Ensure height is within reasonable bounds
+    if (this.selectedPerformer.height) {
+      this.selectedPerformer.height = Math.max(0, Math.min(12, this.selectedPerformer.height));
+    }
+    // Update in teamRoster as well
+    const user = this.teamRoster.find(m => m._id === this.selectedPerformer!.id);
+    if (user && this.teamService) {
+      user.height = this.selectedPerformer.height;
+      this.teamService.updateUser(user._id, { height: user.height }).subscribe();
+    }
+    this.triggerAutoSave();
+  }
+
+  updatePerformerSkill(styleName: string) {
+    if (!this.selectedPerformer) return;
+    // Ensure skill level is within bounds (1-5)
+    const skillLevel = this.selectedPerformer.skillLevels[styleName.toLowerCase()];
+    if (skillLevel) {
+      this.selectedPerformer.skillLevels[styleName.toLowerCase()] = Math.max(1, Math.min(5, skillLevel));
+    }
+    // Update in teamRoster as well
+    const user = this.teamRoster.find(m => m._id === this.selectedPerformer!.id);
+    if (user && this.teamService) {
+      user.skillLevels = { ...this.selectedPerformer.skillLevels };
+      this.teamService.updateUser(user._id, { skillLevels: user.skillLevels }).subscribe();
+    }
+    this.triggerAutoSave();
+  }
+
+  removePerformer() {
+    if (this.selectedPerformerIds.size === 0) return;
+    
+    // Remove all selected performers from current formation
+    const currentFormation = this.formations[this.currentFormationIndex];
+    if (!currentFormation) return;
+    
+    this.formations[this.currentFormationIndex] = currentFormation.filter(
+      p => !this.selectedPerformerIds.has(p.id)
+    );
+    
+    this.selectedPerformerIds.clear();
+    this.selectedPerformerId = null;
+    this.triggerAutoSave();
+  }
+
+  handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Shift') {
+      this.isShiftPressed = true;
+      console.log('Shift pressed, isShiftPressed:', this.isShiftPressed);
+    }
+  };
+
+  handleKeyUp = (event: KeyboardEvent) => {
+    if (event.key === 'Shift') {
+      this.isShiftPressed = false;
+      console.log('Shift released, isShiftPressed:', this.isShiftPressed);
+    }
+  };
+
+  onPerformerMouseEnter(performer: Performer) {
+    this.hoveredPerformerId = performer.id;
+  }
+
+  onPerformerMouseLeave() {
+    this.hoveredPerformerId = null;
+  }
+
+  isPerformerSelected(performer: Performer): boolean {
+    return this.selectedPerformerIds.has(performer.id);
+  }
+
+  isPerformerHovered(performer: Performer): boolean {
+    return this.hoveredPerformerId === performer.id;
+  }
+
+  onStageClick(event: MouseEvent) {
+    // Only deselect if clicking directly on the stage (not on a performer)
+    if (event.target === this.stageRef.nativeElement) {
+      this.selectedPerformerIds.clear();
+      this.selectedPerformerId = null;
+      this.triggerAutoSave();
+    }
+  }
+
+  getStageStyle() {
+    return {
+      'position': 'relative',
+      'background-color': '#1a1a1a',
+      'border-radius': '4px',
+      'overflow': 'hidden'
+    };
+  }
+
+  swapSelectedPerformers() {
+    if (this.selectedPerformerIds.size !== 2) return;
+
+    const currentFormation = this.formations[this.currentFormationIndex];
+    if (!currentFormation) return;
+
+    // Get the two selected performers
+    const [id1, id2] = Array.from(this.selectedPerformerIds);
+    const performer1 = currentFormation.find(p => p.id === id1);
+    const performer2 = currentFormation.find(p => p.id === id2);
+
+    if (!performer1 || !performer2) return;
+
+    // Store their current positions
+    const tempX = performer1.x;
+    const tempY = performer1.y;
+
+    // Swap their positions
+    performer1.x = performer2.x;
+    performer1.y = performer2.y;
+    performer2.x = tempX;
+    performer2.y = tempY;
+
+    // Trigger auto-save
+    this.triggerAutoSave();
   }
 }
  

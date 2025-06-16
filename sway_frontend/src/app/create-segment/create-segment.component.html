@@ -1,6 +1,11 @@
 <div class="segment-page-container">
   <div class="top-panel" *ngIf="isCaptain">
-    <div class="segment-name">{{ segmentName }}</div>
+    <div class="segment-name">
+      {{ segmentName }}
+      <span class="last-save-time" *ngIf="lastSaveTime">
+        Last saved at {{ lastSaveTime | date:'h:mm:ss a' }}
+      </span>
+    </div>
     <div class="top-panel-controls">
       <label class="roster-add-btn">
         <input type="file" accept=".mp3,audio/mp3" (change)="onMusicFileSelected($event)" hidden>
@@ -14,75 +19,79 @@
       <button *ngIf="isCaptain" class="edit-stage-btn" (click)="openEditModal()">
         <span class="material-icons">edit</span> Edit Stage
       </button>
-      <button *ngIf="isCaptain" class="save-segment-btn" (click)="saveSegment()">
-        <span class="material-icons">save</span> Save
-      </button>
     </div>
-    <!-- Delete Dancer Button -->
-    <button *ngIf="isCaptain && selectedPerformerId" class="delete-dancer-btn" (click)="deleteDancer()">
-      <span class="material-icons">delete</span> Delete Dancer
-    </button>
   </div>
 
   <div class="main-content">
     <div class="roster-sidebar" *ngIf="isCaptain">
-      <h3>Team Roster</h3>
-      
-      <div class="action-buttons">
-        <button class="dummy-btn" (click)="addDummyPerformer()">
-          <span class="material-icons">group_add</span>
-          Add Dummy Performers
-        </button>
-      </div>
-
-      <div class="color-by-skill-controls" *ngIf="showColorBySkill">
-        <ng-container *ngIf="segmentStyles.length > 1; else singleStyle">
-          <label for="stylePicker">Style:</label>
-          <select id="stylePicker" [(ngModel)]="selectedStyle" (ngModelChange)="selectStyle($event)">
-            <option *ngFor="let style of segmentStyles" [ngValue]="style">{{ style.name }}</option>
-          </select>
-        </ng-container>
-        <ng-template #singleStyle>
-          <span *ngIf="segmentStyles.length === 1">Style: {{ segmentStyles[0].name }}</span>
-        </ng-template>
-      </div>
-
-      <div *ngIf="showColorBySkill && selectedStyle" class="skill-gradient-bar">
-        <div class="gradient-labels">
-          <span>1</span>
-          <span>2</span>
-          <span>3</span>
-          <span>4</span>
-          <span>5</span>
+      <div class="roster-top-panel">
+        <div class="roster-header">
+          <h3>Performers</h3>
         </div>
-        <div class="gradient-bar"></div>
-        <div class="gradient-labels">
-          <span>Worst</span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span>Best</span>
+        <!-- Performers List -->
+        <div class="performers-list">
+          <div class="performer-item" *ngFor="let performer of performers; let i = index" 
+               [class.selected]="selectedPerformerIds.has(performer.id)"
+               (click)="selectPerformer(performer)">
+            <span class="performer-number">{{i + 1}}</span>
+            <span class="performer-name">{{performer.name}}</span>
+          </div>
         </div>
-      </div>
-
-      <div class="roster-tabs">
-        <button class="roster-tab" [class.active]="activeRosterTab === 'team'" (click)="activeRosterTab = 'team'">
-          Team Roster
-        </button>
-        <button class="roster-tab" [class.active]="activeRosterTab === 'segment'" (click)="activeRosterTab = 'segment'">
-          Segment Roster
-        </button>
-      </div>
-
-      <div class="roster-content">
-        <ul>
-          <li *ngFor="let dancer of activeRosterTab === 'team' ? teamRoster : segmentRoster">
-            <button class="roster-add-btn" (click)="addPerformerFromRoster(dancer)">
-              <span class="material-icons">person</span>
-              {{ dancer.name }}
+        <!-- Add Performer Row -->
+        <div class="add-performer-row-link" (click)="toggleAddPerformerDropdown()">
+          Add Performer <span class="plus-sign">+</span>
+        </div>
+        <hr class="add-performer-divider" />
+        <div *ngIf="showAddPerformerDropdown" class="add-performer-dropdown">
+          <div class="dropdown-content">
+            <button class="dropdown-item" (click)="addDummyPerformer()">
+              <span class="material-icons">person_add</span>
+              Add Dummy Performer
             </button>
-          </li>
-        </ul>
+            <button class="dropdown-item" *ngFor="let member of teamRoster" 
+                    (click)="addPerformerFromRoster(member)">
+              <span class="material-icons">person</span>
+              {{ member.name }}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="roster-details-panel">
+        <div class="performer-details" *ngIf="selectedPerformer">
+          <div class="performer-header">
+            <input type="text" class="performer-name" [(ngModel)]="selectedPerformer.name" (blur)="updatePerformerName()">
+            <button class="remove-performer-btn" (click)="removePerformer()">
+              <span class="material-icons">delete</span>
+              Remove
+            </button>
+          </div>
+          
+          <div class="performer-info">
+            <div class="info-group">
+              <label>Height</label>
+              <input type="number" [(ngModel)]="selectedPerformer.height" (blur)="updatePerformerHeight()" min="0" max="12" step="0.1">
+            </div>
+          </div>
+
+          <div class="skill-levels">
+            <div class="skill-group" *ngFor="let style of teamStyles">
+              <div class="skill-header">
+                <label>{{style.name}}</label>
+                <span class="skill-value">{{selectedPerformer.skillLevels[style.name.toLowerCase()] || 1}}/5</span>
+              </div>
+              <input type="range" 
+                     class="skill-slider" 
+                     [(ngModel)]="selectedPerformer.skillLevels[style.name.toLowerCase()]"
+                     (change)="updatePerformerSkill(style.name)"
+                     min="1" 
+                     max="5"
+                     [style.accent-color]="style.color">
+            </div>
+          </div>
+        </div>
+        <div class="performer-details-empty" *ngIf="!selectedPerformer">
+          Select a performer to view details
+        </div>
       </div>
     </div>
     <div class="content-area">
@@ -96,7 +105,9 @@
         <div class="stage-grid-outer"
              #stageRef
              [style.width.px]="stageWidthPx"
-             [style.height.px]="stageHeightPx">
+             [style.height.px]="stageHeightPx"
+             [ngStyle]="getStageStyle()"
+             (click)="onStageClick($event)">
           <!-- Spotlight overlay - only show for non-captains -->
           <div class="spotlight-overlay" *ngIf="!isCaptain" [ngStyle]="getSpotlightStyle()"></div>
           
@@ -138,17 +149,16 @@
             {{performer.name}}
           </div>
           <!-- Current performers -->
-          <div *ngFor="let performer of performers" 
-               class="performer"
-               [ngClass]="{
-                 'selected': performer.id === selectedPerformerId,
-                 'current-user': !isCaptain && performer.id === currentUserId,
-                 'dimmed': !isCaptain && performer.id !== currentUserId
-               }"
-               [ngStyle]="getPerformerStyleWithColor(performer)"
-               (mousedown)="isCaptain && onDragStart($event, performer)"
-               (touchstart)="isCaptain && onDragStart($event, performer)"
-               (click)="isCaptain && selectPerformer(performer)">
+          <div class="performer"
+               *ngFor="let performer of performers"
+               [style]="getPerformerStyleWithColor(performer)"
+               [class.selected]="selectedPerformerIds.has(performer.id)"
+               [class.hovered]="isPerformerHovered(performer)"
+               (mousedown)="onDragStart($event, performer)"
+               (click)="onPerformerClick(performer)"
+               (mouseenter)="onPerformerMouseEnter(performer)"
+               (mouseleave)="onPerformerMouseLeave()"
+               [attr.data-id]="performer.id">
             {{performer.name}}
           </div>
           <!-- Stage border -->
@@ -164,6 +174,11 @@
         </button>
         <button class="unified-arrow-btn" (click)="onNextFormationClick()">
           <span class="material-icons">chevron_right</span>
+        </button>
+        <button *ngIf="selectedPerformerIds.size === 2" 
+                class="swap-positions-btn" 
+                (click)="swapSelectedPerformers()">
+          <span class="material-icons">swap_horiz</span>
         </button>
       </div>
       <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl }">

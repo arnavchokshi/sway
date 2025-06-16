@@ -43,4 +43,9 @@ export class TeamService {
   deleteStyle(teamId: string, styleIndex: number): Observable<any> {
     return this.http.delete(`${this.apiUrl}/teams/${teamId}/styles/${styleIndex}`);
   }
+
+  // Update user data
+  updateUser(userId: string, updateData: any): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/users/${userId}`, updateData);
+  }
 } 
