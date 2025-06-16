@@ -7,8 +7,8 @@ export interface IUser extends Document {
   name?: string;
   team?: mongoose.Types.ObjectId; // Reference to Team
   gender?: 'male' | 'female' | 'other';
-  skill_level?: { [segment: string]: number }; // segment: skill level
-  height?: number; // or string if you want to allow "5'8\""
+  skillLevels: { [styleName: string]: number }; // Map of style name to skill level (1-5)
+  height?: number; // Height in inches
   captain?: boolean;
 }
 
@@ -36,13 +36,13 @@ const UserSchema = new Schema<IUser>(
       type: String,
       enum: ['male', 'female', 'other'],
     },
-    skill_level: {
+    skillLevels: {
       type: Map,
-      of: String, // segment: skill level
-      default: {},
+      of: Number,
+      default: new Map(),
     },
     height: {
-      type: Number, // or String if you want
+      type: Number, // Height in inches
     },
     captain: {
       type: Boolean,

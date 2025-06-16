@@ -11,10 +11,20 @@
     <app-formations></app-formations>
   </div>
 
-  <!-- Roster Modal -->
+   <div class="dashboard-join-code" *ngIf="team">
+    Join Code: <span class="join-code">{{ team.joinCode }}</span>
+  </div>
+
   <div class="roster-modal-overlay" *ngIf="showRosterModal">
     <div class="roster-modal-popup">
       <app-dashboard-roster (close)="showRosterModal = false"></app-dashboard-roster>
     </div>
+  </div>
+
+  <!-- Segment viewer (assuming this is the main segment display area) -->
+  <div class="segment-viewer">
+    <!-- ... existing segment viewer code ... -->
+
+
   </div>
 </div> 

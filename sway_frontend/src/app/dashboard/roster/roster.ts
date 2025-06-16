@@ -6,6 +6,17 @@ import { AuthService } from '../../services/auth.service';
 import { HttpClient } from '@angular/common/http';
 import { forkJoin } from 'rxjs';
 
+interface UserResponse {
+  message: string;
+  user: {
+    _id: string;
+    name: string;
+    skillLevels: { [key: string]: number };
+    height: number;
+    captain: boolean;
+  };
+}
+
 @Component({
   selector: 'app-dashboard-roster',
   standalone: true,
@@ -45,6 +56,7 @@ export class RosterComponent implements OnInit {
   loadTeamMembers(teamId: string) {
     this.teamService.getTeamById(teamId).subscribe({
       next: (res) => {
+        this.styles = res.team.styles || [];
         this.members = (res.team.members || []).map((member: any) => {
           // Parse height into feet/inches if possible
           let feet = 0, inches = 0;
@@ -58,22 +70,33 @@ export class RosterComponent implements OnInit {
               inches = match[2] ? parseInt(match[2], 10) : 0;
             }
           }
+
+          // Initialize skill levels for all styles
+          const skillLevels: { [key: string]: number } = {};
+          this.styles.forEach(style => {
+            const styleName = style.name.toLowerCase();
+            // Convert skill level to number, default to 1 if undefined
+            skillLevels[styleName] = Number(member.skillLevels?.get?.(styleName) || member.skillLevels?.[styleName] || 1);
+          });
+
+          console.log('Loading member skill levels:', {
+            memberId: member._id,
+            name: member.name,
+            skillLevels: skillLevels
+          });
+
           return {
             _id: member._id,
             name: member.name,
             role: member.captain ? 'Captain' : 'Member',
             captain: member.captain,
-            skillLevels: this.styles.reduce((acc: any, style: any) => {
-              acc[style.name] = (member.skillLevels && member.skillLevels[style.name]) || 1;
-              return acc;
-            }, {}),
+            skillLevels: skillLevels,
             height: member.height || '',
             feet,
             inches,
             gender: member.gender || ''
           };
         });
-        this.styles = res.team.styles || [];
       },
       error: (err) => {
         this.members = [];
@@ -141,35 +164,25 @@ export class RosterComponent implements OnInit {
     });
   }
 
-  toggleCaptainStatus(member: { _id: string; name: string; captain: boolean }) {
+  toggleCaptainStatus(member: { _id: string; name: string; captain: boolean; role: string }) {
     const currentUser = this.authService.getCurrentUser();
     if (!currentUser?._id) {
       this.errorMessage = 'No user found';
       return;
     }
 
-    // First, get the team information
-    this.http.get(`http://localhost:3000/api/users/${currentUser._id}`).subscribe({
-      next: (userResponse: any) => {
-        const teamId = userResponse.team?._id;
-        if (!teamId) {
-          this.errorMessage = 'No team found for current user';
-          return;
-        }
-
-        this.teamService.updateMemberRole(teamId, member._id, !member.captain).subscribe({
-          next: (res) => {
-            this.loadTeamMembers(teamId);
-          },
-          error: (err) => {
-            console.error('Error updating member role:', err);
-            this.errorMessage = err.error?.message || 'Failed to update member role';
-          }
-        });
+    // Update the member's captain status immediately
+    this.http.patch(`http://localhost:3000/api/users/${member._id}`, {
+      captain: !member.captain
+    }).subscribe({
+      next: (res) => {
+        member.captain = !member.captain;
+        // Update the role display
+        member.role = member.captain ? 'Captain' : 'Member';
       },
       error: (err) => {
-        console.error('Error getting user data:', err);
-        this.errorMessage = 'Failed to get user data';
+        console.error('Error updating captain status:', err);
+        this.errorMessage = 'Failed to update captain status';
       }
     });
   }
@@ -276,8 +289,47 @@ export class RosterComponent implements OnInit {
   }
 
   updateMemberSkill(member: any, styleName: string, value: number) {
-    // TODO: Implement backend update if needed
-    member.skillLevels[styleName] = value;
+    if (!member.skillLevels) {
+      member.skillLevels = {};
+    }
+    // Ensure value is a number and style name is lowercase
+    const numericValue = Number(value);
+    const normalizedStyleName = styleName.toLowerCase();
+    member.skillLevels[normalizedStyleName] = numericValue;
+    
+    console.log('Updating skill level:', {
+      memberId: member._id,
+      style: normalizedStyleName,
+      value: numericValue,
+      currentSkillLevels: member.skillLevels
+    });
+
+    // Create a complete payload with all member data
+    const payload = {
+      name: member.name,
+      height: member.height,
+      skillLevels: member.skillLevels,
+      captain: member.captain
+    };
+
+    // Immediately save the skill level change
+    this.http.patch<UserResponse>(`http://localhost:3000/api/users/${member._id}`, payload).subscribe({
+      next: (res) => {
+        console.log('Skill level updated successfully:', res);
+        // Update the local member data with the response
+        if (res.user) {
+          // Convert Map to object if needed
+          const updatedSkillLevels = res.user.skillLevels instanceof Map 
+            ? Object.fromEntries(res.user.skillLevels)
+            : res.user.skillLevels;
+          member.skillLevels = updatedSkillLevels;
+        }
+      },
+      error: (err) => {
+        console.error('Error updating skill level:', err);
+        this.errorMessage = 'Failed to update skill level';
+      }
+    });
   }
 
   updateMemberHeight(member: any, field: 'feet' | 'inches', value: number) {
@@ -290,24 +342,50 @@ export class RosterComponent implements OnInit {
 
   async saveAllMembers(): Promise<any> {
     const requests = this.members.map(member => {
+      // Ensure skillLevels is properly structured
+      const skillLevels: { [key: string]: number } = {};
+      this.styles.forEach(style => {
+        const normalizedStyleName = style.name.toLowerCase();
+        skillLevels[normalizedStyleName] = Number(member.skillLevels?.[normalizedStyleName]) || 1;
+      });
+      
       const payload: any = {
         name: member.name,
         height: member.height,
-        skillLevels: member.skillLevels,
+        skillLevels: skillLevels,
         captain: member.captain
       };
-      return this.http.patch(`http://localhost:3000/api/users/${member._id}`, payload);
+
+      console.log('Saving member:', member._id, 'with payload:', payload);
+      
+      return this.http.patch(`http://localhost:3000/api/users/${member._id}`, payload).toPromise();
     });
-    return forkJoin(requests).toPromise();
+    
+    try {
+      const results = await Promise.all(requests);
+      console.log('All members saved successfully:', results);
+      // Reload team members to ensure we have the latest data
+      const currentUser = this.authService.getCurrentUser();
+      if (currentUser?.team?._id) {
+        this.loadTeamMembers(currentUser.team._id);
+      }
+    } catch (error) {
+      console.error('Error saving members:', error);
+      throw error;
+    }
   }
 
   async closeAndSave() {
     try {
       await this.saveAllMembers();
-      console.log('Emitting close event');
       this.close.emit();
-    } catch (err) {
-      alert('Failed to save changes. Please try again.');
+    } catch (error) {
+      console.error('Error saving members:', error);
+      this.errorMessage = 'Failed to save changes';
     }
+  }
+
+  onClose() {
+    this.closeAndSave();
   }
 } 

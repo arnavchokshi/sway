@@ -4,10 +4,21 @@
     <ng-container *ngIf="segments.length > 0; else noSegments">
       <div class="segment-card" *ngFor="let segment of segments" (click)="goToSegment(segment._id)">
         <div class="segment-grid-bg"></div>
+        <!-- Segment order badge -->
+        <div class="segment-order-badge" *ngIf="segment.segmentOrder !== undefined">
+          {{ segment.segmentOrder }}
+        </div>
         <button class="delete-segment-btn" *ngIf="isCaptain" (click)="deleteSegment(segment._id); $event.stopPropagation()">
           <span class="material-icons">delete</span>
         </button>
         <div class="segment-name">{{ segment.name }}</div>
+        <!-- Style pills at the bottom -->
+        <div class="segment-style-pills" *ngIf="segment.stylesInSegment?.length">
+          <span class="style-pill" *ngFor="let styleName of segment.stylesInSegment"
+                [ngStyle]="{ 'background-color': getStyleColor(styleName) }">
+            {{ styleName }}
+          </span>
+        </div>
       </div>
     </ng-container>
     <ng-template #noSegments>

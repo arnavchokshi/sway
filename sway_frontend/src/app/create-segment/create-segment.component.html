@@ -1,198 +1,266 @@
 <div class="segment-page-container">
-  <div class="roster-sidebar" *ngIf="isCaptain">
-    <h3>Team Roster</h3>
-    
-    <div class="action-buttons">
-      <button class="dummy-btn" (click)="addDummyPerformer()">
-        <span class="material-icons">group_add</span>
-        Add Dummy Performers
-      </button>
+  <div class="top-panel" *ngIf="isCaptain">
+    <div class="segment-name">{{ segmentName }}</div>
+    <div class="top-panel-controls">
       <label class="roster-add-btn">
         <input type="file" accept=".mp3,audio/mp3" (change)="onMusicFileSelected($event)" hidden>
         <span class="material-icons">audio_file</span>
         Add Audio File
       </label>
-    </div>
-
-    <div class="roster-tabs">
-      <button class="roster-tab" [class.active]="activeRosterTab === 'team'" (click)="activeRosterTab = 'team'">
-        Team Roster
+      <button class="roster-add-btn" (click)="toggleColorBySkill()">
+        <span class="material-icons">palette</span>
+        Color by Skill
       </button>
-      <button class="roster-tab" [class.active]="activeRosterTab === 'segment'" (click)="activeRosterTab = 'segment'">
-        Segment Roster
+      <button *ngIf="isCaptain" class="edit-stage-btn" (click)="openEditModal()">
+        <span class="material-icons">edit</span> Edit Stage
       </button>
-    </div>
-
-    <div class="roster-content">
-      <ul>
-        <li *ngFor="let dancer of activeRosterTab === 'team' ? teamRoster : segmentRoster">
-          <button class="roster-add-btn" (click)="addPerformerFromRoster(dancer)">
-            <span class="material-icons">person</span>
-            {{ dancer.name }}
-          </button>
-        </li>
-      </ul>
-    </div>
-  </div>
-  <div class="stage-area">
-    <div class="current-formation-indicator">
-      <span *ngIf="formations[playingFormationIndex]">Formation {{ playingFormationIndex + 1 }}</span>
-    </div>
-    <div class="stage-label">BACKSTAGE</div>
-    <div class="stage-dimensions">
-      <span class="stage-width">{{ width }} ft</span>
-      <span class="stage-depth">{{ depth }} ft</span>
+      <button *ngIf="isCaptain" class="save-segment-btn" (click)="saveSegment()">
+        <span class="material-icons">save</span> Save
+      </button>
     </div>
     <!-- Delete Dancer Button -->
     <button *ngIf="isCaptain && selectedPerformerId" class="delete-dancer-btn" (click)="deleteDancer()">
       <span class="material-icons">delete</span> Delete Dancer
     </button>
-    <!-- Edit Stage Button -->
-    <button *ngIf="isCaptain" class="edit-stage-btn" (click)="openEditModal()">
-      <span class="material-icons">edit</span> Edit Stage
-    </button>
-    <!-- Save Segment Button -->
-    <button *ngIf="isCaptain" class="save-segment-btn" (click)="saveSegment()">
-      <span class="material-icons">save</span> Save
-    </button>
-    <!-- Edit Modal -->
-    <div class="edit-modal-backdrop" *ngIf="showEditModal">
-      <div class="edit-modal">
-        <h2>Edit Stage</h2>
-        <form (ngSubmit)="submitEditModal()">
-          <label>Width (ft):
-            <input type="number" min="8" max="64" [(ngModel)]="editWidth" name="editWidth" required />
-          </label>
-          <label>Depth (ft):
-            <input type="number" min="8" max="48" [(ngModel)]="editDepth" name="editDepth" required />
-          </label>
-          <label>Divisions:
-            <input type="number" min="1" max="8" [(ngModel)]="editDivisions" name="editDivisions" required />
-          </label>
-          <div class="modal-actions">
-            <button type="button" (click)="closeEditModal()">Cancel</button>
-            <button type="submit" class="save">Save</button>
-          </div>
-        </form>
-      </div>
-    </div>
-    <div class="stage-grid-outer"
-         #stageRef
-         [style.width.px]="stageWidthPx"
-         [style.height.px]="stageHeightPx">
-      <!-- Spotlight overlay - only show for non-captains -->
-      <div class="spotlight-overlay" *ngIf="!isCaptain" [ngStyle]="getSpotlightStyle()"></div>
-      
-      <!-- SVG for movement lines -->
-      <svg class="movement-lines" [style.width.px]="stageWidthPx" [style.height.px]="stageHeightPx">
-        <!-- Path lines -->
-        <path *ngFor="let performer of performers"
-               [attr.d]="getPerformerPath(performer.id)"
-               class="movement-line"
-               [style.display]="getPreviousPosition(performer.id) ? 'block' : 'none'"/>
-      </svg>
+  </div>
 
-      <!-- Main grid lines: vertical -->
-      <div *ngFor="let x of mainVerticals" class="main-vertical" [style.left.px]="x"></div>
-      <!-- Main grid lines: horizontal -->
-      <div *ngFor="let y of mainHorizontals" class="main-horizontal" [style.top.px]="y"></div>
-      <!-- Subgrid lines: vertical -->
-      <div *ngFor="let x of subVerticals" class="sub-vertical" [style.left.px]="x"></div>
-      <!-- Subgrid lines: horizontal -->
-      <div *ngFor="let y of subHorizontals" class="sub-horizontal" [style.top.px]="y"></div>
-      <!-- Previous position indicators -->
-      <div *ngFor="let performer of performers" 
-           class="performer previous-position"
-           [ngStyle]="getPreviousPositionStyle(performer.id)">
-        {{performer.name}}
+  <div class="main-content">
+    <div class="roster-sidebar" *ngIf="isCaptain">
+      <h3>Team Roster</h3>
+      
+      <div class="action-buttons">
+        <button class="dummy-btn" (click)="addDummyPerformer()">
+          <span class="material-icons">group_add</span>
+          Add Dummy Performers
+        </button>
       </div>
-      <!-- Current performers -->
-      <div *ngFor="let performer of performers" 
-           class="performer"
-           [ngClass]="{
-             'selected': performer.id === selectedPerformerId,
-             'current-user': !isCaptain && performer.id === currentUserId,
-             'dimmed': !isCaptain && performer.id !== currentUserId
-           }"
-           [ngStyle]="getPerformerStyle(performer)"
-           (mousedown)="isCaptain && onDragStart($event, performer)"
-           (touchstart)="isCaptain && onDragStart($event, performer)"
-           (click)="isCaptain && selectPerformer(performer)">
-        {{performer.name}}
+
+      <div class="color-by-skill-controls" *ngIf="showColorBySkill">
+        <ng-container *ngIf="segmentStyles.length > 1; else singleStyle">
+          <label for="stylePicker">Style:</label>
+          <select id="stylePicker" [(ngModel)]="selectedStyle" (ngModelChange)="selectStyle($event)">
+            <option *ngFor="let style of segmentStyles" [ngValue]="style">{{ style.name }}</option>
+          </select>
+        </ng-container>
+        <ng-template #singleStyle>
+          <span *ngIf="segmentStyles.length === 1">Style: {{ segmentStyles[0].name }}</span>
+        </ng-template>
       </div>
-      <!-- Stage border -->
-      <div class="stage-border"></div>
-    </div>
-    <!-- Play Button (always visible, controls formations and audio if present) -->
-    <div class="unified-play-btn-row">
-      <button class="unified-play-btn" (click)="toggleUnifiedPlay()">
-        <span class="material-icons">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
-      </button>
-      <button class="unified-arrow-btn" (click)="prevFormation()">
-        <span class="material-icons">chevron_left</span>
-      </button>
-      <button class="unified-arrow-btn" (click)="onNextFormationClick()">
-        <span class="material-icons">chevron_right</span>
-      </button>
-    </div>
-    <!-- Timeline and waveform stacked together -->
-    <div class="timeline-audio-stack">
-      <div class="formation-timeline-bar simplified-timeline"
-           #timelineBarRef
-           [style.width.px]="waveformWidthPx"
-           style="overflow-x: auto; position: relative;"
-           (mousemove)="onTimelineMouseMove($event)"
-           (mouseleave)="onTimelineMouseLeave()"
-           (click)="onTimelineClick($event)">
-        <div class="formation-timeline-row" [style.width.px]="getTimelinePixelWidth()">
-          <ng-container *ngFor="let formation of formations; let i = index">
-            <div class="formation-timeline-box"
-                 [class.active]="currentFormationIndex === i"
-                 (click)="jumpToFormation(i)"
-                 (mouseenter)="hoveredFormationIndex = i"
-                 (mouseleave)="hoveredFormationIndex = null"
-                 [style.width.px]="getFormationPixelWidth(i)">
-              <div class="formation-label">Formation {{ i + 1 }}</div>
-              <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
-              <div *ngIf="isCaptain && i < formations.length - 1" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
-            </div>
-            <ng-container *ngIf="i < formations.length - 1">
-              <div class="timeline-transition-bar" [style.width.px]="getTransitionPixelWidth(i)">
-                <span class="transition-label">{{ animationDurations[i] | number:'1.1-1' }}s</span>
-                <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onTransitionResizeStart($event, i)"></div>
-              </div>
-            </ng-container>
-          </ng-container>
-          <button *ngIf="isCaptain" class="add-formation-btn add-formation-plus" (click)="addFormation()">
-            <span class="material-icons">add</span>
-          </button>
+
+      <div *ngIf="showColorBySkill && selectedStyle" class="skill-gradient-bar">
+        <div class="gradient-labels">
+          <span>1</span>
+          <span>2</span>
+          <span>3</span>
+          <span>4</span>
+          <span>5</span>
         </div>
-        <div class="timeline-playhead" [style.left.px]="getHoveredPlayheadPixel()"></div>
+        <div class="gradient-bar"></div>
+        <div class="gradient-labels">
+          <span>Worst</span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span>Best</span>
+        </div>
       </div>
-      <div *ngIf="signedMusicUrl" class="audio-player-bar stage-audio-bar" [style.width.px]="waveformWidthPx">
-        <div class="waveform-container" style="display: flex; align-items: center; gap: 12px;">
-          <button class="audio-play-btn" (click)="togglePlay()">
-            <span class="material-icons">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
-          </button>
-          <div style="flex: 1; position: relative;">
-            <div class="formation-tracker">
+
+      <div class="roster-tabs">
+        <button class="roster-tab" [class.active]="activeRosterTab === 'team'" (click)="activeRosterTab = 'team'">
+          Team Roster
+        </button>
+        <button class="roster-tab" [class.active]="activeRosterTab === 'segment'" (click)="activeRosterTab = 'segment'">
+          Segment Roster
+        </button>
+      </div>
+
+      <div class="roster-content">
+        <ul>
+          <li *ngFor="let dancer of activeRosterTab === 'team' ? teamRoster : segmentRoster">
+            <button class="roster-add-btn" (click)="addPerformerFromRoster(dancer)">
+              <span class="material-icons">person</span>
+              {{ dancer.name }}
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="content-area">
+      <div class="stage-area">
+        <div class="stage-header-center">
+          <div class="formation-title" *ngIf="formations[playingFormationIndex]">
+            Formation {{ playingFormationIndex + 1 }}
+          </div>
+          <div class="stage-label">BACKSTAGE</div>
+        </div>
+        <div class="stage-grid-outer"
+             #stageRef
+             [style.width.px]="stageWidthPx"
+             [style.height.px]="stageHeightPx">
+          <!-- Spotlight overlay - only show for non-captains -->
+          <div class="spotlight-overlay" *ngIf="!isCaptain" [ngStyle]="getSpotlightStyle()"></div>
+          
+          <!-- SVG for movement lines -->
+          <svg class="movement-lines" [style.width.px]="stageWidthPx" [style.height.px]="stageHeightPx">
+            <!-- Path lines -->
+            <path *ngFor="let performer of performers"
+                   [attr.d]="getPerformerPath(performer.id)"
+                   class="movement-line"
+                   [style.display]="getPreviousPosition(performer.id) ? 'block' : 'none'"/>
+          </svg>
+
+          <!-- Main grid lines: vertical -->
+          <div *ngFor="let x of mainVerticals; let i = index" class="main-vertical" [style.left.px]="x"></div>
+          <!-- Vertical grid numbers (bottom of grid) -->
+          <div *ngFor="let x of mainVerticals; let i = index"
+               class="grid-number vertical-number"
+               [style.left.px]="x"
+               [style.bottom.px]="-28">
+            {{ i - Math.floor(mainVerticals.length / 2) }}
+          </div>
+          <!-- Main grid lines: horizontal -->
+          <div *ngFor="let y of mainHorizontals; let i = index" class="main-horizontal" [style.top.px]="y"></div>
+          <!-- Horizontal grid numbers (right of grid) -->
+          <div *ngFor="let y of mainHorizontals; let i = index"
+               class="grid-number horizontal-number"
+               [style.top.px]="y"
+               [style.right.px]="-40">
+            {{ i }}
+          </div>
+          <!-- Subgrid lines: vertical -->
+          <div *ngFor="let x of subVerticals" class="sub-vertical" [style.left.px]="x"></div>
+          <!-- Subgrid lines: horizontal -->
+          <div *ngFor="let y of subHorizontals" class="sub-horizontal" [style.top.px]="y"></div>
+          <!-- Previous position indicators -->
+          <div *ngFor="let performer of performers" 
+               class="performer previous-position"
+               [ngStyle]="getPreviousPositionStyle(performer.id)">
+            {{performer.name}}
+          </div>
+          <!-- Current performers -->
+          <div *ngFor="let performer of performers" 
+               class="performer"
+               [ngClass]="{
+                 'selected': performer.id === selectedPerformerId,
+                 'current-user': !isCaptain && performer.id === currentUserId,
+                 'dimmed': !isCaptain && performer.id !== currentUserId
+               }"
+               [ngStyle]="getPerformerStyleWithColor(performer)"
+               (mousedown)="isCaptain && onDragStart($event, performer)"
+               (touchstart)="isCaptain && onDragStart($event, performer)"
+               (click)="isCaptain && selectPerformer(performer)">
+            {{performer.name}}
+          </div>
+          <!-- Stage border -->
+          <div class="stage-border"></div>
+        </div>
+      </div>
+      <div class="floating-controls">
+        <button class="unified-play-btn" (click)="toggleUnifiedPlay()">
+          <span class="material-icons">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
+        </button>
+        <button class="unified-arrow-btn" (click)="prevFormation()">
+          <span class="material-icons">chevron_left</span>
+        </button>
+        <button class="unified-arrow-btn" (click)="onNextFormationClick()">
+          <span class="material-icons">chevron_right</span>
+        </button>
+      </div>
+      <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl }">
+        <!-- Timeline and waveform stacked together -->
+        <div class="timeline-audio-stack">
+          <div class="formation-timeline-bar simplified-timeline"
+               #timelineBarRef
+               [style.width.px]="waveformWidthPx"
+               style="overflow-x: auto; position: relative;"
+               (mousemove)="onTimelineMouseMove($event)"
+               (mouseleave)="onTimelineMouseLeave()"
+               (click)="onTimelineClick($event)">
+            <div class="formation-timeline-row" [style.width.px]="getTimelinePixelWidth()">
               <ng-container *ngFor="let formation of formations; let i = index">
-                <div class="formation-tracker-segment"
-                     [style.left.%]="getFormationStartPercent(i)"
-                     [style.width.%]="getFormationPercent(i)"
-                     [class.transition]="false">
+                <div class="formation-timeline-box"
+                     [class.active]="currentFormationIndex === i"
+                     (click)="jumpToFormation(i)"
+                     (mouseenter)="hoveredFormationIndex = i"
+                     (mouseleave)="hoveredFormationIndex = null"
+                     [style.width.px]="getFormationPixelWidth(i)">
+                  <div class="formation-label">Formation {{ i + 1 }}</div>
+                  <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
+                  <div *ngIf="isCaptain && i < formations.length - 1" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
                 </div>
-                <div class="formation-tracker-segment transition"
-                     *ngIf="i < animationDurations.length"
-                     [style.left.%]="getTransitionStartPercent(i)"
-                     [style.width.%]="getTransitionPercent(i)">
-                </div>
+                <ng-container *ngIf="i < formations.length - 1">
+                  <div class="timeline-transition-bar" [style.width.px]="getTransitionPixelWidth(i)">
+                    <span class="transition-label">{{ animationDurations[i] | number:'1.1-1' }}s</span>
+                    <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onTransitionResizeStart($event, i)"></div>
+                  </div>
+                </ng-container>
               </ng-container>
+              <button *ngIf="isCaptain" class="add-formation-btn add-formation-plus" (click)="addFormation()">
+                <span class="material-icons">add</span>
+              </button>
             </div>
-            <div id="waveform"></div>
+            <div class="timeline-playhead" [style.left.px]="getHoveredPlayheadPixel()"></div>
+          </div>
+          <div *ngIf="signedMusicUrl" class="audio-player-bar stage-audio-bar" [style.width.px]="waveformWidthPx">
+            <div class="waveform-container" style="display: flex; align-items: center; gap: 12px;">
+              <div style="flex: 1; position: relative;">
+                <div class="formation-tracker">
+                  <ng-container *ngFor="let formation of formations; let i = index">
+                    <div class="formation-tracker-segment"
+                         [style.left.%]="getFormationStartPercent(i)"
+                         [style.width.%]="getFormationPercent(i)"
+                         [class.transition]="false">
+                    </div>
+                    <div class="formation-tracker-segment transition"
+                         *ngIf="i < animationDurations.length"
+                         [style.left.%]="getTransitionStartPercent(i)"
+                         [style.width.%]="getTransitionPercent(i)">
+                    </div>
+                  </ng-container>
+                </div>
+                <div id="waveform"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="edit-modal-backdrop" *ngIf="showEditModal">
+    <div class="edit-modal">
+      <h2>Edit Stage</h2>
+      <form (ngSubmit)="submitEditModal()">
+        <label>Segment Name:
+          <input type="text" [(ngModel)]="editSegmentName" name="editSegmentName" required />
+        </label>
+        <label>Width (ft):
+          <input type="number" min="8" max="64" [(ngModel)]="editWidth" name="editWidth" required />
+        </label>
+        <label>Depth (ft):
+          <input type="number" min="8" max="48" [(ngModel)]="editDepth" name="editDepth" required />
+        </label>
+        <label>Divisions:
+          <input type="number" min="1" max="8" [(ngModel)]="editDivisions" name="editDivisions" required />
+        </label>
+        <div class="styles-section-modal">
+          <div style="font-weight: 500; margin-bottom: 6px;">Styles</div>
+          <div *ngIf="teamStyles.length === 0" style="color: #888; font-size: 0.95em;">No styles defined for this team.</div>
+          <div class="styles-list-modal" *ngIf="teamStyles.length > 0">
+            <label *ngFor="let style of teamStyles" class="style-checkbox-modal"
+                   [class.selected]="isStyleSelected(style)"
+                   (click)="toggleStyleSelection(style)">
+              <span class="style-color-modal" [style.background]="style.color"></span>
+              <span>{{ style.name }}</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" (click)="closeEditModal()">Cancel</button>
+          <button type="submit" class="save">Save</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

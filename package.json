@@ -1,6 +1,8 @@
 {
   "dependencies": {
+    "@babylonjs/materials": "^8.12.1",
     "aws-sdk": "^2.1692.0",
+    "babylonjs": "^8.12.1",
     "framer-motion": "^12.18.1"
   }
 }

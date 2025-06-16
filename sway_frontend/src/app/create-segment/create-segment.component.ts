@@ -14,6 +14,12 @@ interface Performer {
   name: string;
   x: number; // in feet
   y: number; // in feet
+  skillLevel?: number; // 1-5 for skill level
+}
+
+interface Style {
+  name: string;
+  color: string;
 }
 
 @Component({
@@ -40,6 +46,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   spotlightOpacity = 0.35; // 35% opacity for the dark overlay
   roster: any[] = [];
   segment: any = null;
+  segmentName: string = 'New Segment';
   depth = 24; // feet
   width = 32; // feet
   divisions = 3;
@@ -72,6 +79,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   editWidth = 32;
   editDepth = 24;
   editDivisions = 3;
+  editSegmentName = 'New Segment';
+  editSelectedStyles: Style[] = [];
+  teamStyles: Style[] = [];
 
   selectedAddPerformer: any = null;
 
@@ -124,6 +134,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
 
   unifiedFormationInterval: any = null;
 
+  // Make Math available in template
+  protected Math = Math;
+
+  // Color by skill properties
+  showColorBySkill = false;
+  selectedStyle: Style | null = null;
+
   constructor(
     private teamService: TeamService,
     private authService: AuthService,
@@ -166,6 +183,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
           this.depth = this.segment.depth;
           this.width = this.segment.width;
           this.divisions = this.segment.divisions;
+          this.segmentName = this.segment.name || 'New Segment';
           this.calculateStage();
 
           // Load roster first
@@ -195,11 +213,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
                         };
                       } else {
                         const user = this.teamRoster.find(m => m._id === p.user);
+                        // Get skill level for the selected style if available
+                        const skillLevel = user?.skillLevels?.[this.selectedStyle?.name.toLowerCase() || ''] || 1;
                         return {
                           id: p.user,
                           name: user ? user.name : 'Unknown',
                           x: p.x,
-                          y: p.y
+                          y: p.y,
+                          skillLevel
                         };
                       }
                     })
@@ -239,10 +260,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     this.mainHorizontals = [];
     this.subVerticals = [];
     this.subHorizontals = [];
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 0; i <= 8; i++) {
       this.mainVerticals.push((i / 8) * this.stageWidthPx);
     }
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 0; i <= 4; i++) {
       this.mainHorizontals.push((i / 4) * this.stageHeightPx);
     }
     // Subgrid lines for all 8 vertical and 3 horizontal sections
@@ -291,14 +312,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     }
   }
 
-  prevFormation() {
-    if (this.currentFormationIndex > 0) {
+  async prevFormation() {
+    if (this.currentFormationIndex > 0 && !this.inTransition) {
+      await this.animateFormationTransition(this.currentFormationIndex, this.currentFormationIndex - 1);
       this.goToFormation(this.currentFormationIndex - 1);
     }
   }
 
-  onNextFormationClick() {
-    if (this.currentFormationIndex < this.formations.length - 1) {
+  async onNextFormationClick() {
+    if (this.currentFormationIndex < this.formations.length - 1 && !this.inTransition) {
+      await this.animateFormationTransition(this.currentFormationIndex, this.currentFormationIndex + 1);
       this.goToFormation(this.currentFormationIndex + 1);
     }
   }
@@ -533,6 +556,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     return baseStyle;
   }
 
+  getPerformerStyleWithColor(performer: Performer) {
+    return {
+      ...this.getPerformerStyle(performer),
+      'background-color': this.getSkillColor(performer)
+    };
+  }
+
   getPreviousPositionStyle(performerId: string) {
     const performerSize = 30; // px
     const prevPos = this.getPreviousPosition(performerId);
@@ -550,6 +580,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     this.editWidth = this.width;
     this.editDepth = this.depth;
     this.editDivisions = this.divisions;
+    this.editSegmentName = this.segmentName;
+    this.editSelectedStyles = [...(this.segment?.styles || [])];
+    
+    // Load team styles
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser?.team?._id) {
+      this.teamService.getTeamById(currentUser.team._id).subscribe({
+        next: (res) => {
+          this.teamStyles = res.team.styles || [];
+        },
+        error: (err) => {
+          console.error('Failed to load team styles:', err);
+        }
+      });
+    }
+    
     this.showEditModal = true;
   }
 
@@ -561,8 +607,30 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     this.width = this.editWidth;
     this.depth = this.editDepth;
     this.divisions = this.editDivisions;
-    this.calculateStage();
-    this.showEditModal = false;
+    this.segmentName = this.editSegmentName;
+    if (this.segment) {
+      this.segment.styles = this.editSelectedStyles;
+      this.segment.stylesInSegment = this.editSelectedStyles.map(s => s.name);
+      
+      // Save to backend
+      this.segmentService.updateSegment(this.segment._id, {
+        name: this.segmentName,
+        width: this.width,
+        depth: this.depth,
+        divisions: this.divisions,
+        styles: this.editSelectedStyles,
+        stylesInSegment: this.editSelectedStyles.map(s => s.name)
+      }).subscribe({
+        next: () => {
+          this.calculateStage();
+          this.showEditModal = false;
+        },
+        error: (err) => {
+          console.error('Failed to save segment:', err);
+          alert('Failed to save segment changes');
+        }
+      });
+    }
   }
 
   saveSegment() {
@@ -598,7 +666,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       formations, 
       formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
-      roster // Add the roster to the update
+      roster,
+      name: this.segmentName,
+      styles: this.editSelectedStyles,
+      stylesInSegment: this.editSelectedStyles.map(s => s.name)
     }).subscribe({
       next: () => alert('Segment saved!'),
       error: () => alert('Failed to save segment!')
@@ -1204,6 +1275,136 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       this.isPlaying = false;
       clearInterval(this.unifiedFormationInterval);
     }
+  }
+
+  getSkillColor(performer: Performer): string {
+    if (!this.showColorBySkill || !this.selectedStyle) {
+      return '#3b82f6'; // blue
+    }
+
+    // Get the user from teamRoster to access their skill levels
+    const user = this.teamRoster.find(m => m._id === performer.id);
+    if (!user) {
+      return '#3b82f6'; // blue
+    }
+
+    // Get skill level for the selected style
+    const styleName = this.selectedStyle.name.toLowerCase();
+    const skillLevel = user.skillLevels?.[styleName];
+    if (!skillLevel) {
+      return '#3b82f6'; // blue
+    }
+
+    // Blue (#3b82f6) to Yellow (#ffe14a) gradient
+    const blue = { r: 59, g: 130, b: 246 };    // #3b82f6
+    const yellow = { r: 255, g: 225, b: 74 };  // #ffe14a
+    const t = (skillLevel - 1) / 4; // skillLevel: 1-5
+    const r = Math.round(blue.r + (yellow.r - blue.r) * t);
+    const g = Math.round(blue.g + (yellow.g - blue.g) * t);
+    const b = Math.round(blue.b + (yellow.b - blue.b) * t);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  toggleColorBySkill() {
+    this.showColorBySkill = !this.showColorBySkill;
+    if (!this.showColorBySkill) {
+      this.selectedStyle = null;
+    } else if (this.segment?.stylesInSegment && this.segment.stylesInSegment.length > 0) {
+      // Get the team's styles to get the color
+      const currentUser = this.authService.getCurrentUser();
+      if (currentUser?.team?._id) {
+        this.teamService.getTeamById(currentUser.team._id).subscribe({
+          next: (res) => {
+            const teamStyle = res.team.styles.find((s: Style) => 
+              s.name.toLowerCase() === this.segment.stylesInSegment[0].toLowerCase()
+            );
+            this.selectedStyle = teamStyle || null;
+            console.log('Selected style:', this.selectedStyle);
+          }
+        });
+      }
+    } else {
+      this.selectedStyle = null;
+    }
+  }
+
+  selectStyle(style: Style) {
+    this.selectedStyle = style;
+    console.log('Selected style:', style);
+    // Update skill levels for all performers based on the new style
+    this.formations = this.formations.map(formation =>
+      formation.map(performer => {
+        if (performer.id.startsWith('dummy-')) {
+          return performer;
+        }
+        const user = this.teamRoster.find(m => m._id === performer.id);
+        const skillLevel = user?.skillLevels?.[style.name.toLowerCase()] || 1;
+        console.log('Updated performer skill level:', {
+          performer: performer.name,
+          style: style.name,
+          skillLevel,
+          skillLevels: user?.skillLevels
+        });
+        return {
+          ...performer,
+          skillLevel
+        };
+      })
+    );
+  }
+
+  get segmentStyles(): Style[] {
+    if (!this.segment?.stylesInSegment) return [];
+    // Get the team's styles to get the colors
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?.team?._id) return [];
+    
+    // Return styles with their actual colors from the team
+    return this.segment.stylesInSegment.map((name: string) => {
+      const teamStyle = this.teamRoster.find(m => m.team?._id === currentUser.team._id)?.team?.styles?.find(
+        (s: Style) => s.name.toLowerCase() === name.toLowerCase()
+      );
+      return {
+        name,
+        color: teamStyle?.color || '#ffffff'
+      };
+    });
+  }
+
+  toggleStyleSelection(style: Style) {
+    const index = this.editSelectedStyles.findIndex(s => s.name === style.name);
+    if (index === -1) {
+      this.editSelectedStyles.push(style);
+    } else {
+      this.editSelectedStyles.splice(index, 1);
+    }
+  }
+
+  isStyleSelected(style: Style): boolean {
+    return this.editSelectedStyles.some(s => s.name === style.name);
+  }
+
+  // Animate performer movement between two formations for 1 second
+  animateFormationTransition(fromIdx: number, toIdx: number): Promise<void> {
+    this.inTransition = true;
+    const duration = 300; // 0.3s
+    const start = performance.now();
+
+    return new Promise((resolve) => {
+      const animate = (now: number) => {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        this.animatedPositions = this.interpolateFormations(fromIdx, toIdx, progress);
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          this.animatedPositions = {};
+          this.inTransition = false;
+          resolve();
+        }
+      };
+      requestAnimationFrame(animate);
+    });
   }
 }
  

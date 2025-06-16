@@ -38,8 +38,8 @@
   box-shadow: 0 2px 8px rgba(99,102,241,0.08);
   transition: background 0.2s;
   position: absolute;
-  top: 2.5rem;
-  right: 3rem;
+  top: 5.0rem;
+  right: 2.5rem;
   z-index: 10;
 }
 .roster-btn i {
@@ -74,7 +74,7 @@
 
 .roster-modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0px; left: 0; right: 0; bottom: 0;
   width: 100vw;
   height: 100vh;
   background: rgba(36, 41, 54, 0.45);
@@ -310,4 +310,24 @@
 .dashboard-navbar button:hover:not(.active) {
   background: rgba(59,130,246,0.10);
   color: #3b82f6;
+}
+
+.dashboard-join-code {
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  background: rgba(40,30,60,0.85);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 0.5rem 1.2rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.10);
+  z-index: 200;
+  .join-code {
+    color: #3b82f6;
+    font-family: 'Fira Mono', monospace;
+    font-size: 1.15em;
+    margin-left: 0.5em;
+  }
 } 

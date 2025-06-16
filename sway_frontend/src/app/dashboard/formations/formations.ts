@@ -146,4 +146,16 @@ export class FormationsComponent implements OnInit {
       this.newSegmentStyles = this.newSegmentStyles.filter(s => s !== style.name);
     }
   }
+
+  getStyleColor(styleName: string): string {
+    // Try to find the style in teamStyles (which has color info)
+    const style = this.teamStyles.find(s => s.name === styleName);
+    if (style && style.color) return style.color;
+    // Fallback colors for common styles
+    const fallback: { [key: string]: string } = {
+
+      // Add more as needed
+    };
+    return fallback[styleName] || '#E6E6FA';
+  }
 } 

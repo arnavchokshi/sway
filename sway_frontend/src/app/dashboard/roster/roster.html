@@ -61,8 +61,12 @@
               <div class="skill-level-vertical-align" [style.gridTemplateRows]="'repeat(' + styles.length + ', 1fr)'">
                 <ng-container *ngFor="let style of styles; let s = index">
                   <div class="slider-inline-row skill-row-{{s}}">
-                    <input type="range" min="1" max="5" [(ngModel)]="member.skillLevels[style.name]" (change)="updateMemberSkill(member, style.name, member.skillLevels[style.name])" [ngStyle]="{'accent-color': style.color}" />
-                    <span class="slider-value">{{ (member.skillLevels[style.name] || 1) + '/5' }}</span>
+                    <input type="range" min="1" max="5" 
+                           [(ngModel)]="member.skillLevels[style.name.toLowerCase()]" 
+                           (change)="updateMemberSkill(member, style.name, member.skillLevels[style.name.toLowerCase()])" 
+                           [ngStyle]="{'accent-color': style.color}"
+                           [value]="member.skillLevels[style.name.toLowerCase()] || 1" />
+                    <span class="slider-value">{{ (member.skillLevels[style.name.toLowerCase()] || 1) + '/5' }}</span>
                   </div>
                 </ng-container>
               </div>
