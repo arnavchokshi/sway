@@ -100,7 +100,7 @@ export class FormationsComponent implements OnInit {
         this.newSegmentName,
         this.newSegmentDepth,
         this.newSegmentWidth,
-        0, // divisions removed
+        3, // divisions removed
         this.newSegmentStyles
       ).subscribe({
           next: (response) => {

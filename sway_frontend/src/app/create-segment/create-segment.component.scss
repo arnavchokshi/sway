@@ -387,7 +387,7 @@
 
 .floating-controls {
   position: absolute;
-  left: 30%;
+  left: 31%;
   bottom: 160px;
   transform: translateX(-50%);
   display: flex;
@@ -404,8 +404,8 @@
   color: #fff;
   border: none;
   border-radius: 2rem;
-  padding: 0.6rem 0.6rem;
-  font-size: 0.5rem;
+  padding: 0.4rem 0.4rem;
+  font-size: 0.4rem;
   font-weight: 300;
   cursor: pointer;
   display: flex;
@@ -454,7 +454,7 @@
   color: #000;
   border: none;
   border-radius: 2rem;
-  padding: 0.6rem 1.2rem;
+  padding: 0.6rem 1rem;
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
@@ -463,7 +463,7 @@
   gap: 0.5rem;
   box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
   transition: all 0.2s ease;
-  margin-left: 1rem;
+  margin-left: 0.1rem;
 
   .material-icons {
     font-size: 1.2rem;
@@ -793,7 +793,6 @@
   position: static;
   width: 100%;
   margin: 0 0 1.2rem 0;
-  box-shadow: 0 2px 8px rgba(59,130,246,0.07);
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -1127,4 +1126,226 @@
       }
     }
   }
+}
+
+/* Enhanced Edit Modal Styles - Frosted Glass & Style Cards */
+.edit-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(18, 20, 40, 0.39);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(6px);
+}
+
+.edit-modal {
+  background: rgba(9, 11, 33, 0.604);
+  border-radius: 16px;
+  padding: 1.8rem;
+  height: auto;
+  max-height: 85vh;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 8px 32px 0 rgba(59,130,246,0.15), 0 1px 4px 0 rgba(59,130,246,0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  backdrop-filter: blur(20px);
+  position: relative;
+  overflow-y: auto;
+
+  h2 {
+    color: #fff;
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    letter-spacing: 0.01em;
+    text-shadow: 0 2px 8px rgba(59,130,246,0.12);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      color: #e2e8f0;
+      font-size: 1rem;
+      font-weight: 500;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+      input {
+        background: rgba(24, 24, 27, 0.25);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        border-radius: 8px;
+        padding: 0.8rem 1rem;
+        color: #fff;
+        font-size: 1rem;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        transition: all 0.2s;
+        box-shadow: 0 1px 4px 0 rgba(99, 102, 241, 0.04);
+
+        &:focus {
+          outline: none;
+          border-color: #6366f1;
+          box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+          background: rgba(24, 24, 27, 0.3);
+        }
+      }
+    }
+  }
+
+  .styles-section-modal {
+    margin-top: 0.5rem;
+    .styles-list-modal {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      margin-top: 0.8rem;
+    }
+    > div:first-child {
+      color: #fff;
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.6rem;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      letter-spacing: -0.01em;
+    }
+    .style-checkbox-modal {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 80px;
+      min-height: 70px;
+      padding: 0.8rem 1rem 0.5rem 1rem;
+      border-radius: 12px;
+      border: 1px solid rgba(99, 102, 241, 0.15);
+      background: linear-gradient(135deg, 
+        rgba(var(--style-color-rgb, 99, 102, 241), 0.15) 0%,
+        rgba(24, 24, 27, 0.4) 100%
+      );
+      box-shadow: 
+        0 2px 4px 0 rgba(99, 102, 241, 0.04),
+        0 4px 8px 0 rgba(0, 0, 0, 0.1),
+        inset 0 1px 1px rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      margin-bottom: 0.4rem;
+      user-select: none;
+      outline: none;
+      backdrop-filter: blur(8px);
+      transform-style: preserve-3d;
+      perspective: 1000px;
+
+      &::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 12px;
+        background: linear-gradient(135deg,
+          rgba(255, 255, 255, 0.1) 0%,
+          rgba(255, 255, 255, 0) 100%
+        );
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      span {
+        color: #fff;
+        font-size: 0.95rem;
+        font-weight: 500;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        letter-spacing: -0.01em;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        transition: all 0.18s;
+        transform: translateZ(10px);
+      }
+      &.selected span {
+        color: #fbbf24;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      }
+      &.selected {
+        border: 1px solid #fbbf24;
+        background: linear-gradient(135deg,
+          rgba(251, 191, 36, 0.15) 0%,
+          rgba(24, 24, 27, 0.4) 100%
+        );
+        box-shadow: 
+          0 4px 12px rgba(251, 191, 36, 0.2),
+          0 2px 4px rgba(0, 0, 0, 0.1),
+          inset 0 1px 1px rgba(255, 255, 255, 0.15);
+        transform: scale(1.02) translateZ(20px);
+        z-index: 2;
+      }
+      &:hover {
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        background: linear-gradient(135deg,
+          rgba(var(--style-color-rgb, 99, 102, 241), 0.2) 0%,
+          rgba(24, 24, 27, 0.45) 100%
+        );
+        box-shadow: 
+          0 8px 16px rgba(99, 102, 241, 0.12),
+          0 4px 8px rgba(0, 0, 0, 0.1),
+          inset 0 1px 1px rgba(255, 255, 255, 0.15);
+        transform: translateY(-2px) translateZ(15px);
+      }
+      &:active {
+        transform: translateY(0) translateZ(5px);
+        box-shadow: 
+          0 2px 4px rgba(99, 102, 241, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.1),
+          inset 0 1px 1px rgba(255, 255, 255, 0.1);
+      }
+    }
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1.8rem;
+    button {
+      padding: 0.7rem 1.6rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      outline: none;
+      background: rgba(24, 24, 27, 0.25);
+      color: #e2e8f0;
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      &:hover {
+        background: rgba(35, 35, 38, 0.4);
+        color: #fff;
+        border-color: #6366f1;
+      }
+      &.save {
+        background: linear-gradient(90deg, #6366f1 0%, #4f46e5 100%);
+        color: #fff;
+        border: none;
+        &:hover {
+          background: linear-gradient(90deg, #4f46e5 0%, #6366f1 100%);
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+        }
+      }
+    }
+  }
+}
+
+// Utility for style color gradient in style-checkbox-modal
+.styles-list-modal .style-checkbox-modal {
+  // The --style-color variable should be set inline in the HTML for each style card
 }

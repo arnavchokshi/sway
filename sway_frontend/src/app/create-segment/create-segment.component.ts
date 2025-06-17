@@ -794,7 +794,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     this.editDepth = this.depth;
     this.editDivisions = this.divisions;
     this.editSegmentName = this.segmentName;
-    this.editSelectedStyles = [...(this.segment?.styles || [])];
+    
+    // Initialize editSelectedStyles with the segment's styles
+    this.editSelectedStyles = this.segment?.stylesInSegment?.map((styleName: string) => {
+      const style = this.teamStyles.find(s => s.name === styleName);
+      return style || { name: styleName, color: '#6366f1' }; // Fallback color if style not found
+    }) || [];
     
     // Load team styles
     const currentUser = this.authService.getCurrentUser();
@@ -802,14 +807,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       this.teamService.getTeamById(currentUser.team._id).subscribe({
         next: (res) => {
           this.teamStyles = res.team.styles || [];
+          // Update editSelectedStyles with full style objects after loading team styles
+          this.editSelectedStyles = this.segment?.stylesInSegment?.map((styleName: string) => {
+            const style = this.teamStyles.find(s => s.name === styleName);
+            return style || { name: styleName, color: '#6366f1' };
+          }) || [];
+          this.showEditModal = true;
         },
         error: (err) => {
           console.error('Failed to load team styles:', err);
+          this.showEditModal = true;
         }
       });
+    } else {
+      this.showEditModal = true;
     }
-    
-    this.showEditModal = true;
   }
 
   closeEditModal() {
@@ -824,6 +836,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     this.calculateStage();
     this.closeEditModal();
 
+    // Update the segment object with the new styles
+    if (this.segment) {
+      this.segment.stylesInSegment = this.editSelectedStyles.map(s => s.name);
+    }
+
     // Save changes to backend
     if (this.segment?._id) {
       this.segmentService.updateSegment(this.segment._id, {
@@ -831,7 +848,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
         depth: this.depth,
         width: this.width,
         divisions: this.divisions,
-        styles: this.editSelectedStyles,
         stylesInSegment: this.editSelectedStyles.map(s => s.name)
       }).subscribe({
         next: () => {

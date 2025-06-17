@@ -263,10 +263,11 @@
           <div style="font-weight: 500; margin-bottom: 6px;">Styles</div>
           <div *ngIf="teamStyles.length === 0" style="color: #888; font-size: 0.95em;">No styles defined for this team.</div>
           <div class="styles-list-modal" *ngIf="teamStyles.length > 0">
-            <label *ngFor="let style of teamStyles" class="style-checkbox-modal"
+            <label *ngFor="let style of teamStyles"
+                   class="style-checkbox-modal"
                    [class.selected]="isStyleSelected(style)"
-                   (click)="toggleStyleSelection(style)">
-              <span class="style-color-modal" [style.background]="style.color"></span>
+                   (click)="toggleStyleSelection(style)"
+                   [style.--style-color]="style.color">
               <span>{{ style.name }}</span>
             </label>
           </div>
