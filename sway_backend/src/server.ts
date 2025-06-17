@@ -301,6 +301,42 @@ app.get('/api/segment/:id/music-url', async (req, res) => {
   }
 });
 
+app.post('/api/segment/:id/video-presigned-url', async (req, res) => {
+  const { filename, filetype } = req.body;
+  const segmentId = req.params.id;
+  const key = `segments/${segmentId}/videos/${Date.now()}_${filename}`;
+  const params = {
+    Bucket: process.env.AWS_S3_BUCKET,
+    Key: key,
+    Expires: 60, // seconds
+    ContentType: filetype
+  };
+  try {
+    const url = await s3.getSignedUrlPromise('putObject', params);
+    res.json({ url, key });
+  } catch (err) {
+    console.error('Error generating video presigned URL:', err);
+    res.status(500).json({ error: 'Failed to generate S3 presigned URL' });
+  }
+});
+
+// Add new endpoint to get signed URL for reading video
+app.get('/api/segment/:id/video-url', async (req, res) => {
+  try {
+    const segment = await Segment.findById(req.params.id);
+    if (!segment) {
+      return res.status(404).json({ error: 'Segment not found' });
+    }
+    if (!segment.videoUrl) {
+      return res.status(404).json({ error: 'Video file not found' });
+    }
+    res.json({ url: segment.videoUrl });
+  } catch (error) {
+    console.error('Error getting video URL:', error);
+    res.status(500).json({ error: 'Failed to get video URL' });
+  }
+});
+
 app.post('/api/teams/:id/members', async (req: Request, res: Response) => {
   try {
     const teamId = req.params.id;

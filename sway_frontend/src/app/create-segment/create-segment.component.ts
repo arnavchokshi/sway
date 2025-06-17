@@ -12,6 +12,7 @@ import { Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 interface Performer {
   id: string;
@@ -27,6 +28,13 @@ interface Performer {
 interface Style {
   name: string;
   color: string;
+}
+
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: () => void;
+  }
 }
 
 @Component({
@@ -157,6 +165,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   activePanel: 'roster' | 'details' = 'roster';
   showAddPerformerDropdown = false;
   showUserAssignmentDropdown = false;
+  showPerformerPairingDropdown = false;
 
   selectedPerformerIds: Set<string> = new Set();
   hoveredPerformerId: string | null = null;
@@ -170,9 +179,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private dragStartY: number = 0;
   private readonly DRAG_THRESHOLD = 5; // pixels
 
-  sidePanelMode: 'roster' | 'performer' = 'roster';
+  sidePanelMode: 'roster' | 'performer' | '3d' = 'roster';
 
-  setSidePanelMode(mode: 'roster' | 'performer') {
+  setSidePanelMode(mode: 'roster' | 'performer' | '3d') {
     this.sidePanelMode = mode;
   }
 
@@ -193,16 +202,35 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private camera: THREE.PerspectiveCamera | null = null;
   private threeRenderer: THREE.WebGLRenderer | null = null;
   private controls: OrbitControls | null = null;
-  private performerMeshes: { [id: string]: THREE.Mesh } = {};
+  private performerMeshes: { [id: string]: THREE.Group } = {};
   private stageMesh: THREE.Mesh | null = null;
   private animationFrameId: number | null = null;
+  private videoMesh: THREE.Mesh | null = null;
+  private videoElement: HTMLVideoElement | null = null;
+  private youtubeIframe: HTMLIFrameElement | null = null;
+  private videoContainer: HTMLDivElement | null = null;
+  private videoCanvas: HTMLCanvasElement | null = null;
+  private videoContext: CanvasRenderingContext2D | null = null;
+  private pendingVideoId: string | null = null;
+  private videoPlane: THREE.Mesh | null = null;
+  youtubeUrl: string = '';
+  private youtubePlayer: any = null;
+
+  showYoutubeOverlay: boolean = false;
+  sanitizedYoutubeEmbedUrl: SafeResourceUrl | null = null;
+
+  directVideoUrl: string = '';
+  private directVideoObjectUrl: string | null = null;
+
+  isUploadingMusic = false;
 
   constructor(
     private teamService: TeamService,
     private authService: AuthService,
     private segmentService: SegmentService,
     private route: ActivatedRoute,
-    private renderer: Renderer2
+    private renderer: Renderer2,
+    private sanitizer: DomSanitizer
   ) {
     // Set up auto-save subscription
     this.saveSubject.pipe(
@@ -788,6 +816,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.selectedPerformerIds.add(performer.id);
       this.selectedPerformerId = performer.id;
     }
+    // Switch to performer info panel when a performer is selected
+    if (this.selectedPerformerId) {
+      this.sidePanelMode = 'performer';
+    }
   }
 
   getPreviousPosition(performerId: string): { x: number, y: number } | null {
@@ -1084,6 +1116,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const file = event.target.files[0];
     if (!file) return;
 
+    this.isUploadingMusic = true;
     try {
       this.segmentService.getMusicPresignedUrl(this.segment._id, file.name, file.type).subscribe({
         next: async ({ url, key }) => {
@@ -1103,24 +1136,30 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                   console.log('Music uploaded and saved!');
                   // Get signed URL for playback
                   this.getSignedMusicUrl();
+                  this.isUploadingMusic = false;
                 },
                 error: (err) => {
                   console.error('Failed to save music URL:', err);
+                  this.isUploadingMusic = false;
                 }
               });
             } else {
               console.error('Upload failed:', response.status, response.statusText);
+              this.isUploadingMusic = false;
             }
           } catch (err) {
             console.error('Upload error:', err);
+            this.isUploadingMusic = false;
           }
         },
         error: (err) => {
           console.error('Failed to get S3 upload URL:', err);
+          this.isUploadingMusic = false;
         }
       });
     } catch (error) {
       console.error('Error handling music file:', error);
+      this.isUploadingMusic = false;
     }
   }
 
@@ -1187,28 +1226,114 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   togglePlay() {
-    if (this.waveSurfer) {
-      this.waveSurfer.playPause();
-      this.isPlaying = this.waveSurfer.isPlaying();
-      if (this.isPlaying) {
-        this.startFormationPlayback();
-      } else {
-        this.stopFormationPlayback();
+    if (this.isPlaying) {
+      if (this.waveSurfer) {
+        this.waveSurfer.pause();
       }
+      const videoElement = this.videoElement;
+      if (videoElement) {
+        videoElement.pause();
+      }
+      if (this.playbackTimer) {
+        clearInterval(this.playbackTimer);
+        this.playbackTimer = null;
+      }
+      this.isPlaying = false;
+    } else {
+      if (this.waveSurfer) {
+        this.waveSurfer.play();
+      }
+      const videoElement = this.videoElement;
+      if (videoElement) {
+        // Sync video with current playback time
+        if (this.playbackTime <= videoElement.duration) {
+          videoElement.currentTime = this.playbackTime;
+          videoElement.play();
+        } else {
+          // If current time is past video duration, show last frame
+          videoElement.currentTime = videoElement.duration;
+          videoElement.pause();
+        }
+      }
+      // Start the formation playback timer
+      this.playbackTimer = setInterval(() => {
+        if (this.waveSurfer) {
+          this.playbackTime = this.waveSurfer.getCurrentTime();
+        } else {
+          this.playbackTime += 0.1;
+        }
+        const currentTime = this.playbackTime;
+        
+        // Update video if needed
+        const videoElement = this.videoElement;
+        if (videoElement) {
+          if (currentTime <= videoElement.duration) {
+            if (videoElement.paused) {
+              videoElement.play();
+            }
+          } else {
+            // If past video duration, pause at last frame
+            videoElement.pause();
+            videoElement.currentTime = videoElement.duration;
+          }
+        }
+
+        let t = 0;
+        let found = false;
+        for (let i = 0; i < this.formations.length; i++) {
+          const hold = this.formationDurations[i] || 4;
+          if (currentTime < t + hold) {
+            this.playingFormationIndex = i;
+            this.inTransition = false;
+            this.animatedPositions = {};
+            found = true;
+            break;
+          }
+          t += hold;
+          if (i < this.animationDurations.length) {
+            const trans = this.animationDurations[i] || 1;
+            if (currentTime < t + trans) {
+              // During transition, animate between i and i+1
+              this.playingFormationIndex = i + 1;
+              this.inTransition = true;
+              const progress = (currentTime - t) / trans;
+              this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+              found = true;
+              break;
+            }
+            t += trans;
+          }
+        }
+        if (!found) {
+          // If past all, show last formation
+          this.playingFormationIndex = this.formations.length - 1;
+          this.inTransition = false;
+          this.animatedPositions = {};
+        }
+      }, 30);
+      this.isPlaying = true;
     }
   }
 
   startFormationPlayback() {
+    if (this.isPlaying) return;
+    this.isPlaying = true;
     this.playbackTime = 0;
-    this.stopFormationPlayback();
+    this.playingFormationIndex = 0;
+    if (this.waveSurfer) {
+      this.waveSurfer.play();
+    }
+    if (this.videoElement) {
+      this.videoElement.play();
+    }
     this.playbackTimer = setInterval(() => {
-      if (!this.waveSurfer) return;
-      this.playbackTime = this.waveSurfer.getCurrentTime();
+      this.playbackTime += 0.1;
+      const currentTime = this.playbackTime;
       let t = 0;
       let found = false;
       for (let i = 0; i < this.formations.length; i++) {
         const hold = this.formationDurations[i] || 4;
-        if (this.playbackTime < t + hold) {
+        if (currentTime < t + hold) {
           this.playingFormationIndex = i;
           this.inTransition = false;
           this.animatedPositions = {};
@@ -1218,11 +1343,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         t += hold;
         if (i < this.animationDurations.length) {
           const trans = this.animationDurations[i] || 1;
-          if (this.playbackTime < t + trans) {
+          if (currentTime < t + trans) {
             // During transition, animate between i and i+1
             this.playingFormationIndex = i + 1;
             this.inTransition = true;
-            const progress = (this.playbackTime - t) / trans;
+            const progress = (currentTime - t) / trans;
             this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
             found = true;
             break;
@@ -1237,6 +1362,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         this.animatedPositions = {};
       }
     }, 30);
+  }
+
+  stopFormationPlayback() {
+    if (this.playbackTimer) {
+      clearInterval(this.playbackTimer);
+      this.playbackTimer = null;
+    }
+    this.isPlaying = false;
+    this.playbackTime = 0;
+    this.playingFormationIndex = 0;
+    if (this.waveSurfer) {
+      this.waveSurfer.pause();
+    }
+    if (this.videoElement) {
+      this.videoElement.pause();
+    }
   }
 
   interpolateFormations(fromIdx: number, toIdx: number, progress: number) {
@@ -1258,13 +1399,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       };
     });
     return pos;
-  }
-
-  stopFormationPlayback() {
-    if (this.playbackTimer) {
-      clearInterval(this.playbackTimer);
-      this.playbackTimer = null;
-    }
   }
 
   ngAfterViewChecked() {
@@ -1293,6 +1427,30 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
     this.cleanup3DScene();
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+    }
+    if (this.youtubePlayer) {
+      this.youtubePlayer.destroy();
+      this.youtubePlayer = null;
+    }
+    if (this.videoContainer && this.videoContainer.parentNode) {
+      this.videoContainer.parentNode.removeChild(this.videoContainer);
+    }
+    if (this.videoPlane && this.scene) {
+      this.scene.remove(this.videoPlane);
+      this.videoPlane = null;
+    }
+    if (this.videoElement && this.videoElement.parentNode) {
+      this.videoElement.parentNode.removeChild(this.videoElement);
+    }
+    if (this.youtubeIframe && this.youtubeIframe.parentNode) {
+      this.youtubeIframe.parentNode.removeChild(this.youtubeIframe);
+    }
+    this.clearDirectVideoTexture();
+    this.showYoutubeOverlay = false;
+    this.sanitizedYoutubeEmbedUrl = null;
+    this.youtubeUrl = '';
   }
 
   getTimelineTotalDuration(): number {
@@ -1652,6 +1810,43 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.isPlaying = this.waveSurfer.isPlaying();
       this.playbackTime = audioTime;
       this.hoveredTimelineTime = audioTime;
+
+      // Update video position if it exists
+      const videoElement = this.videoElement;
+      if (videoElement) {
+        if (audioTime <= videoElement.duration) {
+          videoElement.currentTime = audioTime;
+        } else {
+          // If seeking past video duration, pause at last frame
+          videoElement.currentTime = videoElement.duration;
+          videoElement.pause();
+        }
+      }
+
+      // Update formation position
+      let t = 0;
+      for (let i = 0; i < this.formations.length; i++) {
+        const hold = this.formationDurations[i] || 4;
+        if (audioTime < t + hold) {
+          this.playingFormationIndex = i;
+          this.inTransition = false;
+          this.animatedPositions = {};
+          break;
+        }
+        t += hold;
+        if (i < this.animationDurations.length) {
+          const trans = this.animationDurations[i] || 1;
+          if (audioTime < t + trans) {
+            // During transition, animate between i and i+1
+            this.playingFormationIndex = i + 1;
+            this.inTransition = true;
+            const progress = (audioTime - t) / trans;
+            this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+            break;
+          }
+          t += trans;
+        }
+      }
     }
   }
 
@@ -1847,48 +2042,76 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.showUserAssignmentDropdown = !this.showUserAssignmentDropdown;
   }
 
+  togglePerformerPairingDropdown() {
+    this.showPerformerPairingDropdown = !this.showPerformerPairingDropdown;
+    if (this.showPerformerPairingDropdown) {
+      this.showAddPerformerDropdown = false;
+      this.showUserAssignmentDropdown = false;
+    }
+  }
+
   isDummyPerformer(performer: Performer): boolean {
     return performer.id.startsWith('dummy-');
   }
 
-  convertToDummy(performer: Performer) {
+  convertToDummy() {
+    if (!this.selectedPerformer) return;
+
     // Create a new dummy performer with the same properties
     const dummyPerformer: Performer = {
-      id: `dummy-${this.dummyCounter++}`,
-      name: `Dummy ${this.dummyCounter}`,
-      x: performer.x,
-      y: performer.y,
-      skillLevels: {},
-      height: performer.height,
+      id: `dummy-${Date.now()}`,
+      name: "dummy",
+      x: this.selectedPerformer.x,
+      y: this.selectedPerformer.y,
+      skillLevels: { ...this.selectedPerformer.skillLevels },
+      height: this.selectedPerformer.height,
       isDummy: true,
-      dummyName: `Dummy ${this.dummyCounter}`
+      dummyName: "dummy"
     };
 
-    // Replace the performer in the current formation
-    const index = this.performers.findIndex(p => p.id === performer.id);
-    if (index !== -1) {
-      this.performers[index] = dummyPerformer;
-      this.triggerAutoSave();
-    }
+    this.formations = this.formations.map(formation =>
+      formation.map(p => p.id === this.selectedPerformer?.id ? dummyPerformer : p)
+    );
+
+    // Update selection
+    this.selectedPerformerIds.delete(this.selectedPerformer.id);
+    this.selectedPerformerIds.add(dummyPerformer.id);
+    this.selectedPerformerId = dummyPerformer.id;
+
+    // Close the dropdown
+    this.showPerformerPairingDropdown = false;
+
+    this.triggerAutoSave();
   }
 
-  assignDummyToUser(dummyPerformer: Performer, user: any) {
-    // Create a new performer with the user's properties
-    const newPerformer: Performer = {
+  convertToUser(user: any) {
+    if (!this.selectedPerformer) return;
+
+    // Create a new user performer
+    const userPerformer: Performer = {
       id: user._id,
       name: user.name,
-      x: dummyPerformer.x,
-      y: dummyPerformer.y,
+      x: this.selectedPerformer.x,
+      y: this.selectedPerformer.y,
       skillLevels: user.skillLevels || {},
-      height: user.height || 5.5
+      height: user.height || 5.5,
+      isDummy: false
     };
 
-    // Replace the dummy performer in the current formation
-    const index = this.performers.findIndex(p => p.id === dummyPerformer.id);
-    if (index !== -1) {
-      this.performers[index] = newPerformer;
-      this.triggerAutoSave();
-    }
+    // Replace the performer in all formations
+    this.formations = this.formations.map(formation =>
+      formation.map(p => p.id === this.selectedPerformer?.id ? userPerformer : p)
+    );
+
+    // Update selection
+    this.selectedPerformerIds.delete(this.selectedPerformer.id);
+    this.selectedPerformerIds.add(userPerformer.id);
+    this.selectedPerformerId = userPerformer.id;
+
+    // Close the dropdown
+    this.showPerformerPairingDropdown = false;
+
+    this.triggerAutoSave();
   }
 
   updatePerformerName() {
@@ -2083,11 +2306,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   toggle3DView() {
     this.is3DView = !this.is3DView;
-    
     if (this.is3DView) {
-      // Wait for the view to update before initializing 3D scene
+      // Wait for the view to update and DOM to be ready
       setTimeout(() => {
-        this.init3DScene();
+        if (this.threeContainer && this.threeContainer.nativeElement) {
+          this.init3DScene();
+        } else {
+          // Try again on next tick if not ready
+          setTimeout(() => this.init3DScene(), 30);
+        }
       }, 0);
     } else {
       this.cleanup3DScene();
@@ -2095,24 +2322,44 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   private cleanup3DScene() {
+    // Cancel animation
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
-
+    // Remove all meshes from scene
+    if (this.scene) {
+      while (this.scene.children.length > 0) {
+        const obj = this.scene.children[0];
+        if ((obj as any).geometry) (obj as any).geometry.dispose?.();
+        if ((obj as any).material) {
+          if (Array.isArray((obj as any).material)) {
+            (obj as any).material.forEach((m: any) => m.dispose?.());
+          } else {
+            (obj as any).material.dispose?.();
+          }
+        }
+        this.scene.remove(obj);
+      }
+    }
+    // Remove renderer DOM element
+    if (this.threeRenderer && this.threeRenderer.domElement && this.threeContainer?.nativeElement.contains(this.threeRenderer.domElement)) {
+      this.threeContainer.nativeElement.removeChild(this.threeRenderer.domElement);
+    }
+    // Dispose renderer
     if (this.threeRenderer) {
       this.threeRenderer.dispose();
-      this.threeRenderer.domElement.remove();
       this.threeRenderer = null;
     }
-
+    // Dispose controls
     if (this.controls) {
       this.controls.dispose();
       this.controls = null;
     }
-
     this.scene = null;
     this.camera = null;
+    this.performerMeshes = {};
+    this.stageMesh = null;
   }
 
   private init3DScene() {
@@ -2127,22 +2374,29 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 600;
     const stageCenter = { x: 0, y: 0, z: 0 };
-    // Camera distance based on stage size
     const distance = Math.max(this.width, this.depth) * 1.5;
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    this.camera.position.set(distance, distance, distance);
-    this.camera.lookAt(stageCenter.x, stageCenter.y, stageCenter.z);
+    this.camera.position.set(0, 20, distance); // Default front view
+    this.camera.lookAt(stageCenter.x, 0, stageCenter.z);
     this.threeRenderer = new THREE.WebGLRenderer({ antialias: true });
     this.threeRenderer.setSize(width, height);
     this.threeRenderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(this.threeRenderer.domElement);
+    // Restore OrbitControls and restrict movement
     this.controls = new OrbitControls(this.camera, this.threeRenderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
-    this.controls.maxPolarAngle = Math.PI / 2;
-    this.controls.minDistance = 10;
+    this.controls.minDistance = distance * 0.5;
     this.controls.maxDistance = distance * 2;
-    // Center the stage at the origin
+    // Restrict azimuth to 0 (no side-to-side rotation)
+    this.controls.minAzimuthAngle = 0;
+    this.controls.maxAzimuthAngle = 0;
+    // Restrict polar angle to only allow a small tilt from the front
+    this.controls.minPolarAngle = Math.PI / 6; // 30 degrees from horizontal
+    this.controls.maxPolarAngle = Math.PI / 2; // 90 degrees (straight on)
+    this.controls.target.set(0, 0, 0);
+    this.controls.update();
+    // Stage
     const stageGeometry = new THREE.BoxGeometry(this.width, 0.12, this.depth);
     const stageMaterial = new THREE.MeshPhongMaterial({ 
       color: 0x23263a,
@@ -2151,10 +2405,76 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.stageMesh = new THREE.Mesh(stageGeometry, stageMaterial);
     this.stageMesh.position.set(0, -0.06, 0); // Centered at origin
     this.scene.add(this.stageMesh);
-    // Center the grid at the origin
-    const gridHelper = new THREE.GridHelper(Math.max(this.width, this.depth), 10, 0x888888, 0x333333);
-    gridHelper.position.set(0, 0.01, 0);
-    this.scene.add(gridHelper);
+
+    // Custom grid lines
+    const gridColor = 0x3b82f6; // Match the 2D stage blue color
+    const gridMaterial = new THREE.LineBasicMaterial({ 
+      color: gridColor,
+      transparent: true,
+      opacity: 0.95
+    });
+
+    // Create main vertical lines (8 sections)
+    for (let i = 0; i <= 8; i++) {
+      const x = (i / 8 - 0.5) * this.width;
+      const points = [];
+      points.push(new THREE.Vector3(x, 0.01, -this.depth/2));
+      points.push(new THREE.Vector3(x, 0.01, this.depth/2));
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const line = new THREE.Line(geometry, gridMaterial);
+      this.scene.add(line);
+    }
+
+    // Create main horizontal lines (4 sections)
+    for (let i = 0; i <= 4; i++) {
+      const z = (i / 4 - 0.5) * this.depth;
+      const points = [];
+      points.push(new THREE.Vector3(-this.width/2, 0.01, z));
+      points.push(new THREE.Vector3(this.width/2, 0.01, z));
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const line = new THREE.Line(geometry, gridMaterial);
+      this.scene.add(line);
+    }
+
+    // Create subgrid lines if divisions > 0
+    if (this.divisions > 0) {
+      const subGridMaterial = new THREE.LineBasicMaterial({ 
+        color: gridColor,
+        transparent: true,
+        opacity: 0.13 // Match the 2D subgrid opacity
+      });
+
+      // Subgrid verticals
+      for (let i = 0; i < 8; i++) {
+        const start = (i / 8 - 0.5) * this.width;
+        const end = ((i + 1) / 8 - 0.5) * this.width;
+        for (let d = 1; d <= this.divisions; d++) {
+          const x = start + ((end - start) * d) / (this.divisions + 1);
+          const points = [];
+          points.push(new THREE.Vector3(x, 0.01, -this.depth/2));
+          points.push(new THREE.Vector3(x, 0.01, this.depth/2));
+          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+          const line = new THREE.Line(geometry, subGridMaterial);
+          this.scene.add(line);
+        }
+      }
+
+      // Subgrid horizontals
+      for (let i = 0; i < 4; i++) {
+        const start = (i / 4 - 0.5) * this.depth;
+        const end = ((i + 1) / 4 - 0.5) * this.depth;
+        for (let d = 1; d <= this.divisions; d++) {
+          const z = start + ((end - start) * d) / (this.divisions + 1);
+          const points = [];
+          points.push(new THREE.Vector3(-this.width/2, 0.01, z));
+          points.push(new THREE.Vector3(this.width/2, 0.01, z));
+          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+          const line = new THREE.Line(geometry, subGridMaterial);
+          this.scene.add(line);
+        }
+      }
+    }
+
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     this.scene.add(ambientLight);
@@ -2185,14 +2505,34 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       const radius = 0.6;
       let mesh = this.performerMeshes[performer.id];
       if (!mesh) {
-        const geometry = new THREE.CylinderGeometry(radius, radius, heightInFeet, 32);
+        // Create a group to hold the pill shape components
+        const group = new THREE.Group();
+        
+        // Create the main cylinder (slightly shorter to account for the hemispheres)
+        const cylinderHeight = heightInFeet - radius * 2;
+        const cylinderGeometry = new THREE.CylinderGeometry(radius, radius, cylinderHeight, 32);
         const material = new THREE.MeshPhongMaterial({
           color: this.getSkillColor(performer),
           transparent: true,
           opacity: 0.9,
           shininess: 60
         });
-        mesh = new THREE.Mesh(geometry, material);
+        const cylinder = new THREE.Mesh(cylinderGeometry, material);
+        cylinder.position.y = 0; // Center the cylinder
+        group.add(cylinder);
+
+        // Create the top hemisphere
+        const topHemisphereGeometry = new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        const topHemisphere = new THREE.Mesh(topHemisphereGeometry, material);
+        topHemisphere.position.y = cylinderHeight / 2;
+        group.add(topHemisphere);
+
+        // Create the bottom hemisphere
+        const bottomHemisphereGeometry = new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+        const bottomHemisphere = new THREE.Mesh(bottomHemisphereGeometry, material);
+        bottomHemisphere.position.y = -cylinderHeight / 2;
+        group.add(bottomHemisphere);
+
         // Add name label
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -2208,16 +2548,38 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           const label = new THREE.Sprite(labelMaterial);
           label.position.set(0, heightInFeet / 2 + 0.7, 0);
           label.scale.set(2, 0.5, 1);
-          mesh.add(label);
+          group.add(label);
         }
-        this.scene?.add(mesh);
-        this.performerMeshes[performer.id] = mesh;
+
+        this.scene?.add(group);
+        this.performerMeshes[performer.id] = group;
+        mesh = group;
       } else {
-        // If height changed, update geometry
-        if ((mesh.geometry as any).parameters && (mesh.geometry as any).parameters.height !== heightInFeet) {
-          mesh.geometry.dispose();
-          mesh.geometry = new THREE.CylinderGeometry(radius, radius, heightInFeet, 32);
-        }
+        // If height changed, update all geometries
+        const group = mesh as THREE.Group;
+        const cylinderHeight = heightInFeet - radius * 2;
+        
+        // Update cylinder
+        const cylinder = group.children[0] as THREE.Mesh;
+        cylinder.geometry.dispose();
+        cylinder.geometry = new THREE.CylinderGeometry(radius, radius, cylinderHeight, 32);
+        cylinder.position.y = 0;
+
+        // Update top hemisphere
+        const topHemisphere = group.children[1] as THREE.Mesh;
+        topHemisphere.geometry.dispose();
+        topHemisphere.geometry = new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        topHemisphere.position.y = cylinderHeight / 2;
+
+        // Update bottom hemisphere
+        const bottomHemisphere = group.children[2] as THREE.Mesh;
+        bottomHemisphere.geometry.dispose();
+        bottomHemisphere.geometry = new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+        bottomHemisphere.position.y = -cylinderHeight / 2;
+
+        // Update label position
+        const label = group.children[3] as THREE.Sprite;
+        label.position.y = heightInFeet / 2 + 0.7;
       }
       // Center performers on the stage: x and z are offset from -width/2 and -depth/2
       mesh.position.set(
@@ -2230,8 +2592,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   private animate() {
     if (!this.scene || !this.camera || !this.threeRenderer || !this.controls) return;
-
     this.animationFrameId = requestAnimationFrame(() => this.animate());
+    
+    // Update video texture if it exists
+    if (this.videoMesh) {
+      const material = this.videoMesh.material as THREE.MeshBasicMaterial;
+      if (material.map) {
+        material.map.needsUpdate = true;
+      }
+    }
+    
     this.controls.update();
     this.threeRenderer.render(this.scene, this.camera);
   }
@@ -2247,5 +2617,314 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.camera.updateProjectionMatrix();
     this.threeRenderer.setSize(width, height);
   }
+
+  addVideoBackdrop() {
+    console.log('Starting addVideoBackdrop with URL:', this.youtubeUrl);
+    if (!this.youtubeUrl || !this.scene) return;
+    
+    // Extract video ID from YouTube URL
+    const videoId = this.youtubeUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+    console.log('Extracted video ID:', videoId);
+    if (!videoId) {
+      console.error('Invalid YouTube URL');
+      return;
+    }
+
+    // Create video container if it doesn't exist
+    if (!this.videoContainer) {
+      console.log('Creating video container');
+      this.videoContainer = document.createElement('div');
+      this.videoContainer.style.position = 'absolute';
+      this.videoContainer.style.top = '0';
+      this.videoContainer.style.left = '0';
+      this.videoContainer.style.width = '100%';
+      this.videoContainer.style.height = '100%';
+      this.videoContainer.style.pointerEvents = 'none';
+      this.videoContainer.style.zIndex = '-1';
+      document.body.appendChild(this.videoContainer);
+    }
+
+    // Create iframe if it doesn't exist
+    if (!this.youtubeIframe) {
+      console.log('Creating YouTube iframe');
+      this.youtubeIframe = document.createElement('iframe');
+      this.youtubeIframe.style.width = '100%';
+      this.youtubeIframe.style.height = '100%';
+      this.youtubeIframe.style.border = 'none';
+      this.youtubeIframe.style.pointerEvents = 'none';
+      this.videoContainer.appendChild(this.youtubeIframe);
+    }
+
+    // Set iframe source with proper parameters
+    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&showinfo=0&rel=0&loop=1&playlist=${videoId}&mute=1&enablejsapi=1`;
+    console.log('Setting iframe source to:', embedUrl);
+    this.youtubeIframe.src = embedUrl;
+
+    // Create or update video plane in 3D scene
+    if (!this.videoPlane) {
+      console.log('Creating video plane in 3D scene');
+      
+      // Create a plane above the stage
+      const videoGeometry = new THREE.PlaneGeometry(20, 12); // Width and height in feet
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        color: 0x000000,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      this.videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      this.videoPlane.position.set(0, 15, -10); // Position above and behind the stage
+      this.videoPlane.rotation.x = -Math.PI / 6; // Tilt slightly downward
+      this.scene.add(this.videoPlane);
+      console.log('Video plane added to scene at position:', this.videoPlane.position);
+    }
+
+    // Load YouTube IFrame API
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+
+      window.onYouTubeIframeAPIReady = () => {
+        console.log('YouTube API ready');
+        this.youtubePlayer = new window.YT.Player(this.youtubeIframe, {
+          videoId: videoId,
+          playerVars: {
+            autoplay: 1,
+            controls: 0,
+            showinfo: 0,
+            rel: 0,
+            loop: 1,
+            playlist: videoId,
+            mute: 1
+          },
+          events: {
+            onReady: (event: any) => {
+              console.log('Player ready');
+              event.target.playVideo();
+            },
+            onStateChange: (event: any) => {
+              console.log('Player state changed:', event.data);
+            }
+          }
+        });
+      };
+    } else {
+      console.log('YouTube API already loaded');
+      this.youtubePlayer = new window.YT.Player(this.youtubeIframe, {
+        videoId: videoId,
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          showinfo: 0,
+          rel: 0,
+          loop: 1,
+          playlist: videoId,
+          mute: 1
+        },
+        events: {
+          onReady: (event: any) => {
+            console.log('Player ready');
+            event.target.playVideo();
+          },
+          onStateChange: (event: any) => {
+            console.log('Player state changed:', event.data);
+          }
+        }
+      });
+    }
+  }
+
+  onSetDirectVideoUrl() {
+    if (!this.directVideoUrl) return;
+    this.clearYoutubeOverlay();
+    
+    // Clean up any existing video
+    this.clearDirectVideoTexture();
+
+    // Create and set up the video element
+    this.videoElement = document.createElement('video');
+    this.videoElement.src = this.directVideoUrl;
+    this.videoElement.crossOrigin = 'anonymous';
+    this.videoElement.loop = false; // Don't loop the video
+    this.videoElement.muted = true;
+    this.videoElement.playsInline = true;
+    this.videoElement.style.display = 'none';
+    document.body.appendChild(this.videoElement);
+
+    // Add ended event listener to only pause the video
+    this.videoElement.addEventListener('ended', () => {
+      if (this.videoElement) {
+        this.videoElement.pause();
+      }
+    });
+
+    // Wait for the video to be loaded before setting the texture
+    this.videoElement.addEventListener('loadeddata', () => {
+      if (!this.is3DView) this.toggle3DView();
+      if (!this.scene) return;
+
+      const videoTexture = new THREE.VideoTexture(this.videoElement!);
+      videoTexture.minFilter = THREE.LinearFilter;
+      videoTexture.magFilter = THREE.LinearFilter;
+      videoTexture.format = THREE.RGBFormat;
+
+      // Make the video plane half the size
+      const videoGeometry = new THREE.PlaneGeometry(20, 12);
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: videoTexture,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 1.0
+      });
+
+      this.videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      // Position the video plane lower and closer
+      this.videoPlane.position.set(0, 10, -15); // Lower height and closer to stage
+      this.videoPlane.rotation.x = -Math.PI / 18; // 10 degrees tilt (π/18 radians)
+      this.scene.add(this.videoPlane);
+    });
+
+    this.videoElement.load();
+  }
+
+  clearDirectVideoTexture() {
+    if (this.videoPlane && this.scene) {
+      this.scene.remove(this.videoPlane);
+      this.videoPlane = null;
+    }
+    if (this.videoElement) {
+      this.videoElement.pause();
+      this.videoElement.src = '';
+      if (this.videoElement.parentNode) {
+        this.videoElement.parentNode.removeChild(this.videoElement);
+      }
+      this.videoElement = null;
+    }
+    if (this.directVideoObjectUrl) {
+      URL.revokeObjectURL(this.directVideoObjectUrl);
+      this.directVideoObjectUrl = null;
+    }
+    this.directVideoUrl = '';
+  }
+
+  onSetYoutubeUrl() {
+    if (!this.youtubeUrl) return;
+    this.clearDirectVideoTexture();
+    this.setYoutubeOverlay(this.youtubeUrl);
+  }
+
+  setYoutubeOverlay(url: string) {
+    this.showYoutubeOverlay = false;
+    const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+    if (!videoId) {
+      alert('Invalid YouTube URL');
+      return;
+    }
+    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&showinfo=0&rel=0&loop=1&playlist=${videoId}&mute=1&enablejsapi=1`;
+    this.sanitizedYoutubeEmbedUrl = this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl);
+    this.showYoutubeOverlay = true;
+    if (!this.is3DView) this.toggle3DView();
+  }
+
+  clearYoutubeOverlay() {
+    this.showYoutubeOverlay = false;
+    this.sanitizedYoutubeEmbedUrl = null;
+    this.youtubeUrl = '';
+  }
+
+  clearVideoBackdrop() {
+    this.clearDirectVideoTexture();
+    this.directVideoUrl = '';
+  }
+
+  onDirectVideoFileSelected(event: any) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Clean up any existing video
+    this.clearDirectVideoTexture();
+
+    // Create a new blob URL for the selected file
+    this.directVideoObjectUrl = URL.createObjectURL(file);
+    this.directVideoUrl = this.directVideoObjectUrl;
+    
+    // Create and set up the video element
+    this.videoElement = document.createElement('video');
+    this.videoElement.src = this.directVideoObjectUrl;
+    this.videoElement.crossOrigin = 'anonymous';
+    this.videoElement.loop = false; // Don't loop the video
+    this.videoElement.muted = true;
+    this.videoElement.playsInline = true;
+    this.videoElement.style.display = 'none';
+    document.body.appendChild(this.videoElement);
+
+    // Add ended event listener to only pause the video
+    this.videoElement.addEventListener('ended', () => {
+      if (this.videoElement) {
+        this.videoElement.pause();
+      }
+    });
+
+    // Wait for the video to be loaded before setting the texture
+    this.videoElement.addEventListener('loadeddata', () => {
+      if (!this.is3DView) this.toggle3DView();
+      if (!this.scene) return;
+
+      const videoTexture = new THREE.VideoTexture(this.videoElement!);
+      videoTexture.minFilter = THREE.LinearFilter;
+      videoTexture.magFilter = THREE.LinearFilter;
+      videoTexture.format = THREE.RGBFormat;
+
+      // Make the video plane half the size
+      const videoGeometry = new THREE.PlaneGeometry(20, 12);
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: videoTexture,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 1.0
+      });
+
+      this.videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      // Position the video plane lower and closer
+      this.videoPlane.position.set(0, 10, -15); // Lower height and closer to stage
+      this.videoPlane.rotation.x = -Math.PI / 18; // 10 degrees tilt (π/18 radians)
+      this.scene.add(this.videoPlane);
+
+      // If we're already playing, sync the video with current playback time
+      if (this.isPlaying && this.videoElement) {
+        const videoElement = this.videoElement;
+        if (this.playbackTime <= videoElement.duration) {
+          videoElement.currentTime = this.playbackTime;
+          videoElement.play();
+        } else {
+          videoElement.currentTime = videoElement.duration;
+          videoElement.pause();
+        }
+      }
+    });
+
+    this.videoElement.load();
+  }
+
+  get sortedPerformers() {
+    return [...this.performers].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  get sortedTeamRoster() {
+    return [...this.teamRoster].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // Add getter for available users
+  get availableUsers() {
+    // Get all users from team roster who are not currently in the segment
+    const currentUserIds = new Set(this.performers
+      .filter(p => !p.isDummy)
+      .map(p => p.id));
+    return this.teamRoster.filter(user => !currentUserIds.has(user._id));
+  }
 }
+ 
  

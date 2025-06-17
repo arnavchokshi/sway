@@ -43,4 +43,17 @@ export class SegmentService {
       `${environment.apiUrl}/segment/${segmentId}/music-url`
     );
   }
+
+  getVideoPresignedUrl(segmentId: string, filename: string, filetype: string) {
+    return this.http.post<{ url: string, key: string }>(
+      `${environment.apiUrl}/segment/${segmentId}/video-presigned-url`,
+      { filename, filetype }
+    );
+  }
+
+  getVideoUrl(segmentId: string) {
+    return this.http.get<{ url: string }>(
+      `${environment.apiUrl}/segment/${segmentId}/video-url`
+    );
+  }
 } 
