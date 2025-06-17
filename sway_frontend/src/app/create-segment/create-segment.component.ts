@@ -1,4 +1,4 @@
-import { Component, OnInit, ElementRef, ViewChild, Renderer2, AfterViewChecked, OnDestroy } from '@angular/core';
+import { Component, OnInit, ElementRef, ViewChild, Renderer2, AfterViewChecked, OnDestroy, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -10,6 +10,8 @@ import { environment } from '../../environments/environment';
 import WaveSurfer from 'wavesurfer.js';
 import { Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 interface Performer {
   id: string;
@@ -41,9 +43,10 @@ interface Style {
     ])
   ]
 })
-export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestroy {
+export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewChecked, OnDestroy {
   @ViewChild('stageRef') stageRef!: ElementRef<HTMLDivElement>;
   @ViewChild('timelineBarRef') timelineBarRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('threeContainer') threeContainer!: ElementRef<HTMLDivElement>;
 
   isCaptain = false;
   currentUserId: string = '';
@@ -166,6 +169,33 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
   private dragStartX: number = 0;
   private dragStartY: number = 0;
   private readonly DRAG_THRESHOLD = 5; // pixels
+
+  sidePanelMode: 'roster' | 'performer' = 'roster';
+
+  setSidePanelMode(mode: 'roster' | 'performer') {
+    this.sidePanelMode = mode;
+  }
+
+  // Touch gesture properties
+  private touchStartDistance = 0;
+  private touchStartX = 0;
+  private touchStartY = 0;
+  private isPinching = false;
+  private lastTouchDistance = 0;
+  private lastTouchX = 0;
+  private lastTouchY = 0;
+  private currentTranslateX = 0;
+  private currentTranslateY = 0;
+
+  // 3D View Properties
+  is3DView = false;
+  private scene: THREE.Scene | null = null;
+  private camera: THREE.PerspectiveCamera | null = null;
+  private threeRenderer: THREE.WebGLRenderer | null = null;
+  private controls: OrbitControls | null = null;
+  private performerMeshes: { [id: string]: THREE.Mesh } = {};
+  private stageMesh: THREE.Mesh | null = null;
+  private animationFrameId: number | null = null;
 
   constructor(
     private teamService: TeamService,
@@ -345,6 +375,64 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     // Add keyboard event listeners for shift key
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('keyup', this.handleKeyUp);
+
+    // Set initial side panel mode
+    this.sidePanelMode = this.selectedPerformer ? 'performer' : 'roster';
+  }
+
+  ngAfterViewInit() {
+    console.log('View initialized, setting up touch gestures');
+    if (this.stageRef && this.stageRef.nativeElement) {
+      this.setupTouchGestures();
+    } else {
+      console.error('Stage reference not available in ngAfterViewInit');
+    }
+  }
+
+  private setupTouchGestures() {
+    console.log('Setting up touch gestures...');
+    const stageArea = this.stageRef.nativeElement;
+    if (!stageArea) {
+      console.error('Stage area element not found');
+      return;
+    }
+
+    // Add touch event listeners
+    stageArea.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+    stageArea.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+    stageArea.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
+  }
+
+  private handleTouchStart(event: TouchEvent) {
+    event.preventDefault();
+    console.log('Touch start:', event.touches.length, 'touches');
+
+    if (event.touches.length === 1) {
+      // Pan start
+      const touch = event.touches[0];
+      this.touchStartX = touch.clientX - this.currentTranslateX;
+      this.touchStartY = touch.clientY - this.currentTranslateY;
+    }
+  }
+
+  private handleTouchMove(event: TouchEvent) {
+    event.preventDefault();
+    console.log('Touch move:', event.touches.length, 'touches');
+
+    if (event.touches.length === 1) {
+      // Handle pan
+      const touch = event.touches[0];
+      this.currentTranslateX = touch.clientX - this.touchStartX;
+      this.currentTranslateY = touch.clientY - this.touchStartY;
+    }
+
+    this.enforcePanBounds();
+    this.updateStageTransform();
+  }
+
+  private handleTouchEnd(event: TouchEvent) {
+    event.preventDefault();
+    console.log('Touch end:', event.touches.length, 'touches');
   }
 
   calculateStage() {
@@ -992,46 +1080,48 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     requestAnimationFrame(animate);
   }
 
-  onMusicFileSelected(event: any) {
+  async onMusicFileSelected(event: any) {
     const file = event.target.files[0];
     if (!file) return;
-    this.segmentService.getMusicPresignedUrl(this.segment._id, file.name, file.type).subscribe({
-      next: ({ url, key }) => {
-        fetch(url, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type },
-          body: file
-        }).then(response => {
-          if (response.ok) {
-            // Construct the S3 URL
-            const musicUrl = `https://${environment.s3Bucket}.s3.${environment.s3Region}.amazonaws.com/${key}`;
-            // Save musicUrl to segment
-            this.segmentService.updateSegment(this.segment._id, { musicUrl }).subscribe({
-              next: () => {
-                alert('Music uploaded and saved!');
-                // Refresh the audio player with a new signed URL
-                this.getSignedMusicUrl();
-              },
-              error: (err) => {
-                console.error('Failed to save music URL:', err);
-                alert('Failed to save music URL!');
-              }
+
+    try {
+      this.segmentService.getMusicPresignedUrl(this.segment._id, file.name, file.type).subscribe({
+        next: async ({ url, key }) => {
+          try {
+            const response = await fetch(url, {
+              method: 'PUT',
+              headers: { 'Content-Type': file.type },
+              body: file
             });
-          } else {
-            console.error('Upload failed:', response.status, response.statusText);
-            alert('Failed to upload file to S3');
+            
+            if (response.ok) {
+              // Construct the S3 URL
+              const musicUrl = `https://${environment.s3Bucket}.s3.${environment.s3Region}.amazonaws.com/${key}`;
+              // Save musicUrl to segment
+              this.segmentService.updateSegment(this.segment._id, { musicUrl }).subscribe({
+                next: () => {
+                  console.log('Music uploaded and saved!');
+                  // Get signed URL for playback
+                  this.getSignedMusicUrl();
+                },
+                error: (err) => {
+                  console.error('Failed to save music URL:', err);
+                }
+              });
+            } else {
+              console.error('Upload failed:', response.status, response.statusText);
+            }
+          } catch (err) {
+            console.error('Upload error:', err);
           }
-        }).catch(err => {
-          console.error('Upload error:', err);
-          alert('Failed to upload file to S3');
-        });
-      },
-      error: (err) => {
-        console.error('Failed to get S3 upload URL:', err);
-        alert('Failed to get S3 upload URL');
-      }
-    });
-    this.triggerAutoSave();
+        },
+        error: (err) => {
+          console.error('Failed to get S3 upload URL:', err);
+        }
+      });
+    } catch (error) {
+      console.error('Error handling music file:', error);
+    }
   }
 
   // Add method to get signed URL for playing music
@@ -1040,29 +1130,60 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     this.segmentService.getMusicUrl(this.segment._id).subscribe({
       next: ({ url }) => {
         this.signedMusicUrl = url;
-        this.initWaveform();
+        console.log('Got signed music URL:', url);
+        // Wait for the next render cycle to ensure the waveform container exists
+        setTimeout(() => {
+          this.initWaveform();
+        }, 0);
       },
-      error: () => alert('Failed to get music URL')
+      error: (err) => {
+        console.error('Failed to get music URL:', err);
+      }
     });
   }
 
   initWaveform() {
-    if (this.waveSurfer) {
-      this.waveSurfer.destroy();
+    console.log('Initializing waveform...');
+    const container = document.getElementById('waveform');
+    
+    if (!container) {
+      console.log('Waveform container not found, will retry when available');
+      return;
     }
-    this.waveSurfer = WaveSurfer.create({
-      container: '#waveform',
-      waveColor: '#3b82f6',
-      progressColor: '#1e40af',
-      height: 80,
-      barWidth: 2,
-      barRadius: 2,
-      cursorColor: '#fff'
-    });
-    this.waveSurfer.load(this.signedMusicUrl!);
-    this.waveSurfer.on('finish', () => {
-      this.isPlaying = false;
-    });
+
+    try {
+      if (this.waveSurfer) {
+        console.log('Destroying existing wavesurfer instance');
+        this.waveSurfer.destroy();
+      }
+
+      console.log('Creating new wavesurfer instance');
+      this.waveSurfer = WaveSurfer.create({
+        container: '#waveform',
+        waveColor: '#3b82f6',
+        progressColor: '#ffd700',
+        cursorColor: '#ffd700',
+        barWidth: 2,
+        barRadius: 3,
+        cursorWidth: 2,
+        height: 80,
+        barGap: 2,
+        normalize: true,
+        backend: 'WebAudio'
+      });
+
+      console.log('Wavesurfer instance created successfully');
+      
+      if (this.signedMusicUrl) {
+        console.log('Loading audio from URL:', this.signedMusicUrl);
+        this.waveSurfer.load(this.signedMusicUrl);
+        this.waveSurfer.on('finish', () => {
+          this.isPlaying = false;
+        });
+      }
+    } catch (error) {
+      console.error('Error initializing waveform:', error);
+    }
   }
 
   togglePlay() {
@@ -1155,6 +1276,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       this.initWaveform();
       this.waveformInitializedForUrl = this.signedMusicUrl;
     }
+    // Update 3D performers if in 3D view
+    if (this.is3DView) {
+      this.update3DPerformers();
+    }
   }
 
   ngOnDestroy() {
@@ -1167,6 +1292,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     }
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
+    this.cleanup3DScene();
   }
 
   getTimelineTotalDuration(): number {
@@ -1348,22 +1474,31 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       }
     }
     this.triggerAutoSave();
+    // Switch to performer info mode when a performer is selected
+    if (this.selectedPerformerId) {
+      this.sidePanelMode = 'performer';
+    }
   }
 
-  deleteDancer() {
-    if (!this.selectedPerformerId) return;
-
-    // Remove the dancer from all formations
+  removePerformer() {
+    if (!this.selectedPerformer) return;
+    
+    const performerId = this.selectedPerformer.id;
+    
+    // Remove from all formations
     this.formations = this.formations.map(formation => 
-      formation.filter(p => p.id !== this.selectedPerformerId)
+      formation.filter(p => p.id !== performerId)
     );
-
-    // Remove from segment roster
-    this.segmentRoster = this.segmentRoster.filter(
-      m => m._id !== this.selectedPerformerId
-    );
-
+    
+    // Clear selection
+    this.selectedPerformerIds.delete(performerId);
     this.selectedPerformerId = null;
+    
+    // Switch back to roster panel
+    this.sidePanelMode = 'roster';
+    
+    // Trigger auto-save
+    this.triggerAutoSave();
   }
 
   getFormationStartPercent(i: number): number {
@@ -1798,22 +1933,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
     this.triggerAutoSave();
   }
 
-  removePerformer() {
-    if (this.selectedPerformerIds.size === 0) return;
-    
-    // Remove all selected performers from current formation
-    const currentFormation = this.formations[this.currentFormationIndex];
-    if (!currentFormation) return;
-    
-    this.formations[this.currentFormationIndex] = currentFormation.filter(
-      p => !this.selectedPerformerIds.has(p.id)
-    );
-    
-    this.selectedPerformerIds.clear();
-    this.selectedPerformerId = null;
-    this.triggerAutoSave();
-  }
-
   handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Shift') {
       this.isShiftPressed = true;
@@ -1850,6 +1969,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
       this.selectedPerformerIds.clear();
       this.selectedPerformerId = null;
       this.triggerAutoSave();
+      // Switch to roster mode when deselecting
+      this.sidePanelMode = 'roster';
     }
   }
 
@@ -1887,6 +2008,244 @@ export class CreateSegmentComponent implements OnInit, AfterViewChecked, OnDestr
 
     // Trigger auto-save
     this.triggerAutoSave();
+  }
+
+  deleteFormation(index: number) {
+    if (!this.isCaptain || this.formations.length <= 1) return;
+    
+    // Remove the formation
+    this.formations.splice(index, 1);
+    
+    // Remove the corresponding duration
+    this.formationDurations.splice(index, 1);
+    
+    // Remove the corresponding transition duration if it exists
+    if (index < this.animationDurations.length) {
+      this.animationDurations.splice(index, 1);
+    }
+    
+    // Update current formation index if needed
+    if (this.currentFormationIndex >= this.formations.length) {
+      this.currentFormationIndex = this.formations.length - 1;
+    }
+    
+    // Update playing formation index if needed
+    if (this.playingFormationIndex >= this.formations.length) {
+      this.playingFormationIndex = this.formations.length - 1;
+    }
+    
+    // Force change detection
+    this.formations = [...this.formations];
+    this.formationDurations = [...this.formationDurations];
+    this.animationDurations = [...this.animationDurations];
+  }
+
+  duplicateFormation(index: number) {
+    if (!this.isCaptain || this.formations.length === 0) return;
+    // Deep copy the formation
+    const formationCopy = this.formations[index].map(p => ({ ...p }));
+    this.formations.splice(index + 1, 0, formationCopy);
+    // Copy the duration
+    this.formationDurations.splice(index + 1, 0, this.formationDurations[index]);
+    // Copy the transition duration (or set a default if not present)
+    if (this.animationDurations[index]) {
+      this.animationDurations.splice(index + 1, 0, this.animationDurations[index]);
+    } else {
+      this.animationDurations.splice(index + 1, 0, 1);
+    }
+    // Force change detection
+    this.formations = [...this.formations];
+    this.formationDurations = [...this.formationDurations];
+    this.animationDurations = [...this.animationDurations];
+  }
+
+  private updateStageTransform() {
+    const stageArea = this.stageRef.nativeElement;
+    if (!stageArea) return;
+
+    // Apply transform to the stage-area
+    stageArea.style.transform = `translate(${this.currentTranslateX}px, ${this.currentTranslateY}px)`;
+    stageArea.style.transformOrigin = 'center center';
+  }
+
+  private enforcePanBounds() {
+    const stageArea = this.stageRef.nativeElement;
+    if (!stageArea) return;
+
+    const rect = stageArea.getBoundingClientRect();
+    const maxX = (rect.width - rect.width) / 2;
+    const maxY = (rect.height - rect.height) / 2;
+
+    // Clamp the translation values
+    this.currentTranslateX = Math.max(-maxX, Math.min(maxX, this.currentTranslateX));
+    this.currentTranslateY = Math.max(-maxY, Math.min(maxY, this.currentTranslateY));
+  }
+
+  toggle3DView() {
+    this.is3DView = !this.is3DView;
+    
+    if (this.is3DView) {
+      // Wait for the view to update before initializing 3D scene
+      setTimeout(() => {
+        this.init3DScene();
+      }, 0);
+    } else {
+      this.cleanup3DScene();
+    }
+  }
+
+  private cleanup3DScene() {
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+
+    if (this.threeRenderer) {
+      this.threeRenderer.dispose();
+      this.threeRenderer.domElement.remove();
+      this.threeRenderer = null;
+    }
+
+    if (this.controls) {
+      this.controls.dispose();
+      this.controls = null;
+    }
+
+    this.scene = null;
+    this.camera = null;
+  }
+
+  private init3DScene() {
+    if (!this.threeContainer) {
+      console.error('3D container not found');
+      return;
+    }
+    console.log('Initializing 3D scene...');
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x181a20);
+    const container = this.threeContainer.nativeElement;
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 600;
+    const stageCenter = { x: 0, y: 0, z: 0 };
+    // Camera distance based on stage size
+    const distance = Math.max(this.width, this.depth) * 1.5;
+    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    this.camera.position.set(distance, distance, distance);
+    this.camera.lookAt(stageCenter.x, stageCenter.y, stageCenter.z);
+    this.threeRenderer = new THREE.WebGLRenderer({ antialias: true });
+    this.threeRenderer.setSize(width, height);
+    this.threeRenderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(this.threeRenderer.domElement);
+    this.controls = new OrbitControls(this.camera, this.threeRenderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.05;
+    this.controls.maxPolarAngle = Math.PI / 2;
+    this.controls.minDistance = 10;
+    this.controls.maxDistance = distance * 2;
+    // Center the stage at the origin
+    const stageGeometry = new THREE.BoxGeometry(this.width, 0.12, this.depth);
+    const stageMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0x23263a,
+      shininess: 60
+    });
+    this.stageMesh = new THREE.Mesh(stageGeometry, stageMaterial);
+    this.stageMesh.position.set(0, -0.06, 0); // Centered at origin
+    this.scene.add(this.stageMesh);
+    // Center the grid at the origin
+    const gridHelper = new THREE.GridHelper(Math.max(this.width, this.depth), 10, 0x888888, 0x333333);
+    gridHelper.position.set(0, 0.01, 0);
+    this.scene.add(gridHelper);
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    this.scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    directionalLight.position.set(10, 20, 10);
+    this.scene.add(directionalLight);
+    // Performers
+    this.update3DPerformers();
+    this.animate();
+    window.addEventListener('resize', () => this.onWindowResize());
+    console.log('3D scene initialized');
+  }
+
+  private update3DPerformers() {
+    if (!this.scene) return;
+    // Remove old performer meshes if count changed
+    const performerIds = this.performers.map(p => p.id);
+    Object.keys(this.performerMeshes).forEach(id => {
+      if (!performerIds.includes(id)) {
+        this.scene?.remove(this.performerMeshes[id]);
+        delete this.performerMeshes[id];
+      }
+    });
+    // Create or update performer meshes
+    this.performers.forEach(performer => {
+      // Convert height from inches to feet for 3D
+      const heightInFeet = Math.max(3, Math.min((performer.height || 66) / 12, 8)); // Clamp between 3ft and 8ft
+      const radius = 0.6;
+      let mesh = this.performerMeshes[performer.id];
+      if (!mesh) {
+        const geometry = new THREE.CylinderGeometry(radius, radius, heightInFeet, 32);
+        const material = new THREE.MeshPhongMaterial({
+          color: this.getSkillColor(performer),
+          transparent: true,
+          opacity: 0.9,
+          shininess: 60
+        });
+        mesh = new THREE.Mesh(geometry, material);
+        // Add name label
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (context) {
+          canvas.width = 256;
+          canvas.height = 64;
+          context.fillStyle = '#fff';
+          context.font = 'bold 24px Arial';
+          context.textAlign = 'center';
+          context.fillText(performer.name, 128, 40);
+          const texture = new THREE.CanvasTexture(canvas);
+          const labelMaterial = new THREE.SpriteMaterial({ map: texture });
+          const label = new THREE.Sprite(labelMaterial);
+          label.position.set(0, heightInFeet / 2 + 0.7, 0);
+          label.scale.set(2, 0.5, 1);
+          mesh.add(label);
+        }
+        this.scene?.add(mesh);
+        this.performerMeshes[performer.id] = mesh;
+      } else {
+        // If height changed, update geometry
+        if ((mesh.geometry as any).parameters && (mesh.geometry as any).parameters.height !== heightInFeet) {
+          mesh.geometry.dispose();
+          mesh.geometry = new THREE.CylinderGeometry(radius, radius, heightInFeet, 32);
+        }
+      }
+      // Center performers on the stage: x and z are offset from -width/2 and -depth/2
+      mesh.position.set(
+        (performer.x - this.width / 2),
+        heightInFeet / 2,
+        (performer.y - this.depth / 2)
+      );
+    });
+  }
+
+  private animate() {
+    if (!this.scene || !this.camera || !this.threeRenderer || !this.controls) return;
+
+    this.animationFrameId = requestAnimationFrame(() => this.animate());
+    this.controls.update();
+    this.threeRenderer.render(this.scene, this.camera);
+  }
+
+  private onWindowResize() {
+    if (!this.threeContainer || !this.camera || !this.threeRenderer) return;
+
+    const container = this.threeContainer.nativeElement;
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 600;
+
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.threeRenderer.setSize(width, height);
   }
 }
  
