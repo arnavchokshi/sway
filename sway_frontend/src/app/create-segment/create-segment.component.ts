@@ -20,7 +20,7 @@ interface Performer {
   x: number; // in feet
   y: number; // in feet
   skillLevels: { [styleName: string]: number }; // Map of style name to skill level (1-5)
-  height?: number; // in feet
+  height?: number; // in inches
   isDummy?: boolean;
   dummyName?: string;
 }
@@ -85,6 +85,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Selected performer tracking
   selectedPerformerId: string | null = null;
+  selectedPerformerFeet: number = 5;
+  selectedPerformerInches: number = 6;
 
   // Drag state
   draggingId: string | null = null;
@@ -223,6 +225,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private directVideoObjectUrl: string | null = null;
 
   isUploadingMusic = false;
+
+  // Zoom properties
+  private currentZoom = 1;
+  private minZoom = 0.5;
+  private maxZoom = 2;
+  private zoomStep = 0.1;
+  private lastZoomTime = 0;
+  private zoomDebounceTime = 50; // ms
 
   constructor(
     private teamService: TeamService,
@@ -412,6 +422,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     console.log('View initialized, setting up touch gestures');
     if (this.stageRef && this.stageRef.nativeElement) {
       this.setupTouchGestures();
+      this.setupZoomGestures();
     } else {
       console.error('Stage reference not available in ngAfterViewInit');
     }
@@ -467,6 +478,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.pixelsPerFoot = this.isMobile ? 7 : 20;
     this.stageWidthPx = this.width * this.pixelsPerFoot;
     this.stageHeightPx = this.depth * this.pixelsPerFoot;
+
     // Main lines
     this.mainVerticals = [];
     this.mainHorizontals = [];
@@ -949,6 +961,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   submitEditModal() {
+    // Enforce limits on width and depth
+    this.editWidth = Math.min(Math.max(this.editWidth, 8), 60);
+    this.editDepth = Math.min(Math.max(this.editDepth, 8), 45);
+    
     this.depth = this.editDepth;
     this.width = this.editWidth;
     this.divisions = this.editDivisions;
@@ -1631,6 +1647,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         this.selectedPerformerId = performer.id;
       }
     }
+    
+    // Update feet and inches when selecting a performer
+    if (this.selectedPerformer) {
+      const { feet, inches } = this.getHeightInFeetAndInches(this.selectedPerformer.height);
+      this.selectedPerformerFeet = feet;
+      this.selectedPerformerInches = inches;
+    }
+    
     this.triggerAutoSave();
     // Switch to performer info mode when a performer is selected
     if (this.selectedPerformerId) {
@@ -1912,35 +1936,28 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       return '#3b82f6'; // blue
     }
 
-    // Blue (#3b82f6) to Yellow (#ffe14a) gradient
-    const blue = { r: 59, g: 130, b: 246 };    // #3b82f6
-    const yellow = { r: 255, g: 225, b: 74 };  // #ffe14a
-    const t = (skillLevel - 1) / 4; // skillLevel: 1-5
-    const r = Math.round(blue.r + (yellow.r - blue.r) * t);
-    const g = Math.round(blue.g + (yellow.g - blue.g) * t);
-    const b = Math.round(blue.b + (yellow.b - blue.b) * t);
-    return `rgb(${r}, ${g}, ${b})`;
+    // Return the color based on the skill level section
+    return this.getGradientColor(skillLevel);
+  }
+
+  getGradientColor(skillLevel: number): string {
+    // Define the color stops for each section with more contrast while maintaining theme
+    const colors = [
+      '#4c1d95', // Very dark purple for level 1
+      '#7c3aed', // Deep purple for level 2
+      '#d946ef', // Bright magenta for level 3
+      '#f472b6', // Soft pink for level 4
+      '#FFDF00'  // Hot pink for level 5
+    ];
+
+    // Ensure skill level is within bounds
+    const index = Math.max(0, Math.min(Math.floor(skillLevel) - 1, colors.length - 1));
+    return colors[index];
   }
 
   toggleColorBySkill() {
     this.showColorBySkill = !this.showColorBySkill;
     if (!this.showColorBySkill) {
-      this.selectedStyle = null;
-    } else if (this.segment?.stylesInSegment && this.segment.stylesInSegment.length > 0) {
-      // Get the team's styles to get the color
-      const currentUser = this.authService.getCurrentUser();
-      if (currentUser?.team?._id) {
-        this.teamService.getTeamById(currentUser.team._id).subscribe({
-          next: (res) => {
-            const teamStyle = res.team.styles.find((s: Style) => 
-              s.name.toLowerCase() === this.segment.stylesInSegment[0].toLowerCase()
-            );
-            this.selectedStyle = teamStyle || null;
-            console.log('Selected style:', this.selectedStyle);
-          }
-        });
-      }
-    } else {
       this.selectedStyle = null;
     }
   }
@@ -2127,14 +2144,29 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   updatePerformerHeight() {
     if (!this.selectedPerformer) return;
-    // Ensure height is within reasonable bounds
-    if (this.selectedPerformer.height) {
-      this.selectedPerformer.height = Math.max(0, Math.min(12, this.selectedPerformer.height));
+    
+    // Validate feet (3-7)
+    this.selectedPerformerFeet = Math.min(Math.max(this.selectedPerformerFeet, 3), 7);
+    
+    // Handle inches > 12 by converting to feet
+    if (this.selectedPerformerInches >= 12) {
+      const additionalFeet = Math.floor(this.selectedPerformerInches / 12);
+      this.selectedPerformerFeet = Math.min(this.selectedPerformerFeet + additionalFeet, 7);
+      this.selectedPerformerInches = this.selectedPerformerInches % 12;
     }
+    
+    // Convert to total inches and ensure within bounds (36in to 84in)
+    const totalInches = this.getHeightInInches(this.selectedPerformerFeet, this.selectedPerformerInches);
+    const minInches = 36; // 3ft
+    const maxInches = 84; // 7ft
+    const boundedInches = Math.min(Math.max(totalInches, minInches), maxInches);
+    
+    this.selectedPerformer.height = boundedInches;
+    
     // Update in teamRoster as well
     const user = this.teamRoster.find(m => m._id === this.selectedPerformer!.id);
     if (user && this.teamService) {
-      user.height = this.selectedPerformer.height;
+      user.height = boundedInches;
       this.teamService.updateUser(user._id, { height: user.height }).subscribe();
     }
     this.triggerAutoSave();
@@ -2286,8 +2318,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const stageArea = this.stageRef.nativeElement;
     if (!stageArea) return;
 
-    // Apply transform to the stage-area
-    stageArea.style.transform = `translate(${this.currentTranslateX}px, ${this.currentTranslateY}px)`;
+    // Apply only scale transform, keeping stage centered
+    stageArea.style.transform = `scale(${this.currentZoom})`;
     stageArea.style.transformOrigin = 'center center';
   }
 
@@ -2307,6 +2339,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   toggle3DView() {
     this.is3DView = !this.is3DView;
     if (this.is3DView) {
+      // Set side panel to 3D mode when entering 3D view
+      this.sidePanelMode = '3d';
       // Wait for the view to update and DOM to be ready
       setTimeout(() => {
         if (this.threeContainer && this.threeContainer.nativeElement) {
@@ -2318,6 +2352,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }, 0);
     } else {
       this.cleanup3DScene();
+      // Reinitialize zoom gestures when returning to 2D view
+      setTimeout(() => {
+        if (this.stageRef && this.stageRef.nativeElement) {
+          this.setupZoomGestures();
+        }
+      }, 0);
     }
   }
 
@@ -2369,19 +2409,27 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     console.log('Initializing 3D scene...');
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x181a20);
+    this.scene.background = null; // Make background transparent
     const container = this.threeContainer.nativeElement;
-    const width = container.clientWidth || 800;
-    const height = container.clientHeight || 600;
+    const width = container.clientWidth || 1500;
+    const height = container.clientHeight || 700;
     const stageCenter = { x: 0, y: 0, z: 0 };
     const distance = Math.max(this.width, this.depth) * 1.5;
+   
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
     this.camera.position.set(0, 20, distance); // Default front view
     this.camera.lookAt(stageCenter.x, 0, stageCenter.z);
-    this.threeRenderer = new THREE.WebGLRenderer({ antialias: true });
+    this.threeRenderer = new THREE.WebGLRenderer({ 
+      antialias: true,
+      alpha: true // Enable transparency
+    });
     this.threeRenderer.setSize(width, height);
     this.threeRenderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(this.threeRenderer.domElement);
+
+    // Add click event listener for performer selection
+    this.threeRenderer.domElement.addEventListener('click', (event) => this.on3DViewClick(event));
+
     // Restore OrbitControls and restrict movement
     this.controls = new OrbitControls(this.camera, this.threeRenderer.domElement);
     this.controls.enableDamping = true;
@@ -2501,7 +2549,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Create or update performer meshes
     this.performers.forEach(performer => {
       // Convert height from inches to feet for 3D
-      const heightInFeet = Math.max(3, Math.min((performer.height || 66) / 12, 8)); // Clamp between 3ft and 8ft
+      const heightInFeet = performer.isDummy ? 5 : Math.max(3, Math.min((performer.height || 66) / 12, 8)); // Fixed 5ft for dummies, otherwise clamp between 3ft and 8ft
       const radius = 0.6;
       let mesh = this.performerMeshes[performer.id];
       if (!mesh) {
@@ -2537,17 +2585,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         if (context) {
-          canvas.width = 256;
-          canvas.height = 64;
+          canvas.width = 512; // Increased from 256
+          canvas.height = 128; // Increased from 64
           context.fillStyle = '#fff';
-          context.font = 'bold 24px Arial';
+          context.font = 'bold 90px Arial'; // Increased from 24px
           context.textAlign = 'center';
-          context.fillText(performer.name, 128, 40);
+          context.fillText(performer.name, 256, 80); // Adjusted position for new canvas size
           const texture = new THREE.CanvasTexture(canvas);
           const labelMaterial = new THREE.SpriteMaterial({ map: texture });
           const label = new THREE.Sprite(labelMaterial);
-          label.position.set(0, heightInFeet / 2 + 0.7, 0);
-          label.scale.set(2, 0.5, 1);
+          label.position.set(0, heightInFeet / 2 + 1.2, 0); // Increased height offset from 0.7 to 1.2
+          label.scale.set(4, 1, 1); // Increased width scale from 2 to 4
           group.add(label);
         }
 
@@ -2924,6 +2972,125 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       .filter(p => !p.isDummy)
       .map(p => p.id));
     return this.teamRoster.filter(user => !currentUserIds.has(user._id));
+  }
+
+  // Helper methods for height conversion
+  getHeightInFeetAndInches(heightInInches: number | undefined): { feet: number, inches: number } {
+    if (!heightInInches) return { feet: 5, inches: 6 }; // Default 5'6"
+    return {
+      feet: Math.floor(heightInInches / 12),
+      inches: Math.round(heightInInches % 12)
+    };
+  }
+
+  getHeightInInches(feet: number, inches: number): number {
+    return feet * 12 + inches;
+  }
+
+  private on3DViewClick(event: MouseEvent) {
+    if (!this.scene || !this.camera) return;
+
+    // Calculate mouse position in normalized device coordinates
+    const rect = this.threeRenderer?.domElement.getBoundingClientRect();
+    if (!rect) return;
+
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    // Create raycaster
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
+
+    // Check for intersections with performer meshes
+    const intersects = raycaster.intersectObjects(
+      Object.values(this.performerMeshes).map(mesh => mesh.children[0]), // Use the cylinder mesh for intersection
+      true
+    );
+
+    if (intersects.length > 0) {
+      // Find the performer ID from the intersected mesh
+      const performerId = Object.entries(this.performerMeshes).find(([_, mesh]) => 
+        mesh.children.includes(intersects[0].object)
+      )?.[0];
+
+      if (performerId) {
+        const performer = this.performers.find(p => p.id === performerId);
+        if (performer) {
+          this.selectPerformer(performer);
+          this.setSidePanelMode('performer');
+        }
+      }
+    }
+  }
+
+  private setupZoomGestures() {
+    const stageArea = this.stageRef.nativeElement;
+    if (!stageArea) return;
+
+    // Mouse wheel zoom
+    stageArea.addEventListener('wheel', (event: WheelEvent) => {
+      event.preventDefault();
+      const now = Date.now();
+      if (now - this.lastZoomTime < this.zoomDebounceTime) return;
+      this.lastZoomTime = now;
+
+      const delta = event.deltaY > 0 ? -this.zoomStep : this.zoomStep;
+      this.zoomAtPoint(event.clientX, event.clientY, delta);
+    }, { passive: false });
+
+    // Touch pinch zoom
+    stageArea.addEventListener('touchstart', (event: TouchEvent) => {
+      if (event.touches.length === 2) {
+        this.touchStartDistance = this.getTouchDistance(event.touches);
+        this.touchStartX = (event.touches[0].clientX + event.touches[1].clientX) / 2;
+        this.touchStartY = (event.touches[0].clientY + event.touches[1].clientY) / 2;
+        this.isPinching = true;
+      }
+    }, { passive: false });
+
+    stageArea.addEventListener('touchmove', (event: TouchEvent) => {
+      if (!this.isPinching || event.touches.length !== 2) return;
+      event.preventDefault();
+
+      const currentDistance = this.getTouchDistance(event.touches);
+      const currentX = (event.touches[0].clientX + event.touches[1].clientX) / 2;
+      const currentY = (event.touches[0].clientY + event.touches[1].clientY) / 2;
+
+      const zoomDelta = (currentDistance - this.touchStartDistance) * 0.01;
+      this.zoomAtPoint(currentX, currentY, zoomDelta);
+
+      this.touchStartDistance = currentDistance;
+      this.touchStartX = currentX;
+      this.touchStartY = currentY;
+    }, { passive: false });
+
+    stageArea.addEventListener('touchend', () => {
+      this.isPinching = false;
+    }, { passive: false });
+  }
+
+  private getTouchDistance(touches: TouchList): number {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  private zoomAtPoint(clientX: number, clientY: number, delta: number) {
+    const stageArea = this.stageRef.nativeElement;
+    if (!stageArea) return;
+
+    // Calculate new zoom level
+    const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.currentZoom + delta));
+    if (newZoom === this.currentZoom) return;
+
+    // Update zoom
+    this.currentZoom = newZoom;
+
+    // Reset translation to keep stage centered
+    this.currentTranslateX = 0;
+    this.currentTranslateY = 0;
+
+    this.updateStageTransform();
   }
 }
  

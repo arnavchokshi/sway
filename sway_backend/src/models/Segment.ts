@@ -19,6 +19,7 @@ interface Segment extends Document {
   musicUrl: string;
   segmentOrder: number;
   stylesInSegment: [{ type: String }];
+  propSpace: number;
 }
 
 const PositionSchema = new Schema<Position>({
@@ -39,7 +40,8 @@ const SegmentSchema = new Schema<Segment>({
   formationDurations: [{ type: Number, default: 4 }],
   musicUrl: { type: String },
   segmentOrder: { type: Number, default: 0 },
-  stylesInSegment: [{ type: String }]
+  stylesInSegment: [{ type: String }],
+  propSpace: { type: Number, default: 2 }
 });
 
 export const Segment = mongoose.model<Segment>('Segment', SegmentSchema);

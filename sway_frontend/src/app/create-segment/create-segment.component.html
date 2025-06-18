@@ -17,6 +17,29 @@
         <span class="material-icons">palette</span>
         Color by Skill
       </button>
+      <div class="style-selector-panel" *ngIf="showColorBySkill">
+        <div class="selected-style-card" *ngIf="selectedStyle">
+          <div class="style-name">{{ selectedStyle.name }}</div>
+          <div class="skill-gradient">
+            <div class="gradient-section" *ngFor="let i of [1,2,3,4,5]" 
+                 [style.background]="getGradientColor(i)">
+              {{ i }}
+            </div>
+          </div>
+        </div>
+        <div class="style-options" *ngIf="!selectedStyle">
+          <button class="style-option" *ngFor="let style of teamStyles" 
+                  (click)="selectStyle(style)"
+                  [style.background]="style.color">
+            {{ style.name }}
+          </button>
+        </div>
+      </div>
+      <label class="roster-add-btn" *ngIf="is3DView">
+        <input type="file" accept="video/mp4,video/webm" (change)="onDirectVideoFileSelected($event)" hidden>
+        <span class="material-icons">video_library</span>
+        Add Backdrop
+      </label>
       <button class="view-toggle" (click)="toggle3DView()">
         <span class="material-icons">
           {{ is3DView ? 'grid_on' : 'view_in_ar' }}
@@ -36,9 +59,8 @@
       <div class="sidepanel-toggle-buttons">
         <button class="sidepanel-toggle-btn" [class.active]="sidePanelMode === 'roster'" (click)="setSidePanelMode('roster')">Roster Info</button>
         <button class="sidepanel-toggle-btn" [class.active]="sidePanelMode === 'performer'" (click)="setSidePanelMode('performer')">Performer Info</button>
-        <button class="sidepanel-toggle-btn" *ngIf="is3DView" [class.active]="sidePanelMode === '3d'" (click)="setSidePanelMode('3d')">3D Info</button>
       </div>
-      <ng-container *ngIf="sidePanelMode === 'performer'; else rosterOr3DPanel">
+      <ng-container *ngIf="sidePanelMode === 'performer'; else rosterPanel">
         <div class="performer-details" *ngIf="selectedPerformer; else noPerformerSelected">
           <div class="performer-header">
             <input type="text" class="performer-name" [(ngModel)]="selectedPerformer.name" (blur)="updatePerformerName()">
@@ -48,10 +70,6 @@
           </div>
           <div class="performer-info">
             <div class="info-group">
-              <label>Height</label>
-              <input type="number" [(ngModel)]="selectedPerformer.height" (blur)="updatePerformerHeight()" min="0" max="12" step="0.1">
-            </div>
-            <div class="info-group" *ngIf="selectedPerformer">
               <button class="conversion-btn" (click)="togglePerformerPairingDropdown()">
                 <span class="material-icons">swap_horiz</span>
                 Change Performer Pairing
@@ -70,8 +88,39 @@
                 </div>
               </div>
             </div>
+            <div class="info-group" *ngIf="!selectedPerformer.isDummy">
+              <label>Height</label>
+              <div class="height-inputs">
+                <div class="height-input-group">
+                  <input type="number" 
+                         [(ngModel)]="selectedPerformerFeet" 
+                         (change)="updatePerformerHeight()"
+                         min="3" 
+                         max="7" 
+                         step="1"
+                         class="height-input">
+                  <span class="height-unit">ft</span>
+                </div>
+                <div class="height-input-group">
+                  <input type="number" 
+                         [(ngModel)]="selectedPerformerInches" 
+                         (change)="updatePerformerHeight()"
+                         min="0" 
+                         max="11" 
+                         step="1"
+                         class="height-input">
+                  <span class="height-unit">in</span>
+                </div>
+              </div>
+            </div>
+            <div class="info-group" *ngIf="selectedPerformer.isDummy">
+              <div class="dummy-message">
+                <span class="material-icons">info</span>
+                Pair with a performer to get more features
+              </div>
+            </div>
           </div>
-          <div class="skill-levels">
+          <div class="skill-levels" *ngIf="!selectedPerformer.isDummy">
             <div class="skill-group" *ngFor="let style of teamStyles">
               <div class="skill-header">
                 <label>{{style.name}}</label>
@@ -91,76 +140,39 @@
           <div class="performer-details-empty">Select a performer to view details</div>
         </ng-template>
       </ng-container>
-      <ng-template #rosterOr3DPanel>
-        <ng-container *ngIf="sidePanelMode === '3d'; else rosterPanel">
-          <div class="3d-details">
-            <div class="3d-header">
-              <h3>3D View Controls</h3>
-            </div>
-            <div class="3d-info">
-              <div class="info-group">
-                <label>Camera Controls</label>
-                <div class="control-info">
-                  <span>Two finger swipe up/down to zoom in/out</span>
-                </div>
-                <div class="control-info">
-                  <span>Click and drag to move up and down</span>
-                </div>
-              </div>
-              <div class="info-group">
-                <label>Video Backdrop</label>
-                <div class="backdrop-info">
-                  <p style="color: #ef4444; font-weight: 500;">Warning: Backdrop will be removed on refresh</p>
-                  <div class="video-input-container">
-                    <label class="roster-add-btn">
-                      <input type="file" accept="video/mp4,video/webm" (change)="onDirectVideoFileSelected($event)" hidden>
-                      <span class="material-icons">video_library</span>
-                      Add Backdrop
-                    </label>
-                    <button class="roster-add-btn" *ngIf="directVideoUrl" (click)="clearVideoBackdrop()">
-                      <span class="material-icons">close</span>
-                      Clear
-                    </button>
-                  </div>
-                </div>
-              </div>
+      <ng-template #rosterPanel>
+        <div class="roster-top-panel">
+          <div class="roster-header">
+            <h3>Performers</h3>
+          </div>
+          <!-- Performers List -->
+          <div class="performers-list">
+            <div class="performer-item" *ngFor="let performer of sortedPerformers; let i = index" 
+                 [class.selected]="selectedPerformerIds.has(performer.id)"
+                 (click)="selectPerformer(performer)">
+              <span class="performer-number">{{i + 1}}</span>
+              <span class="performer-name">{{performer.name}}</span>
             </div>
           </div>
-        </ng-container>
-        <ng-template #rosterPanel>
-          <div class="roster-top-panel">
-            <div class="roster-header">
-              <h3>Performers</h3>
-            </div>
-            <!-- Performers List -->
-            <div class="performers-list">
-              <div class="performer-item" *ngFor="let performer of sortedPerformers; let i = index" 
-                   [class.selected]="selectedPerformerIds.has(performer.id)"
-                   (click)="selectPerformer(performer)">
-                <span class="performer-number">{{i + 1}}</span>
-                <span class="performer-name">{{performer.name}}</span>
-              </div>
-            </div>
-            <!-- Add Performer Row -->
-            <div class="add-performer-row-link" (click)="toggleAddPerformerDropdown()">
-              Add Performer <span class="plus-sign">+</span>
-            </div>
-            <hr class="add-performer-divider" />
-            <div *ngIf="showAddPerformerDropdown" class="add-performer-dropdown">
-              <div class="dropdown-content">
-                <button class="dropdown-item" (click)="addDummyPerformer()">
-                  <span class="material-icons">person_add</span>
-                  Add Dummy Performer
-                </button>
-                <button class="dropdown-item" *ngFor="let member of sortedTeamRoster" 
-                        (click)="addPerformerFromRoster(member)">
-                  <span class="material-icons">person</span>
-                  {{ member.name }}
-                </button>
-              </div>
+          <!-- Add Performer Row -->
+          <div class="add-performer-row-link" (click)="toggleAddPerformerDropdown()">
+            Add Performer <span class="plus-sign">+</span>
+          </div>
+          <hr class="add-performer-divider" />
+          <div *ngIf="showAddPerformerDropdown" class="add-performer-dropdown">
+            <div class="dropdown-content">
+              <button class="dropdown-item" (click)="addDummyPerformer()">
+                <span class="material-icons">person_add</span>
+                Add Dummy Performer
+              </button>
+              <button class="dropdown-item" *ngFor="let member of sortedTeamRoster" 
+                      (click)="addPerformerFromRoster(member)">
+                <span class="material-icons">person</span>
+                {{ member.name }}
+              </button>
             </div>
           </div>
-        </ng-template>
+        </div>
       </ng-template>
     </div>
     <div class="content-area">
@@ -331,10 +343,10 @@
           <input type="text" [(ngModel)]="editSegmentName" name="editSegmentName" required />
         </label>
         <label>Width (ft):
-          <input type="number" min="8" max="64" [(ngModel)]="editWidth" name="editWidth" required />
+          <input type="number" min="8" max="60" [(ngModel)]="editWidth" name="editWidth" required />
         </label>
         <label>Depth (ft):
-          <input type="number" min="8" max="48" [(ngModel)]="editDepth" name="editDepth" required />
+          <input type="number" min="8" max="60" [(ngModel)]="editDepth" name="editDepth" required />
         </label>
         <label>Divisions:
           <input type="number" min="1" max="8" [(ngModel)]="editDivisions" name="editDivisions" required />
@@ -353,8 +365,8 @@
           </div>
         </div>
         <div class="modal-actions">
-          <button type="button" (click)="closeEditModal()">Cancel</button>
           <button type="submit" class="save">Save</button>
+          <button type="button" (click)="closeEditModal()">Cancel</button>
         </div>
       </form>
     </div>
