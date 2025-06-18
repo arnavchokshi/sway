@@ -180,7 +180,7 @@
         <div #stageRef class="stage-area" *ngIf="!is3DView" (click)="onStageClick($event)">
           <div class="stage-header-center">
             <div class="formation-title" *ngIf="formations[playingFormationIndex]">
-              Formation {{ playingFormationIndex + 1 }}
+              F {{ playingFormationIndex + 1 }}
             </div>
             <div class="stage-label">BACKSTAGE</div>
           </div>
@@ -281,7 +281,7 @@
                        (mouseenter)="hoveredFormationIndex = i"
                        (mouseleave)="hoveredFormationIndex = null"
                        [style.width.px]="getFormationPixelWidth(i)">
-                    <div class="formation-label">Formation {{ i + 1 }}</div>
+                    <div class="formation-label">F {{ i + 1 }}</div>
                     <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
                     <div *ngIf="isCaptain && i < formations.length - 1" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
                   </div>
@@ -296,7 +296,9 @@
                   <span class="material-icons">add</span>
                 </button>
               </div>
-              <div class="timeline-playhead" [style.left.px]="getHoveredPlayheadPixel()"></div>
+              <div class="timeline-playhead-container">
+                <div class="timeline-playhead" [style.left.px]="getHoveredPlayheadPixel()"></div>
+              </div>
             </div>
             <div *ngIf="signedMusicUrl" class="audio-player-bar stage-audio-bar" [style.width.px]="waveformWidthPx">
               <div class="waveform-container" style="display: flex; align-items: center; gap: 12px;">
@@ -320,14 +322,30 @@
               </div>
             </div>
           </div>
-          <div class="bottom-panel-divider"></div>
           <div class="bottom-panel-actions">
-            <button *ngIf="isCaptain && currentFormationIndex !== null" class="delete-formation-btn" (click)="deleteFormation(currentFormationIndex)">
-              <span class="material-icons">delete</span>
-            </button>
-            <button *ngIf="isCaptain && currentFormationIndex !== null" class="duplicate-formation-btn" (click)="duplicateFormation(currentFormationIndex)">
-              <span class="material-icons">content_copy</span>
-            </button>
+            <div class="timeline-zoom-controls">
+              <span class="material-icons">zoom_out</span>
+              <input type="range" 
+                     [min]="minTimelineZoom" 
+                     [max]="maxTimelineZoom" 
+                     [step]="timelineZoomStep"
+                     [(ngModel)]="timelineZoom"
+                     (input)="onTimelineZoomChange($event)"
+                     class="timeline-zoom-slider">
+              <span class="material-icons">zoom_in</span>
+              <span class="zoom-percentage">{{ getTimelineZoomPercentage() }}%</span>
+            </div>
+            <div class="action-buttons">
+              <button *ngIf="isCaptain && currentFormationIndex !== null" class="delete-formation-btn" (click)="deleteFormation(currentFormationIndex)">
+                <span class="material-icons">delete</span>
+              </button>
+              <button *ngIf="isCaptain && currentFormationIndex !== null" class="duplicate-formation-btn" (click)="duplicateFormation(currentFormationIndex)">
+                <span class="material-icons">content_copy</span>
+              </button>
+            </div>
+            <div class="time-indicator" *ngIf="signedMusicUrl">
+              {{ formatTime(playbackTime) }}
+            </div>
           </div>
         </div>
       </div>

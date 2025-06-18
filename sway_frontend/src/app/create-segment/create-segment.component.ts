@@ -1,4 +1,4 @@
-import { Component, OnInit, ElementRef, ViewChild, Renderer2, AfterViewChecked, OnDestroy, AfterViewInit } from '@angular/core';
+import { Component, OnInit, ElementRef, ViewChild, Renderer2, AfterViewChecked, OnDestroy, AfterViewInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -138,7 +138,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   resizingTransitionStartX: number = 0;
   resizingTransitionStartDuration: number = 0;
 
-  pixelsPerSecond = 100; // You can adjust this for zoom level
+  pixelsPerSecond = 50; // Reduced from 100 to 50 for better base scaling
 
   activeRosterTab: 'team' | 'segment' = 'team';
   teamRoster: any[] = [];
@@ -234,13 +234,26 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private lastZoomTime = 0;
   private zoomDebounceTime = 50; // ms
 
+  // Add timeline zoom properties
+  timelineZoom = 1;
+  minTimelineZoom = 0.05;
+  maxTimelineZoom = 1.0;  // Changed from 1.0 to 2.0 to allow zooming in
+  timelineZoomStep = 0.01;
+
+  // Add these properties after other drag-related properties
+  draggingFormationIndex: number | null = null;
+  dragFormationStartX: number = 0;
+  dragFormationStartIndex: number = 0;
+  dragFormationOverIndex: number | null = null;
+
   constructor(
     private teamService: TeamService,
     private authService: AuthService,
     private segmentService: SegmentService,
     private route: ActivatedRoute,
     private renderer: Renderer2,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private cdr: ChangeDetectorRef
   ) {
     // Set up auto-save subscription
     this.saveSubject.pipe(
@@ -558,11 +571,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Get the current formation's performers
     const currentFormation = this.formations[this.currentFormationIndex];
     
-    // Create a deep copy of the current formation's performers
+    // Create a deep copy of the current formation's performers with their exact positions
     const newFormation = currentFormation.map(performer => ({
       ...performer,
       x: performer.x,
-      y: performer.y
+      y: performer.y,
+      skillLevels: { ...performer.skillLevels },
+      height: performer.height,
+      isDummy: performer.isDummy,
+      dummyName: performer.dummyName
     }));
     
     // Add the new formation with copied performers
@@ -1242,43 +1259,48 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   togglePlay() {
+    console.log('[Playback Debug] Toggle Play called', {
+      currentState: this.isPlaying,
+      playbackTime: this.playbackTime,
+      waveSurferExists: !!this.waveSurfer,
+      videoElementExists: !!this.videoElement
+    });
+
     if (this.isPlaying) {
+      // Stop playback
       if (this.waveSurfer) {
         this.waveSurfer.pause();
       }
-      const videoElement = this.videoElement;
-      if (videoElement) {
-        videoElement.pause();
+      if (this.videoElement) {
+        this.videoElement.pause();
       }
       if (this.playbackTimer) {
-        clearInterval(this.playbackTimer);
+        cancelAnimationFrame(this.playbackTimer);
         this.playbackTimer = null;
       }
       this.isPlaying = false;
+      this.hoveredTimelineTime = null;
+      console.log('[Playback Debug] Playback stopped');
     } else {
+      // Start playback
       if (this.waveSurfer) {
         this.waveSurfer.play();
       }
-      const videoElement = this.videoElement;
-      if (videoElement) {
-        // Sync video with current playback time
-        if (this.playbackTime <= videoElement.duration) {
-          videoElement.currentTime = this.playbackTime;
-          videoElement.play();
-        } else {
-          // If current time is past video duration, show last frame
-          videoElement.currentTime = videoElement.duration;
-          videoElement.pause();
-        }
+      if (this.videoElement) {
+        this.videoElement.play();
       }
-      // Start the formation playback timer
-      this.playbackTimer = setInterval(() => {
+
+      // Use requestAnimationFrame for smoother updates
+      const updatePlayback = () => {
         if (this.waveSurfer) {
           this.playbackTime = this.waveSurfer.getCurrentTime();
         } else {
-          this.playbackTime += 0.1;
+          this.playbackTime += 0.016; // Approximately 60fps
         }
         const currentTime = this.playbackTime;
+        
+        // Force change detection for playhead update
+        this.cdr.detectChanges();
         
         // Update video if needed
         const videoElement = this.videoElement;
@@ -1326,8 +1348,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           this.inTransition = false;
           this.animatedPositions = {};
         }
-      }, 30);
+
+        // Schedule next frame if still playing
+        if (this.isPlaying) {
+          this.playbackTimer = requestAnimationFrame(updatePlayback);
+        }
+      };
+
       this.isPlaying = true;
+      this.playbackTimer = requestAnimationFrame(updatePlayback);
+      console.log('[Playback Debug] Playback started');
     }
   }
 
@@ -1519,36 +1549,36 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onFormationResizeStart(event: MouseEvent, i: number) {
-    console.log('Formation resize start', i);
     event.stopPropagation();
     this.resizingFormationIndex = i;
     this.resizingStartX = event.clientX;
-    this.resizingStartDuration = this.formationDurations[i];
+    this.resizingStartDuration = this.formationDurations[i] || 4;
+    
+    // Add event listeners to window to handle drag outside the timeline
     window.addEventListener('mousemove', this.onFormationResizeMove);
     window.addEventListener('mouseup', this.onFormationResizeEnd);
   }
 
   onFormationResizeMove = (event: MouseEvent) => {
-    console.log('Formation resize move');
     if (this.resizingFormationIndex === null) return;
+    
     const dx = event.clientX - this.resizingStartX;
-    const durationPx = this.waveformWidthPx || 1; // prevent divide by zero
-    const timelineDuration = this.getTimelineTotalDuration() || 1;
-    const startDuration = this.resizingStartDuration || 1;
-    console.log({ dx, durationPx, timelineDuration, startDuration });
-    let newDuration = startDuration + (dx / durationPx) * timelineDuration;
-    newDuration = Math.max(0.2, newDuration); // minimum duration
+    const totalTimelineDuration = this.getTimelineTotalDuration();
+    const pixelsToDuration = totalTimelineDuration / this.waveformWidthPx;
+    
+    let newDuration = this.resizingStartDuration + (dx * pixelsToDuration);
+    newDuration = Math.max(1, Math.min(100, newDuration));
+    
     if (isNaN(newDuration)) {
-      console.warn('newDuration is NaN', { startDuration, dx, durationPx, timelineDuration });
+      console.warn('newDuration is NaN', { startDuration: this.resizingStartDuration, dx, pixelsToDuration });
       return;
     }
+    
     this.formationDurations[this.resizingFormationIndex] = newDuration;
     this.formationDurations = [...this.formationDurations]; // force change detection
-    console.log('formationDurations', this.formationDurations);
   };
 
   onFormationResizeEnd = () => {
-    console.log('Formation resize end');
     this.resizingFormationIndex = null;
     window.removeEventListener('mousemove', this.onFormationResizeMove);
     window.removeEventListener('mouseup', this.onFormationResizeEnd);
@@ -1568,18 +1598,28 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     event.stopPropagation();
     this.resizingTransitionIndex = i;
     this.resizingTransitionStartX = event.clientX;
-    this.resizingTransitionStartDuration = this.animationDurations[i];
+    this.resizingTransitionStartDuration = this.animationDurations[i] || 1;
+    
+    // Add event listeners to window to handle drag outside the timeline
     window.addEventListener('mousemove', this.onTransitionResizeMove);
     window.addEventListener('mouseup', this.onTransitionResizeEnd);
   }
 
   onTransitionResizeMove = (event: MouseEvent) => {
     if (this.resizingTransitionIndex === null) return;
+    
     const dx = event.clientX - this.resizingTransitionStartX;
-    const durationPx = this.waveformWidthPx;
-    const total = this.getTimelineTotalDuration();
-    let newDuration = this.resizingTransitionStartDuration + (dx / durationPx) * total;
-    newDuration = Math.max(0.2, newDuration); // minimum duration
+    const totalTimelineDuration = this.getTimelineTotalDuration();
+    const pixelsToDuration = totalTimelineDuration / this.waveformWidthPx;
+    
+    let newDuration = this.resizingTransitionStartDuration + (dx * pixelsToDuration);
+    newDuration = Math.max(0.2, newDuration);
+    
+    if (isNaN(newDuration)) {
+      console.warn('newDuration is NaN', { startDuration: this.resizingTransitionStartDuration, dx, pixelsToDuration });
+      return;
+    }
+    
     this.animationDurations[this.resizingTransitionIndex] = newDuration;
     this.animationDurations = [...this.animationDurations]; // force change detection
   };
@@ -1591,7 +1631,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   };
 
   getTimelinePixelWidth(): number {
-    // Calculate total width needed for all formations and transitions
+    // Calculate total width based on all formations and transitions
     let totalWidth = 0;
     for (let i = 0; i < this.formations.length; i++) {
       totalWidth += this.getFormationPixelWidth(i);
@@ -1599,23 +1639,79 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         totalWidth += this.getTransitionPixelWidth(i);
       }
     }
-    return Math.max(totalWidth, this.waveformWidthPx);
+    return totalWidth;
   }
 
   getFormationPixelWidth(i: number): number {
-    const duration = this.formationDurations[i] || 5;
-    // Each second is 100 pixels wide
-    return Math.max(duration * 100, 110); // Minimum width of 110px
+    const duration = this.formationDurations[i] || 4;
+    const totalTimelineDuration = this.getTimelineTotalDuration();
+    
+    // Calculate the width based on the formation's proportion of the total timeline
+    const baseWidth = (duration / totalTimelineDuration) * this.waveformWidthPx;
+    console.log(`Formation ${i} width calculation:`, {
+      duration,
+      totalTimelineDuration,
+      baseWidth,
+      zoom: this.timelineZoom
+    });
+    
+    return baseWidth * this.timelineZoom;
   }
 
   getTransitionPixelWidth(i: number): number {
     const duration = this.animationDurations[i] || 1;
-    // Each second is 100 pixels wide
-    return Math.max(duration * 100, 40); // Minimum width of 40px
+    const totalTimelineDuration = this.getTimelineTotalDuration();
+    
+    // Calculate the width based on the transition's proportion of the total timeline
+    const baseWidth = (duration / totalTimelineDuration) * this.waveformWidthPx;
+    console.log(`Transition ${i} width calculation:`, {
+      duration,
+      totalTimelineDuration,
+      baseWidth,
+      zoom: this.timelineZoom
+    });
+    
+    return baseWidth * this.timelineZoom;
   }
 
   getPlayheadPixel(): number {
-    return this.playbackTime * this.pixelsPerSecond;
+    // Calculate position based on playback time and zoom level
+    const totalWidth = this.getTimelinePixelWidth();
+    const totalDuration = this.getTimelineTotalDuration();
+    
+    // Calculate the base position without zoom
+    const basePosition = (this.playbackTime / totalDuration) * totalWidth;
+    
+    // Calculate the scroll offset
+    const scrollLeft = this.timelineBarRef?.nativeElement?.scrollLeft || 0;
+    
+    // Calculate the final position, maintaining consistent speed regardless of zoom
+    const finalPosition = basePosition - scrollLeft;
+    
+    // Ensure the position is within bounds
+    return Math.max(0, Math.min(finalPosition, totalWidth));
+  }
+
+  getHoveredPlayheadPixel(): number {
+    if (this.isPlaying) {
+      // During playback, use the current playback time
+      return this.getPlayheadPixel();
+    }
+    
+    // When not playing, use hover position
+    if (this.hoveredTimelineX === null) return 0;
+    
+    const totalWidth = this.getTimelinePixelWidth();
+    const totalDuration = this.getTimelineTotalDuration();
+    
+    // Calculate position based on hovered time
+    if (this.hoveredTimelineTime !== null) {
+      const timePercent = this.hoveredTimelineTime / totalDuration;
+      return timePercent * totalWidth;
+    }
+    
+    // Fallback to direct x position if time is not available
+    return Math.max(0, Math.min(this.hoveredTimelineX, totalWidth));
   }
 
   selectPerformer(performer: Performer) {
@@ -1778,32 +1874,38 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   onTimelineMouseMove(event: MouseEvent) {
     const bar = this.timelineBarRef?.nativeElement;
     if (!bar || !this.waveSurfer || !this.waveSurfer.getDuration()) return;
+    
     const rect = bar.getBoundingClientRect();
     const x = event.clientX - rect.left + bar.scrollLeft;
     this.hoveredTimelineX = x;
-    const barInfo = this.getTimelineBarAtCursor(x);
-    if (barInfo) {
-      let timelineTime = 0;
-      if (barInfo.type === 'formation') {
-        const percentInFormation = Math.max(0, Math.min(1, (x - barInfo.startPx) / barInfo.widthPx));
-        const formationStartTimeline = this.getFormationStartTimelineTime(barInfo.index);
-        const formationDurationTimeline = this.formationDurations[barInfo.index] || 4;
-        timelineTime = formationStartTimeline + percentInFormation * formationDurationTimeline;
-      } else if (barInfo.type === 'transition') {
-        const percentInTransition = Math.max(0, Math.min(1, (x - barInfo.startPx) / barInfo.widthPx));
-        const transitionStartTimeline = this.getTransitionStartTimelineTime(barInfo.index);
-        const transitionDurationTimeline = this.animationDurations[barInfo.index] || 1;
-        timelineTime = transitionStartTimeline + percentInTransition * transitionDurationTimeline;
+    
+    // Calculate total timeline width
+    const totalWidth = this.getTimelinePixelWidth();
+    const totalDuration = this.getTimelineTotalDuration();
+    
+    // Calculate time based on position relative to total width
+    const timePercent = Math.max(0, Math.min(1, x / totalWidth));
+    this.hoveredTimelineTime = timePercent * totalDuration;
+    
+    // Update formation index based on time
+    let currentTime = 0;
+    for (let i = 0; i < this.formations.length; i++) {
+      const formationDuration = this.formationDurations[i] || 4;
+      if (this.hoveredTimelineTime < currentTime + formationDuration) {
+        this.hoveredFormationIndex = i;
+        break;
       }
-      this.hoveredTimelineTime = timelineTime;
-    } else {
-      this.hoveredTimelineTime = null;
+      currentTime += formationDuration;
+      if (i < this.animationDurations.length) {
+        currentTime += this.animationDurations[i] || 1;
+      }
     }
   }
 
   onTimelineMouseLeave() {
-    this.hoveredTimelineTime = null;
     this.hoveredTimelineX = null;
+    this.hoveredTimelineTime = null;
+    this.hoveredFormationIndex = null;
   }
 
   onTimelineClick(event: MouseEvent) {
@@ -1872,18 +1974,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
       }
     }
-  }
-
-  getHoveredPlayheadPixel(): number {
-    if (this.hoveredTimelineX !== null) {
-      return this.hoveredTimelineX;
-    }
-    if (this.hoveredTimelineTime !== null && this.waveSurfer && this.waveSurfer.getDuration()) {
-      const audioDuration = this.waveSurfer.getDuration();
-      const percent = this.hoveredTimelineTime / audioDuration;
-      return percent * (this.waveformWidthPx || 1);
-    }
-    return this.getPlayheadPixel();
   }
 
   toggleUnifiedPlay() {
@@ -3091,6 +3181,156 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.currentTranslateY = 0;
 
     this.updateStageTransform();
+  }
+
+  // Add these methods before ngOnDestroy
+  onFormationDragStart(event: MouseEvent, index: number) {
+    if (!this.isCaptain) return;
+    event.preventDefault();
+    event.stopPropagation();
+    
+    this.draggingFormationIndex = index;
+    this.dragFormationStartX = event.clientX;
+    this.dragFormationStartIndex = index;
+    this.dragFormationOverIndex = index;
+
+    // Add event listeners for drag and end
+    document.addEventListener('mousemove', this.onFormationDragMove);
+    document.addEventListener('mouseup', this.onFormationDragEnd);
+  }
+
+  onFormationDragMove = (event: MouseEvent) => {
+    if (this.draggingFormationIndex === null) return;
+
+    const timelineBar = this.timelineBarRef.nativeElement;
+    const rect = timelineBar.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+
+    // Find which formation we're hovering over
+    let currentX = 0;
+    for (let i = 0; i < this.formations.length; i++) {
+      const formationWidth = this.getFormationPixelWidth(i);
+      const transitionWidth = i < this.formations.length - 1 ? this.getTransitionPixelWidth(i) : 0;
+      
+      if (x >= currentX && x < currentX + formationWidth) {
+        this.dragFormationOverIndex = i;
+        break;
+      }
+      currentX += formationWidth + transitionWidth;
+    }
+  }
+
+  onFormationDragEnd = () => {
+    if (this.draggingFormationIndex === null) return;
+
+    // Reorder formations if we dragged to a new position
+    if (this.dragFormationOverIndex !== null && 
+        this.dragFormationOverIndex !== this.draggingFormationIndex) {
+      const formation = this.formations[this.draggingFormationIndex];
+      const duration = this.formationDurations[this.draggingFormationIndex];
+      const animationDuration = this.animationDurations[this.draggingFormationIndex];
+
+      // Remove from old position
+      this.formations.splice(this.draggingFormationIndex, 1);
+      this.formationDurations.splice(this.draggingFormationIndex, 1);
+      if (this.animationDurations.length > 0) {
+        this.animationDurations.splice(this.draggingFormationIndex, 1);
+      }
+
+      // Insert at new position
+      this.formations.splice(this.dragFormationOverIndex, 0, formation);
+      this.formationDurations.splice(this.dragFormationOverIndex, 0, duration);
+      if (this.animationDurations.length > 0) {
+        this.animationDurations.splice(this.dragFormationOverIndex, 0, animationDuration);
+      }
+
+      // Update current formation index if needed
+      if (this.currentFormationIndex === this.draggingFormationIndex) {
+        this.currentFormationIndex = this.dragFormationOverIndex;
+      } else if (this.currentFormationIndex > this.draggingFormationIndex && 
+                 this.currentFormationIndex <= this.dragFormationOverIndex) {
+        this.currentFormationIndex--;
+      } else if (this.currentFormationIndex < this.draggingFormationIndex && 
+                 this.currentFormationIndex >= this.dragFormationOverIndex) {
+        this.currentFormationIndex++;
+      }
+
+      // Update playing formation index if needed
+      if (this.playingFormationIndex === this.draggingFormationIndex) {
+        this.playingFormationIndex = this.dragFormationOverIndex;
+      } else if (this.playingFormationIndex > this.draggingFormationIndex && 
+                 this.playingFormationIndex <= this.dragFormationOverIndex) {
+        this.playingFormationIndex--;
+      } else if (this.playingFormationIndex < this.draggingFormationIndex && 
+                 this.playingFormationIndex >= this.dragFormationOverIndex) {
+        this.playingFormationIndex++;
+      }
+
+      // Save changes
+      if (this.segment?._id) {
+        this.saveSegment();
+      } else {
+        this.triggerAutoSave();
+      }
+    }
+
+    // Reset drag state
+    this.draggingFormationIndex = null;
+    this.dragFormationStartX = 0;
+    this.dragFormationStartIndex = 0;
+    this.dragFormationOverIndex = null;
+
+    // Remove event listeners
+    document.removeEventListener('mousemove', this.onFormationDragMove);
+    document.removeEventListener('mouseup', this.onFormationDragEnd);
+  }
+
+  // Add this method to get formation drag style
+  getFormationDragStyle(index: number): any {
+    if (this.draggingFormationIndex === index) {
+      return {
+        opacity: '0.5',
+        cursor: 'grabbing'
+      };
+    }
+    if (this.dragFormationOverIndex !== null && this.draggingFormationIndex !== null) {
+      if (this.dragFormationOverIndex === index) {
+        return {
+          borderLeft: this.dragFormationOverIndex > this.draggingFormationIndex ? '2px solid #3b82f6' : 'none',
+          borderRight: this.dragFormationOverIndex < this.draggingFormationIndex ? '2px solid #3b82f6' : 'none'
+        };
+      }
+    }
+    return {};
+  }
+
+  // Add method to handle timeline zoom changes
+  onTimelineZoomChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const newZoom = parseFloat(input.value);
+    console.log('Timeline zoom changing to:', newZoom);
+    
+    // Update the zoom value
+    this.timelineZoom = newZoom;
+    
+    // Force recalculation of timeline widths
+    this.formationDurations = [...this.formationDurations];
+    this.animationDurations = [...this.animationDurations];
+    
+    // Force change detection
+    this.cdr.detectChanges();
+  }
+
+  // Add method to get zoom percentage for display
+  getTimelineZoomPercentage(): number {
+    return Math.round(this.timelineZoom * 100);
+  }
+
+  formatTime(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    const milliseconds = Math.floor((seconds % 1) * 1000);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
   }
 }
  
