@@ -423,4 +423,15 @@
   box-shadow: 0 2px 8px rgba(99,102,241,0.08);
   z-index: 3;
   letter-spacing: 0.01em;
+}
+
+
+.segment-card.dragging {
+  opacity: 0.5;
+  z-index: 10;
+  box-shadow: 0 8px 32px rgba(99,102,241,0.18);
+}
+.segment-card.drag-over {
+  border: 2.5px dashed #ffd700;
+  background: rgba(255, 255, 0, 0.08);
 } 

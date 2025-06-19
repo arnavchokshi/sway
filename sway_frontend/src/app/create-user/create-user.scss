@@ -71,7 +71,7 @@ input:focus {
 }
 
 .create-btn {
-  background: linear-gradient(90deg, #6366f1 0%, #a69333 100%);
+  background: linear-gradient(90deg, #6366f1 0%, #337ea6 100%);
   color: #fff;
   border: none;
   padding: 0.75rem 2.5rem;
@@ -86,7 +86,8 @@ input:focus {
 }
 
 .create-btn:hover {
-  background: linear-gradient(90deg, #a69333 0%, #6366f1 100%);
+  background: linear-gradient(90deg, #6366f1 0%, #337ea6 100%);
+  scale: 1.05;
 }
 
 @media (max-width: 600px) {
@@ -132,7 +133,7 @@ input:focus {
   background-clip: text;
   text-fill-color: transparent;
   letter-spacing: 1px;
-  filter: brightness(1.2) drop-shadow(0 2px 8px #6366f1aa);
+  filter: brightness(1.2) drop-shadow(0 2px 8px #000000aa);
 }
 
 .progress-bar-wrapper, .progress-bar, .progress-bar-label {

@@ -2,12 +2,24 @@
   <div class="segments-grid">
     <!-- List all segments -->
     <ng-container *ngIf="segments.length > 0; else noSegments">
-      <div class="segment-card" *ngFor="let segment of segments" (click)="goToSegment(segment._id)">
+      <div class="segment-card"
+           *ngFor="let segment of segments; let i = index"
+           (click)="goToSegment(segment._id)"
+           [class.dragging]="draggingIndex === i"
+           [class.drag-over]="dragOverIndex === i"
+           draggable="true"
+           (dragstart)="onDragStart($event, i)"
+           (dragover)="onDragOver($event, i)"
+           (drop)="onDrop($event, i)"
+           (dragend)="onDragEnd()">
         <div class="segment-grid-bg"></div>
         <!-- Segment order badge -->
-        <div class="segment-order-badge" *ngIf="segment.segmentOrder !== undefined">
-          {{ segment.segmentOrder }}
+        <div class="segment-order-badge">
+          {{ i + 1 }}
         </div>
+
+
+
         <button class="delete-segment-btn" *ngIf="isCaptain" (click)="deleteSegment(segment._id); $event.stopPropagation()">
           <span class="material-icons">delete</span>
         </button>

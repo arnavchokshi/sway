@@ -253,6 +253,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   stageGridHeightPx: number = 0;
 
+  // Add new property for stage vertical offset
+  stageVerticalOffset: number = 0;
+
+  // Add these properties
+  private isDraggingSlider = false;
+  private sliderRect: DOMRect | null = null;
+
   constructor(
     private teamService: TeamService,
     private authService: AuthService,
@@ -633,11 +640,43 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     console.log('View initialized, setting up touch gestures');
     if (this.stageRef && this.stageRef.nativeElement) {
       this.setupZoomGestures();
+      this.setupSliderDebug();
       // Fix: recalculate grid using actual DOM size
       this.calculateStageWithDOMSize();
       window.addEventListener('resize', () => this.calculateStageWithDOMSize());
     } else {
       console.error('Stage reference not available in ngAfterViewInit');
+    }
+  }
+
+  private setupSliderDebug() {
+    const sliderElement = document.querySelector('.stage-position-slider') as HTMLElement;
+    const stageArea = this.stageRef.nativeElement;
+    
+    if (sliderElement) {
+      const events = ['mousedown', 'mouseup', 'mousemove', 'click', 'pointerdown', 'pointerup', 'pointermove'];
+      events.forEach(eventType => {
+        sliderElement.addEventListener(eventType, (e) => {
+          console.log(`Slider ${eventType}:`, {
+            event: e,
+            sliderValue: (e.target as HTMLInputElement).value,
+            stageTransform: stageArea.style.transform
+          });
+        });
+      });
+    }
+
+    if (stageArea) {
+      const events = ['mousedown', 'mouseup', 'mousemove', 'click'];
+      events.forEach(eventType => {
+        stageArea.addEventListener(eventType, (e) => {
+          console.log(`Stage ${eventType}:`, {
+            event: e,
+            target: e.target,
+            stageTransform: stageArea.style.transform
+          });
+        });
+      });
     }
   }
 
@@ -2652,16 +2691,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   private updateStageTransform() {
-    const stageArea = this.stageRef.nativeElement;
+    const stageArea = this.stageRef?.nativeElement;
     if (!stageArea) return;
 
-    // Apply only scale transform, keeping stage centered
-    stageArea.style.transform = `scale(${this.currentZoom})`;
+    stageArea.style.transform = this.getStageTransform();
     stageArea.style.transformOrigin = 'center center';
   }
 
   private enforcePanBounds() {
-    const stageArea = this.stageRef.nativeElement;
+    const stageArea = this.stageRef?.nativeElement;
     if (!stageArea) return;
 
     const rect = stageArea.getBoundingClientRect();
@@ -3582,6 +3620,66 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   navigateToDashboard() {
     this.router.navigate(['/dashboard']);
+  }
+
+  onSliderPointerDown(event: PointerEvent) {
+    const slider = event.target as HTMLElement;
+    this.isDraggingSlider = true;
+    this.sliderRect = slider.getBoundingClientRect();
+    slider.setPointerCapture(event.pointerId);
+    this.updateSliderValue(event);
+  }
+
+  onSliderPointerUp(event: PointerEvent) {
+    this.isDraggingSlider = false;
+    this.sliderRect = null;
+    (event.target as HTMLElement).releasePointerCapture(event.pointerId);
+  }
+
+  onSliderPointerMove(event: PointerEvent) {
+    if (!this.isDraggingSlider || !this.sliderRect) return;
+    this.updateSliderValue(event);
+  }
+
+  private updateSliderValue(event: PointerEvent) {
+    if (!this.sliderRect) return;
+    
+    // Calculate relative position (0 to 1)
+    const rect = this.sliderRect;
+    const relativeY = (event.clientY - rect.top) / rect.height;
+    
+    // Invert the value since the slider is rotated 180 degrees
+    const normalizedY = 1 - relativeY;
+    
+    // Convert to slider range (-300 to 100)
+    const newValue = Math.round(-300 + normalizedY * 400);
+    
+    // Clamp the value
+    this.stageVerticalOffset = Math.max(-300, Math.min(100, newValue));
+    
+    console.log('Updating slider:', {
+      clientY: event.clientY,
+      rectTop: rect.top,
+      relativeY,
+      normalizedY,
+      newValue,
+      finalValue: this.stageVerticalOffset
+    });
+
+    requestAnimationFrame(() => {
+      const stageArea = this.stageRef?.nativeElement;
+      if (!stageArea) return;
+      const transform = `scale(${this.currentZoom || 1}) translate(0, ${this.stageVerticalOffset}px)`;
+      stageArea.style.transform = transform;
+      stageArea.style.transformOrigin = 'center center';
+    });
+  }
+
+  // Update the existing getStageTransform method
+  getStageTransform(): string {
+    const scale = this.currentZoom || 1;
+    const translateY = this.stageVerticalOffset || 0;
+    return `scale(${scale}) translate(0, ${translateY}px)`;
   }
 }
  

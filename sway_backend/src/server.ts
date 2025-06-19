@@ -130,7 +130,10 @@ app.post('/api/bulk-users', async (req, res) => {
 app.get('/api/team-by-join-code/:joinCode', async (req, res) => {
   try {
     const { joinCode } = req.params;
-    const team = await Team.findOne({ joinCode }).populate('members');
+    const team = await Team.findOne({ joinCode }).populate({
+      path: 'members',
+      select: 'name email _id' // Explicitly select the fields we need
+    });
     if (!team) {
       return res.status(404).json({ error: 'Team not found' });
     }
@@ -227,6 +230,7 @@ app.get('/api/segment/:id', async (req, res) => {
 app.patch('/api/segment/:id', async (req, res) => {
   try {
     const update = req.body;
+    let oldMusicUrl = null;
     // Only allow stylesInSegment to be updated if provided
     if (update.stylesInSegment) {
       const segment = await Segment.findById(req.params.id);
@@ -236,11 +240,33 @@ app.patch('/api/segment/:id', async (req, res) => {
       const validStyleNames = (team.styles || []).map(s => s.name);
       update.stylesInSegment = (Array.isArray(update.stylesInSegment) ? update.stylesInSegment : []).filter(s => validStyleNames.includes(s));
     }
+    // If musicUrl is being updated, delete the old audio file from S3
+    if (update.musicUrl) {
+      const segment = await Segment.findById(req.params.id);
+      if (segment && segment.musicUrl && segment.musicUrl !== update.musicUrl) {
+        oldMusicUrl = segment.musicUrl;
+      }
+    }
     const segment = await Segment.findByIdAndUpdate(
       req.params.id,
       update,
       { new: true }
     );
+    // Delete old audio file from S3 if needed
+    if (oldMusicUrl) {
+      const key = oldMusicUrl.split('.com/')[1];
+      if (key) {
+        try {
+          await s3.deleteObject({
+            Bucket: process.env.AWS_S3_BUCKET || '',
+            Key: key
+          }).promise();
+          console.log('Old audio deleted from S3:', key);
+        } catch (err) {
+          console.error('Failed to delete old audio from S3:', err);
+        }
+      }
+    }
     if (!segment) return res.status(404).json({ error: 'Segment not found' });
     res.json({ message: 'Segment updated', segment });
   } catch (error: any) {
@@ -251,8 +277,28 @@ app.patch('/api/segment/:id', async (req, res) => {
 
 app.delete('/api/segment/:id', async (req, res) => {
   try {
-    const segment = await Segment.findByIdAndDelete(req.params.id);
+    const segment = await Segment.findById(req.params.id);
     if (!segment) return res.status(404).json({ error: 'Segment not found' });
+    
+    // If segment has a musicUrl, delete the audio file from S3
+    if (segment.musicUrl) {
+      const key = segment.musicUrl.split('.com/')[1];
+      if (key) {
+        try {
+          await s3.deleteObject({
+            Bucket: process.env.AWS_S3_BUCKET || '',
+            Key: key
+          }).promise();
+          console.log('Audio deleted from S3:', key);
+        } catch (err) {
+          console.error('Failed to delete audio from S3:', err);
+          // Even if S3 deletion fails, we'll continue to delete the segment
+        }
+      }
+    }
+    
+    // Now delete the segment from the database
+    await Segment.findByIdAndDelete(req.params.id);
     res.json({ message: 'Segment deleted', segment });
   } catch (error) {
     res.status(500).json({ error: error.message || 'Failed to delete segment' });

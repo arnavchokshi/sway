@@ -1,28 +1,37 @@
 <div class="landing-bg">
   <nav class="landing-nav">
-    <div class="logo">F</div>
+    <img src="assets/logoName.png" alt="Sway Logo" class="dashboard-logo">
     <div class="nav-links">
       <button class="get-started-btn" (click)="goToLogin()">Log in</button>
     </div>
   </nav>
   <div class="landing-center">
-    <div class="headline">
-      The <span class="highlight">collaborative</span> stage<br />management tool
+    <div class="headline" data-aos="fade-up" data-aos-duration="1000">
+      <div class="animate-text">
+        <span class="word">Sync</span>
+        <span class="word">Your</span>
+        <span class="highlight word">Vision</span>
+      </div>
+      <div class="animate-text">
+        <span class="word">Share</span>
+        <span class="word">Your</span>
+        <span class="word">Stage</span>
+      </div>
     </div>
-    <div class="subheadline">
-      Collaborate to track all the moving pieces in your production synced to music.
+    <div class="subheadline" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
+      Seamlessly share formations with your dancers, making complex choreography instantly clear and rehearsals flow naturally.
     </div>
-    <div class="cta-btn-wrapper" (mouseenter)="onMouseEnter()" (mouseleave)="onMouseLeave()">
+    <div class="cta-btn-wrapper" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="400">
       <button 
         class="cta-btn"
         [class.splitting]="showSplit"
+        (click)="onButtonClick()"
         (transitionend)="onAnimationComplete()">
         Get started
       </button>
       <div 
         class="split-btns"
-        [class.active]="showSplit"
-        (transitionend)="onAnimationComplete()">
+        [class.active]="showSplit">
         <button class="split-btn" (click)="CreateUser()">Create Team</button>
         <button class="split-btn" (click)="JoinTeam()">Join a Team</button>
       </div>
@@ -34,5 +43,81 @@
 <div class="login-popup-overlay" *ngIf="showLoginPopup" (click)="closeLoginPopup()">
   <div class="login-popup-content" (click)="$event.stopPropagation()">
     <app-login (close)="closeLoginPopup()"></app-login>
+  </div>
+</div>
+
+<!-- Join Team Modal -->
+<div class="join-team-overlay" *ngIf="showJoinTeamModal" (click)="closeJoinTeamModal()">
+  <div class="join-team-modal" (click)="$event.stopPropagation()">
+    <!-- Step 1: Enter Team Code -->
+    <div class="modal-step" *ngIf="joinStep === 1">
+      <h2>Join a Team</h2>
+      <div class="join-code-form">
+        <input type="text" [(ngModel)]="joinCode" name="joinCode" placeholder="Enter team code" />
+        <button class="join-submit-btn" (click)="verifyTeamCode()">Join Team</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Select Name -->
+    <div class="modal-step" *ngIf="joinStep === 2">
+      <h2>Select Your Name </h2>
+      <div class="team-members-list">
+        <button 
+          *ngFor="let member of sortedTeamMembers" 
+          class="member-btn"
+          [class.selected]="selectedMember === member"
+          [disabled]="member.email"
+          (click)="selectMember(member)">
+          <div class="member-info">
+            <span class="member-name">{{member.name}}</span>
+            <span class="member-status" *ngIf="member.email">Already has account</span>
+          </div>
+        </button>
+      </div>
+      <button class="continue-btn" [disabled]="!selectedMember" (click)="goToStep3()">Continue</button>
+    </div>
+
+    <!-- Step 3: Complete Profile -->
+    <div class="modal-step" *ngIf="joinStep === 3">
+      <h2>Complete Your Profile {{selectedMember?.name}}</h2>
+      <form (ngSubmit)="submitJoinTeam()">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" [(ngModel)]="userEmail" name="userEmail" placeholder="Enter your email" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" [(ngModel)]="userPassword" name="userPassword" placeholder="Create a password" required />
+        </div>
+        <div class="form-group">
+          <label>Height</label>
+          <div class="height-inputs">
+            <input type="number" [(ngModel)]="heightFeet" name="heightFeet" placeholder="ft" min="0" max="8" required />
+            <span>ft</span>
+            <input type="number" [(ngModel)]="heightInches" name="heightInches" placeholder="in" min="0" max="11" required />
+            <span>in</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Gender</label>
+          <select [(ngModel)]="gender" name="gender" required>
+            <option value="">Select gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <button type="submit" class="continue-btn">Complete Profile</button>
+      </form>
+    </div>
+
+    <button class="close-modal-btn" (click)="closeJoinTeamModal()">×</button>
+    
+    <!-- Step indicator -->
+    <div class="step-indicator">
+      <div class="step" [class.active]="joinStep >= 1"></div>
+      <div class="step" [class.active]="joinStep >= 2"></div>
+      <div class="step" [class.active]="joinStep === 3"></div>
+    </div>
   </div>
 </div>

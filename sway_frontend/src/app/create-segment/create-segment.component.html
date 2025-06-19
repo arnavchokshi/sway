@@ -183,7 +183,9 @@
     </div>
     <div class="content-area">
       <div class="stage-container">
-        <div #stageRef class="stage-area" *ngIf="!is3DView" (click)="onStageClick($event)" [style.height.px]="stageGridHeightPx">
+        <div #stageRef class="stage-area" *ngIf="!is3DView" (click)="onStageClick($event)" 
+             [style.height.px]="stageGridHeightPx"
+             [style.transform]="getStageTransform()">
           <div class="stage-header-center">
             <div class="formation-title" *ngIf="formations[playingFormationIndex]">
               F {{ playingFormationIndex + 1 }}
@@ -252,6 +254,16 @@
           </div>
         </div>
         <div #threeContainer class="three-container" *ngIf="is3DView"></div>
+        <div class="stage-position-control" *ngIf="!is3DView">
+          <input type="range" 
+                 class="stage-position-slider" 
+                 min="-300" 
+                 max="100" 
+                 [value]="stageVerticalOffset" 
+                 (pointerdown)="onSliderPointerDown($event)"
+                 (pointerup)="onSliderPointerUp($event)"
+                 (pointermove)="onSliderPointerMove($event)">
+        </div>
       </div>
       <div class="floating-controls">
         <button class="unified-play-btn" *ngIf="signedMusicUrl" (click)="toggleUnifiedPlay()">
@@ -349,7 +361,7 @@
                 <span class="material-icons">content_copy</span>
               </button>
             </div>
-            <div class="time-indicator" *ngIf="signedMusicUrl && isCaptain">
+            <div class="time-indicator segment-time-display" *ngIf="signedMusicUrl && isCaptain">
               {{ formatTime(playbackTime) }}
             </div>
           </div>
