@@ -19,8 +19,9 @@
 }
 
 .dashboard-logo {
-  height: 48px;
+  height: 140px;
   width: auto;
+  margin-top: -2rem;
 }
 
 .roster-btn {
@@ -138,7 +139,7 @@
     padding: 1.2rem 1rem 1rem 1rem;
   }
   .dashboard-logo {
-    height: 36px;
+    height: 150px;
   }
   .roster-btn {
     top: 1.2rem;
@@ -182,7 +183,7 @@
   text-align: center;
   
   .logo {
-    max-width: 150px;
+    max-width: 250px;
     height: auto;
   }
 }

@@ -1,10 +1,16 @@
 <div class="segment-page-container">
   <div class="top-panel" *ngIf="isCaptain">
-    <div class="segment-name">
-      {{ segmentName }}
-      <span class="last-save-time" *ngIf="lastSaveTime">
-        Last saved at {{ lastSaveTime | date:'h:mm:ss a' }}
-      </span>
+    <div class="top-panel-left">
+      <div class="segment-logo-container" (click)="navigateToDashboard()">
+        <img src="assets/logo.png" alt="Sway Logo" class="segment-logo">
+      </div>
+      <div class="logo-divider"></div>
+      <div class="segment-name">
+        {{ segmentName }}
+        <span class="last-save-time" *ngIf="lastSaveTime">
+          Last saved at {{ lastSaveTime | date:'h:mm:ss a' }}
+        </span>
+      </div>
     </div>
     <div class="top-panel-controls">
       <label class="roster-add-btn" [class.loading]="isUploadingMusic">
@@ -177,7 +183,7 @@
     </div>
     <div class="content-area">
       <div class="stage-container">
-        <div #stageRef class="stage-area" *ngIf="!is3DView" (click)="onStageClick($event)">
+        <div #stageRef class="stage-area" *ngIf="!is3DView" (click)="onStageClick($event)" [style.height.px]="stageGridHeightPx">
           <div class="stage-header-center">
             <div class="formation-title" *ngIf="formations[playingFormationIndex]">
               F {{ playingFormationIndex + 1 }}
@@ -207,7 +213,7 @@
                  class="grid-number vertical-number"
                  [style.left.px]="x"
                  [style.bottom.px]="-28">
-              {{ i - Math.floor(mainVerticals.length / 2) }}
+              {{ i - 4 }}
             </div>
             <!-- Main grid lines: horizontal -->
             <div *ngFor="let y of mainHorizontals; let i = index" class="main-horizontal" [style.top.px]="y"></div>
@@ -248,7 +254,7 @@
         <div #threeContainer class="three-container" *ngIf="is3DView"></div>
       </div>
       <div class="floating-controls">
-        <button class="unified-play-btn" (click)="toggleUnifiedPlay()">
+        <button class="unified-play-btn" *ngIf="signedMusicUrl" (click)="toggleUnifiedPlay()">
           <span class="material-icons">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
         </button>
         <button class="unified-arrow-btn" (click)="prevFormation()">
@@ -323,7 +329,7 @@
             </div>
           </div>
           <div class="bottom-panel-actions">
-            <div class="timeline-zoom-controls">
+            <div class="timeline-zoom-controls" *ngIf="isCaptain">
               <span class="material-icons">zoom_out</span>
               <input type="range" 
                      [min]="minTimelineZoom" 
@@ -343,7 +349,7 @@
                 <span class="material-icons">content_copy</span>
               </button>
             </div>
-            <div class="time-indicator" *ngIf="signedMusicUrl">
+            <div class="time-indicator" *ngIf="signedMusicUrl && isCaptain">
               {{ formatTime(playbackTime) }}
             </div>
           </div>

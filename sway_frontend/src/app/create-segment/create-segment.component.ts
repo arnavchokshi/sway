@@ -1,7 +1,7 @@
 import { Component, OnInit, ElementRef, ViewChild, Renderer2, AfterViewChecked, OnDestroy, AfterViewInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TeamService } from '../services/team.service';
 import { AuthService } from '../services/auth.service';
 import { SegmentService } from '../services/segment.service';
@@ -185,6 +185,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   setSidePanelMode(mode: 'roster' | 'performer' | '3d') {
     this.sidePanelMode = mode;
+    
+    // Refresh data when switching to performer mode to ensure we have latest user data
+    if (mode === 'performer' && this.selectedPerformer) {
+      this.refreshDataBeforeSelection();
+    }
   }
 
   // Touch gesture properties
@@ -237,7 +242,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // Add timeline zoom properties
   timelineZoom = 1;
   minTimelineZoom = 0.05;
-  maxTimelineZoom = 1.0;  // Changed from 1.0 to 2.0 to allow zooming in
+  maxTimelineZoom = 1.5;  // Changed from 1.0 to 2.0 to allow zooming in
   timelineZoomStep = 0.01;
 
   // Add these properties after other drag-related properties
@@ -246,6 +251,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   dragFormationStartIndex: number = 0;
   dragFormationOverIndex: number | null = null;
 
+  stageGridHeightPx: number = 0;
+
   constructor(
     private teamService: TeamService,
     private authService: AuthService,
@@ -253,7 +260,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     private route: ActivatedRoute,
     private renderer: Renderer2,
     private sanitizer: DomSanitizer,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private router: Router
   ) {
     // Set up auto-save subscription
     this.saveSubject.pipe(
@@ -276,7 +284,36 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   get selectedPerformer(): Performer | null {
     if (!this.selectedPerformerId) return null;
-    return this.performers.find(p => p.id === this.selectedPerformerId) || null;
+    const performer = this.performers.find(p => p.id === this.selectedPerformerId);
+    if (!performer) return null;
+    
+    console.log('🔍 DEBUG selectedPerformer getter:');
+    console.log('  - selectedPerformerId:', this.selectedPerformerId);
+    console.log('  - performer found:', performer);
+    console.log('  - performer.isDummy:', performer.isDummy);
+    console.log('  - performer.height:', performer.height);
+    
+    if (performer.isDummy) return performer;
+    
+    // Always merge in the latest user data for real users
+    const user = this.teamRoster.find(m => m._id === performer.id);
+    console.log('  - teamRoster length:', this.teamRoster.length);
+    console.log('  - user found in roster:', user);
+    console.log('  - user height:', user?.height);
+    
+    if (user) {
+      const mergedPerformer = {
+        ...performer,
+        name: user.name,
+        skillLevels: { ...(user.skillLevels || {}) },
+        height: user.height // Always use the latest height
+      };
+      console.log('  - merged performer height:', mergedPerformer.height);
+      return mergedPerformer;
+    }
+    
+    console.log('  - No user found in roster, returning original performer');
+    return performer;
   }
 
   set performers(val: Performer[]) {
@@ -286,6 +323,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   ngOnInit() {
     // Detect iPhone or small mobile
     this.isMobile = /iPhone|iPod|Android.*Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 500;
+    
+    // Additional iPhone-specific detection
+    const isIPhone = /iPhone|iPod/i.test(navigator.userAgent);
+    if (isIPhone) {
+      this.isMobile = true;
+      // Ensure proper viewport handling for iPhone
+      const viewport = document.querySelector('meta[name=viewport]');
+      if (!viewport) {
+        const meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+        document.head.appendChild(meta);
+      }
+    }
+    
     const segmentId = this.route.snapshot.queryParamMap.get('id') || this.route.snapshot.paramMap.get('id');
     const currentUser = this.authService.getCurrentUser();
     this.isCaptain = currentUser?.captain || false;
@@ -307,96 +359,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
           // Load roster first
           if (currentUser?.team?._id) {
-            this.teamService.getTeamById(currentUser.team._id).subscribe({
-              next: (res) => {
-                this.teamRoster = res.team.members || [];
-                console.log('Loaded team roster:', JSON.stringify(this.teamRoster, null, 2));
-                // Update segment roster based on the segment's roster
-                if (this.segment.roster) {
-                  this.segmentRoster = this.teamRoster.filter(member => 
-                    this.segment.roster.includes(member._id)
-                  );
-                } else {
-                  this.segmentRoster = [];
-                }
-
-                // Create a map to track dummy performers across formations
-                const dummyMap = new Map<string, { id: string, name: string }>();
-
-                // Now map the formations with user data
-                if (this.segment.formations && this.segment.formations.length > 0) {
-                  console.log('Loading formations from segment:', JSON.stringify(this.segment.formations, null, 2));
-                  this.formations = this.segment.formations.map((formation: any[]) => 
-                    formation.map((p: { 
-                      isDummy?: boolean; 
-                      dummyName?: string; 
-                      name?: string;
-                      x: number; 
-                      y: number; 
-                      user?: string; 
-                      id?: string; 
-                      skillLevel?: number; 
-                      height?: number; 
-                      _id?: string 
-                    }) => {
-                      console.log('Processing performer:', JSON.stringify(p, null, 2));
-                      // Check if this is a dummy performer by looking for isDummy flag or null user
-                      if (p.isDummy || p.user === null) {
-                        // Use the existing dummy ID if available, or create a new one
-                        const dummyId = p.id || `dummy-${this.dummyCounter++}`;
-                        
-                        // If we haven't seen this dummy before, create a new entry
-                        if (!dummyMap.has(dummyId)) {
-                          // Extract the number from the dummy name or ID
-                          const dummyNumber = p.dummyName || p.name || dummyId.split('-')[1];
-                          dummyMap.set(dummyId, {
-                            id: dummyId,
-                            name: dummyNumber
-                          });
-                        }
-
-                        const dummyInfo = dummyMap.get(dummyId)!;
-                        const dummyPerformer = {
-                          id: dummyInfo.id,
-                          name: dummyInfo.name,
-                          x: p.x,
-                          y: p.y,
-                          skillLevels: {},
-                          height: p.height || 5.5,
-                          isDummy: true,
-                          dummyName: dummyInfo.name
-                        };
-                        console.log('Reconstructed dummy performer:', JSON.stringify(dummyPerformer, null, 2));
-                        return dummyPerformer;
-                      } else {
-                        const user = this.teamRoster.find(m => m._id === p.user);
-                        console.log('Found user for performer:', { user, performer: p });
-                        // Get skill level for the selected style if available
-                        const skillLevel = user?.skillLevels?.[this.selectedStyle?.name.toLowerCase() || ''] || p.skillLevel || 1;
-                        return {
-                          id: p.user,
-                          name: user ? user.name : 'Unknown',
-                          x: p.x,
-                          y: p.y,
-                          skillLevels: { ...(user?.skillLevels || {}) },
-                          height: p.height || user?.height,
-                          isDummy: false
-                        };
-                      }
-                    })
-                  );
-                  console.log('Reconstructed formations:', JSON.stringify(this.formations, null, 2));
-                } else {
-                  this.formations = [[]];
-                }
-                this.formationDurations = this.segment.formationDurations && this.segment.formationDurations.length > 0 ? this.segment.formationDurations : [5];
-                this.animationDurations = this.segment.animationDurations || [];
-                this.currentFormationIndex = 0;
-              },
-              error: (err) => {
-                console.error('Failed to load team roster:', err);
-              }
-            });
+            this.loadTeamRosterAndMapFormations(currentUser.team._id);
           }
         },
         error: (err) => {
@@ -431,79 +394,300 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.sidePanelMode = this.selectedPerformer ? 'performer' : 'roster';
   }
 
+  // Method to refresh data when component is activated
+  public onActivate() {
+    // Refresh team roster data when component is activated
+    this.refreshData();
+  }
+
+  // Method to refresh data when component is activated (called by router)
+  public onComponentActivate() {
+    // Refresh team roster data when component is activated
+    this.refreshData();
+  }
+
+  // New method to load team roster and map formations with fresh user data
+  private loadTeamRosterAndMapFormations(teamId: string) {
+    this.teamService.getTeamById(teamId).subscribe({
+      next: (res) => {
+        this.teamRoster = res.team.members || [];
+        console.log('Loaded team roster:', JSON.stringify(this.teamRoster, null, 2));
+        
+        // Update segment roster based on the segment's roster
+        if (this.segment.roster) {
+          this.segmentRoster = this.teamRoster.filter(member => 
+            this.segment.roster.includes(member._id)
+          );
+        } else {
+          this.segmentRoster = [];
+        }
+
+        // Create a map to track dummy performers across formations
+        const dummyMap = new Map<string, { id: string, name: string }>();
+
+        // Now map the formations with fresh user data
+        if (this.segment.formations && this.segment.formations.length > 0) {
+          console.log('Loading formations from segment:', JSON.stringify(this.segment.formations, null, 2));
+          this.formations = this.segment.formations.map((formation: any[]) => 
+            formation.map((p: { 
+              isDummy?: boolean; 
+              dummyName?: string; 
+              name?: string;
+              x: number; 
+              y: number; 
+              user?: string; 
+              id?: string; 
+              skillLevel?: number; 
+              height?: number; 
+              _id?: string 
+            }) => {
+              console.log('Processing performer:', JSON.stringify(p, null, 2));
+              // Check if this is a dummy performer by looking for isDummy flag or null user
+              if (p.isDummy || p.user === null) {
+                // Use the existing dummy ID if available, or create a new one
+                const dummyId = p.id || `dummy-${this.dummyCounter++}`;
+                
+                // If we haven't seen this dummy before, create a new entry
+                if (!dummyMap.has(dummyId)) {
+                  // Extract the number from the dummy name or ID
+                  const dummyNumber = p.dummyName || p.name || dummyId.split('-')[1];
+                  dummyMap.set(dummyId, {
+                    id: dummyId,
+                    name: dummyNumber
+                  });
+                }
+
+                const dummyInfo = dummyMap.get(dummyId)!;
+                const dummyPerformer = {
+                  id: dummyInfo.id,
+                  name: dummyInfo.name,
+                  x: p.x,
+                  y: p.y,
+                  skillLevels: {},
+                  height: p.height || 5.5,
+                  isDummy: true,
+                  dummyName: dummyInfo.name
+                };
+                console.log('Reconstructed dummy performer:', JSON.stringify(dummyPerformer, null, 2));
+                return dummyPerformer;
+              } else {
+                const user = this.teamRoster.find(m => m._id === p.user);
+                console.log('🔍 DEBUG Initial performer mapping:');
+                console.log('  - performer user ID:', p.user);
+                console.log('  - user found in roster:', user);
+                console.log('  - user height:', user?.height);
+                console.log('  - performer height from formation:', p.height);
+                
+                // Always use the most up-to-date user data from team roster
+                const currentUser = this.teamRoster.find(m => m._id === p.user);
+                if (currentUser) {
+                  // Get skill level for the selected style if available
+                  const skillLevel = currentUser?.skillLevels?.[this.selectedStyle?.name.toLowerCase() || ''] || p.skillLevel || 1;
+                  const mappedPerformer = {
+                    id: p.user,
+                    name: currentUser.name,
+                    x: p.x,
+                    y: p.y,
+                    skillLevels: { ...(currentUser?.skillLevels || {}) },
+                    height: currentUser.height, // Always use current user height
+                    isDummy: false
+                  };
+                  console.log('✅ DEBUG Mapped performer with fresh user data:', mappedPerformer);
+                  return mappedPerformer;
+                } else {
+                  // Fallback if user not found in roster
+                  console.log('❌ DEBUG User not found in roster, using fallback data');
+                  return {
+                    id: p.user,
+                    name: 'Unknown',
+                    x: p.x,
+                    y: p.y,
+                    skillLevels: {},
+                    height: p.height || 66, // Default height
+                    isDummy: false
+                  };
+                }
+              }
+            })
+          );
+          console.log('Reconstructed formations with fresh user data:', JSON.stringify(this.formations, null, 2));
+        } else {
+          this.formations = [[]];
+        }
+        this.formationDurations = this.segment.formationDurations && this.segment.formationDurations.length > 0 ? this.segment.formationDurations : [5];
+        this.animationDurations = this.segment.animationDurations || [];
+        this.currentFormationIndex = 0;
+      },
+      error: (err) => {
+        console.error('Failed to load team roster:', err);
+      }
+    });
+  }
+
+  // New method to refresh team roster data
+  private refreshTeamRoster() {
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser?.team?._id) {
+      this.teamService.getTeamById(currentUser.team._id).subscribe({
+        next: (res) => {
+          this.teamRoster = res.team.members || [];
+          console.log('Refreshed team roster:', JSON.stringify(this.teamRoster, null, 2));
+          
+          // Update performers with fresh user data
+          this.formations = this.formations.map(formation =>
+            formation.map(performer => {
+              if (performer.isDummy) {
+                return performer; // Keep dummy performers as is
+              }
+              
+              const currentUser = this.teamRoster.find(m => m._id === performer.id);
+              if (currentUser) {
+                return {
+                  ...performer,
+                  name: currentUser.name,
+                  skillLevels: { ...(currentUser?.skillLevels || {}) },
+                  height: currentUser.height // Update with fresh height
+                };
+              }
+              return performer;
+            })
+          );
+          
+          // Update segment roster
+          if (this.segment.roster) {
+            this.segmentRoster = this.teamRoster.filter(member => 
+              this.segment.roster.includes(member._id)
+            );
+          }
+        },
+        error: (err) => {
+          console.error('Failed to refresh team roster:', err);
+        }
+      });
+    }
+  }
+
+  // Method to refresh data when component becomes active
+  public refreshData() {
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser?.team?._id) {
+      this.refreshTeamRoster();
+    }
+  }
+
+  // Method to refresh data before selecting a performer
+  private refreshDataBeforeSelection() {
+    const currentUser = this.authService.getCurrentUser();
+    console.log('🔄 DEBUG refreshDataBeforeSelection:');
+    console.log('  - currentUser:', currentUser);
+    console.log('  - currentUser.team._id:', currentUser?.team?._id);
+    
+    if (currentUser?.team?._id) {
+      // Quick refresh of team roster to ensure we have latest data
+      this.teamService.getTeamById(currentUser.team._id).subscribe({
+        next: (res) => {
+          this.teamRoster = res.team.members || [];
+          console.log('✅ DEBUG Team roster refreshed:');
+          console.log('  - teamRoster length:', this.teamRoster.length);
+          console.log('  - teamRoster members:', this.teamRoster.map(m => ({ id: m._id, name: m.name, height: m.height })));
+          
+          // Update performers with fresh user data
+          this.formations = this.formations.map(formation =>
+            formation.map(performer => {
+              if (performer.isDummy) {
+                return performer; // Keep dummy performers as is
+              }
+              
+              const user = this.teamRoster.find(m => m._id === performer.id);
+              if (user) {
+                console.log(`🔄 DEBUG Updating performer ${performer.id} with fresh user data:`, {
+                  oldHeight: performer.height,
+                  newHeight: user.height,
+                  userName: user.name
+                });
+                return {
+                  ...performer,
+                  name: user.name,
+                  skillLevels: { ...(user.skillLevels || {}) },
+                  height: user.height // Always use the latest height
+                };
+              }
+              return performer;
+            })
+          );
+          
+          // Update the current performers array
+          this.performers = this.formations[this.currentFormationIndex];
+          console.log('✅ DEBUG Performers updated with fresh data');
+        },
+        error: (err) => {
+          console.error('❌ DEBUG Error refreshing team roster:', err);
+        }
+      });
+    } else {
+      console.log('❌ DEBUG No team ID found, cannot refresh roster');
+    }
+  }
+
   ngAfterViewInit() {
     console.log('View initialized, setting up touch gestures');
     if (this.stageRef && this.stageRef.nativeElement) {
-      this.setupTouchGestures();
       this.setupZoomGestures();
+      // Fix: recalculate grid using actual DOM size
+      this.calculateStageWithDOMSize();
+      window.addEventListener('resize', () => this.calculateStageWithDOMSize());
     } else {
       console.error('Stage reference not available in ngAfterViewInit');
     }
   }
 
-  private setupTouchGestures() {
-    console.log('Setting up touch gestures...');
-    const stageArea = this.stageRef.nativeElement;
-    if (!stageArea) {
-      console.error('Stage area element not found');
-      return;
+  calculateStageWithDOMSize() {
+    // Update mobile flag on every resize so sizing logic in calculateStage works correctly
+    this.isMobile = window.innerWidth <= 500;
+    // Get available space (subtracting for header and bottom panel)
+    const availableWidth = window.innerWidth * 0.98; // 98vw
+    const availableHeight = window.innerHeight - 200; // leave space for header/bottom panel
+
+    // Calculate aspect ratio (width:depth in feet)
+    const aspect = this.width / this.depth;
+
+    // Calculate the largest size that fits while maintaining aspect ratio
+    let stageWidthPx = availableWidth;
+    let stageHeightPx = stageWidthPx / aspect;
+    if (stageHeightPx > availableHeight) {
+      stageHeightPx = availableHeight;
+      stageWidthPx = stageHeightPx * aspect;
     }
 
-    // Add touch event listeners
-    stageArea.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
-    stageArea.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
-    stageArea.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
-  }
+    this.stageWidthPx = stageWidthPx;
+    this.stageHeightPx = stageHeightPx;
 
-  private handleTouchStart(event: TouchEvent) {
-    event.preventDefault();
-    console.log('Touch start:', event.touches.length, 'touches');
-
-    if (event.touches.length === 1) {
-      // Pan start
-      const touch = event.touches[0];
-      this.touchStartX = touch.clientX - this.currentTranslateX;
-      this.touchStartY = touch.clientY - this.currentTranslateY;
-    }
-  }
-
-  private handleTouchMove(event: TouchEvent) {
-    event.preventDefault();
-    console.log('Touch move:', event.touches.length, 'touches');
-
-    if (event.touches.length === 1) {
-      // Handle pan
-      const touch = event.touches[0];
-      this.currentTranslateX = touch.clientX - this.touchStartX;
-      this.currentTranslateY = touch.clientY - this.touchStartY;
-    }
-
-    this.enforcePanBounds();
-    this.updateStageTransform();
-  }
-
-  private handleTouchEnd(event: TouchEvent) {
-    event.preventDefault();
-    console.log('Touch end:', event.touches.length, 'touches');
+    this.calculateStage();
   }
 
   calculateStage() {
-    this.pixelsPerFoot = this.isMobile ? 7 : 20;
-    this.stageWidthPx = this.width * this.pixelsPerFoot;
-    this.stageHeightPx = this.depth * this.pixelsPerFoot;
-
-    // Main lines
+    if (!this.isMobile) {
+      this.pixelsPerFoot = 20;
+      this.stageWidthPx = this.width * this.pixelsPerFoot;
+      this.stageHeightPx = this.depth * this.pixelsPerFoot;
+    }
+    // Main lines - create 8 columns (9 lines) and 4 rows (5 lines)
     this.mainVerticals = [];
     this.mainHorizontals = [];
     this.subVerticals = [];
     this.subHorizontals = [];
+    
+    // Create 9 vertical lines to create 8 columns (0, 1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 8/8)
     for (let i = 0; i <= 8; i++) {
       this.mainVerticals.push((i / 8) * this.stageWidthPx);
     }
+    
+    // Create 5 horizontal lines to create 4 rows (0, 1/4, 2/4, 3/4, 4/4)
     for (let i = 0; i <= 4; i++) {
       this.mainHorizontals.push((i / 4) * this.stageHeightPx);
     }
-    // Subgrid lines for all 8 vertical and 3 horizontal sections
+    
+    // Subgrid lines for all 8 vertical and 4 horizontal sections
     if (this.divisions > 0) {
       for (let i = 0; i < 8; i++) {
         const start = (i / 8) * this.stageWidthPx;
@@ -526,6 +710,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.mainHorizontals = this.mainHorizontals.sort((a, b) => a - b);
     this.subVerticals = this.subVerticals.sort((a, b) => a - b);
     this.subHorizontals = this.subHorizontals.sort((a, b) => a - b);
+    // Calculate the grid height in px
+    this.stageGridHeightPx = this.mainHorizontals[this.mainHorizontals.length - 1] - this.mainHorizontals[0];
   }
 
   // Helper to go to a specific formation index and update all relevant state
@@ -828,12 +1014,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   };
 
   onPerformerClick(performer: Performer) {
+    console.log('🎯 DEBUG onPerformerClick called:');
+    console.log('  - performer clicked:', performer);
+    console.log('  - performer.id:', performer.id);
+    console.log('  - performer.height:', performer.height);
+    console.log('  - performer.name:', performer.name);
+    
+    // Refresh team roster data before selection to ensure we have latest user data
+    this.refreshDataBeforeSelection();
+    
     if (this.isShiftPressed) {
       // Toggle selection for this performer
       if (this.selectedPerformerIds.has(performer.id)) {
         this.selectedPerformerIds.delete(performer.id);
         if (this.selectedPerformerId === performer.id) {
-          this.selectedPerformerId = null;
+          this.selectedPerformerId = this.selectedPerformerIds.size > 0 ? 
+            Array.from(this.selectedPerformerIds)[0] : null;
         }
       } else {
         this.selectedPerformerIds.add(performer.id);
@@ -845,10 +1041,32 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.selectedPerformerIds.add(performer.id);
       this.selectedPerformerId = performer.id;
     }
-    // Switch to performer info panel when a performer is selected
+    
+    console.log('✅ DEBUG Selection updated:');
+    console.log('  - selectedPerformerId:', this.selectedPerformerId);
+    console.log('  - selectedPerformerIds:', Array.from(this.selectedPerformerIds));
+    
+    // Update feet and inches when selecting a performer
     if (this.selectedPerformerId) {
-      this.sidePanelMode = 'performer';
+      // Get the most up-to-date user data from team roster
+      const currentUser = this.teamRoster.find(m => m._id === this.selectedPerformerId);
+      const heightToUse = currentUser?.height || performer.height;
+      
+      console.log('🔍 DEBUG onPerformerClick height update:');
+      console.log('  - selectedPerformerId:', this.selectedPerformerId);
+      console.log('  - currentUser height:', currentUser?.height);
+      console.log('  - performer height:', performer.height);
+      console.log('  - heightToUse:', heightToUse);
+      
+      const { feet, inches } = this.getHeightInFeetAndInches(heightToUse);
+      this.selectedPerformerFeet = feet;
+      this.selectedPerformerInches = inches;
+      
+      console.log('✅ DEBUG Updated UI height display:', { feet, inches });
     }
+    
+    // Update side panel to show performer info
+    this.sidePanelMode = 'performer';
   }
 
   getPreviousPosition(performerId: string): { x: number, y: number } | null {
@@ -896,13 +1114,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       y = this.animatedPositions[performer.id].y;
     }
 
+    // Use proportional positioning
+    const left = (x / this.width) * this.stageWidthPx - performerSize / 2;
+    const top = (y / this.depth) * this.stageHeightPx - performerSize / 2;
+
     const isCurrentUser = performer.id === this.currentUserId;
     const isSelected = this.isPerformerSelected(performer);
     const isHovered = this.isPerformerHovered(performer);
 
     const baseStyle = {
-      left: x * this.pixelsPerFoot - performerSize / 2 + 'px',
-      top: y * this.pixelsPerFoot - performerSize / 2 + 'px',
+      left: `${left}px`,
+      top: `${top}px`,
       zIndex: this.draggingId === performer.id ? 1000 : (isSelected ? 100 : (isHovered ? 50 : 10))
     };
 
@@ -929,10 +1151,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const performerSize = 30; // px
     const prevPos = this.getPreviousPosition(performerId);
     if (!prevPos) return { display: 'none' };
-    
+
+    // Use proportional positioning
+    const left = (prevPos.x / this.width) * this.stageWidthPx - performerSize / 2;
+    const top = (prevPos.y / this.depth) * this.stageHeightPx - performerSize / 2;
+
     return {
-      left: prevPos.x * this.pixelsPerFoot - performerSize / 2 + 'px',
-      top: prevPos.y * this.pixelsPerFoot - performerSize / 2 + 'px',
+      left: `${left}px`,
+      top: `${top}px`,
       opacity: 0.5,
       zIndex: 5
     };
@@ -1564,7 +1790,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     const dx = event.clientX - this.resizingStartX;
     const totalTimelineDuration = this.getTimelineTotalDuration();
-    const pixelsToDuration = totalTimelineDuration / this.waveformWidthPx;
+    
+    // Account for zoom level in the calculation
+    const pixelsToDuration = totalTimelineDuration / (this.waveformWidthPx * this.timelineZoom);
     
     let newDuration = this.resizingStartDuration + (dx * pixelsToDuration);
     newDuration = Math.max(1, Math.min(100, newDuration));
@@ -1610,7 +1838,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     const dx = event.clientX - this.resizingTransitionStartX;
     const totalTimelineDuration = this.getTimelineTotalDuration();
-    const pixelsToDuration = totalTimelineDuration / this.waveformWidthPx;
+    
+    // Account for zoom level in the calculation
+    const pixelsToDuration = totalTimelineDuration / (this.waveformWidthPx * this.timelineZoom);
     
     let newDuration = this.resizingTransitionStartDuration + (dx * pixelsToDuration);
     newDuration = Math.max(0.2, newDuration);
@@ -1715,6 +1945,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   selectPerformer(performer: Performer) {
+    // Refresh team roster data before selection to ensure we have latest user data
+    this.refreshDataBeforeSelection();
+    
     if (this.isShiftPressed) {
       // Multi-select mode
       if (this.selectedPerformerIds.has(performer.id)) {
@@ -1745,10 +1978,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     
     // Update feet and inches when selecting a performer
-    if (this.selectedPerformer) {
-      const { feet, inches } = this.getHeightInFeetAndInches(this.selectedPerformer.height);
+    if (this.selectedPerformerId) {
+      // Get the most up-to-date user data from team roster
+      const currentUser = this.teamRoster.find(m => m._id === this.selectedPerformerId);
+      const heightToUse = currentUser?.height || performer.height;
+      
+      console.log('🔍 DEBUG selectPerformer height update:');
+      console.log('  - selectedPerformerId:', this.selectedPerformerId);
+      console.log('  - currentUser height:', currentUser?.height);
+      console.log('  - performer height:', performer.height);
+      console.log('  - heightToUse:', heightToUse);
+      
+      const { feet, inches } = this.getHeightInFeetAndInches(heightToUse);
       this.selectedPerformerFeet = feet;
       this.selectedPerformerInches = inches;
+      
+      console.log('✅ DEBUG Updated UI height display:', { feet, inches });
     }
     
     this.triggerAutoSave();
@@ -2069,9 +2314,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           skillLevel,
           skillLevels: user?.skillLevels
         });
-        return {
-          ...performer,
+      return {
+        ...performer,
           skillLevels: {
+            ...performer.skillLevels, // Preserve existing skill levels
             [style.name.toLowerCase()]: skillLevel
           }
         };
@@ -2197,7 +2443,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Create a new user performer
     const userPerformer: Performer = {
       id: user._id,
-      name: user.name,
+        name: user.name,
       x: this.selectedPerformer.x,
       y: this.selectedPerformer.y,
       skillLevels: user.skillLevels || {},
@@ -3332,6 +3578,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const milliseconds = Math.floor((seconds % 1) * 1000);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
   }
+
+  navigateToDashboard() {
+    this.router.navigate(['/dashboard']);
+  }
 }
- 
  

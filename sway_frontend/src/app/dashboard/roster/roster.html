@@ -1,16 +1,20 @@
 <div class="roster-container popup-gap">
   <button class="close-btn-absolute" (click)="closeAndSave()" aria-label="Close">&times;</button>
+  
   <!-- Styles Section -->
   <div class="styles-section prominent">
     <h2 class="section-title prominent">Styles</h2>
-    <div class="section-subheader">Add styles to connect segments and dancers. Use each dancer's skill level in these styles to visualize their strengths on stage and help design formations.</div>
+    <div class="section-subheader">Connect segments and dancers with skill levels</div>
+    
     <div class="styles-list compact">
       <div *ngFor="let style of styles; let i = index" class="style-item compact">
         <div class="style-color" [style.background-color]="style.color"></div>
         <span>{{ style.name }}</span>
         <div class="style-actions">
           <button (click)="startEditStyle(i)">Edit</button>
-          <button (click)="deleteStyle(i)">Delete</button>
+          <button class="trash-btn" (click)="deleteStyle(i)" aria-label="Delete style">
+            <i class="fas fa-trash"></i>
+          </button>
         </div>
       </div>
     </div>
@@ -29,7 +33,7 @@
         *ngIf="editingStyleIndex === null" 
         (click)="addStyle()"
         [disabled]="!newStyle.name">
-        Add Style
+        Add
       </button>
       <div *ngIf="editingStyleIndex !== null" class="edit-actions">
         <button (click)="updateStyle()">Save</button>
@@ -40,16 +44,18 @@
 
   <!-- Edit Roster Table -->
   <div class="edit-roster-section prominent">
-    <h2 class="section-title prominent">Edit Roster</h2>
-    <div class="section-subheader">Add a new member, they'll see their name and fill out their info for you. (excpet skill level ofc)</div>
+    <h2 class="section-title prominent">Team Members</h2>
+    <div class="section-subheader">Add members and manage their skills. Members will fill out their height on sign up.</div>
+    
     <div class="roster-table-wrapper">
       <table class="roster-table">
         <thead>
           <tr>
             <th>Name</th>
-            <th>Skill Level</th>
+            <th>Skills</th>
             <th>Height</th>
             <th>Captain</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -73,7 +79,7 @@
             </td>
             <td>
               <div class="height-inputs">
-                <input type="number" min="0" max="8" [(ngModel)]="member.feet" (change)="updateMemberHeight(member, 'feet', member.feet ?? 0)" placeholder="ft" class="height-feet" />
+                <input type="number" min="3" max="7" [(ngModel)]="member.feet" (change)="updateMemberHeight(member, 'feet', member.feet ?? 0)" placeholder="ft" class="height-feet" />
                 <span class="height-sep">'</span>
                 <input type="number" min="0" max="11" [(ngModel)]="member.inches" (change)="updateMemberHeight(member, 'inches', member.inches ?? 0)" placeholder="in" class="height-inches" />
                 <span class="height-sep">&quot;</span>
@@ -81,15 +87,21 @@
             </td>
             <td>
               <label class="switch">
-                <input type="checkbox" [(ngModel)]="member.captain" (change)="toggleCaptainStatus(member)" />
+                <input type="checkbox" [checked]="member.captain" (change)="toggleCaptainStatus(member)" />
                 <span class="slider round"></span>
               </label>
+            </td>
+            <td>
+              <button class="trash-btn" (click)="removeMember(member._id)" aria-label="Remove member">
+                <i class="fas fa-trash"></i>
+              </button>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
-    <!-- Add Member Form at bottom -->
+    
+    <!-- Add Member Form -->
     <div class="add-member-form add-bottom">
       <input 
         type="text" 

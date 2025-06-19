@@ -171,6 +171,15 @@ export class RosterComponent implements OnInit {
       return;
     }
 
+    // Check if this is the last captain and they're trying to untoggle
+    if (member.captain) {
+      const captainCount = this.members.filter(m => m.captain).length;
+      if (captainCount <= 1) {
+        this.errorMessage = 'There must be at least one captain';
+        return;
+      }
+    }
+
     // Update the member's captain status immediately
     this.http.patch(`http://localhost:3000/api/users/${member._id}`, {
       captain: !member.captain
@@ -179,6 +188,8 @@ export class RosterComponent implements OnInit {
         member.captain = !member.captain;
         // Update the role display
         member.role = member.captain ? 'Captain' : 'Member';
+        // Clear any error message on success
+        this.errorMessage = '';
       },
       error: (err) => {
         console.error('Error updating captain status:', err);
