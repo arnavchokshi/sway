@@ -1089,8 +1089,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const currentUserPerformer = this.performers.find(p => p.id === this.currentUserId);
     if (!currentUserPerformer) return {};
 
-    const x = currentUserPerformer.x * this.pixelsPerFoot;
-    const y = currentUserPerformer.y * this.pixelsPerFoot;
+    // Correct: use proportional position
+    const xPercent = (currentUserPerformer.x / this.width) * 100;
+    const yPercent = (currentUserPerformer.y / this.depth) * 100;
 
     return {
       'pointer-events': 'none',
@@ -1100,7 +1101,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       'width': this.stageWidthPx + 'px',
       'height': this.stageHeightPx + 'px',
       'z-index': 10,
-      'background': `radial-gradient(circle ${this.spotlightRadius}px at ${x}px ${y}px, transparent 0%, transparent 70%, rgba(0,0,0,${this.spotlightOpacity}) 100%)`
+      'background': `radial-gradient(circle ${this.spotlightRadius}px at ${xPercent}% ${yPercent}%, transparent 0%, transparent 70%, rgba(0,0,0,${this.spotlightOpacity}) 100%)`
     };
   }
 
@@ -1321,10 +1322,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       performer = this.performers.find(p => p.id === performerId);
     }
     if (!prevPos || !performer) return '';
-    const startX = prevPos.x * this.pixelsPerFoot;
-    const startY = prevPos.y * this.pixelsPerFoot;
-    const endX = performer.x * this.pixelsPerFoot;
-    const endY = performer.y * this.pixelsPerFoot;
+    const startX = (prevPos.x / this.width) * this.stageWidthPx;
+    const startY = (prevPos.y / this.depth) * this.stageHeightPx;
+    const endX = (performer.x / this.width) * this.stageWidthPx;
+    const endY = (performer.y / this.depth) * this.stageHeightPx;
     return `M ${startX} ${startY} L ${endX} ${endY}`;
   }
 

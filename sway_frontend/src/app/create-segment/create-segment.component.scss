@@ -2582,10 +2582,29 @@
   }
 }
 
-@media only screen and (max-width: 400px) and (min-width: 375px) {
+@media only screen and (max-width: 425px) and (min-width: 400px) {
+  .stage-area,
+  .stage-grid-outer {
+    height: 46.1vh !important;
+    max-height: 46.1vh !important;
+  }
+}
+
+
+@media only screen and (max-width: 400px) and (min-width: 380px) {
   .stage-area,
   .stage-grid-outer {
     height: 46.75vh !important;
     max-height: 46.75vh !important;
   }
 }
+
+@media only screen and (max-width: 379px) and (min-width: 350px) {
+  .stage-area,
+  .stage-grid-outer {
+    height: 57.5vh !important;
+    max-height: 57.55vh !important;
+  }
+}
+
+
