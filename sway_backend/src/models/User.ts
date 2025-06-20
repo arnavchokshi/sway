@@ -10,6 +10,7 @@ export interface IUser extends Document {
   skillLevels: { [styleName: string]: number }; // Map of style name to skill level (1-5)
   height?: number; // Height in inches
   captain?: boolean;
+  isDummy?: boolean;
 }
 
 // User Schema
@@ -45,6 +46,10 @@ const UserSchema = new Schema<IUser>(
       type: Number, // Height in inches
     },
     captain: {
+      type: Boolean,
+      default: false,
+    },
+    isDummy: {
       type: Boolean,
       default: false,
     },

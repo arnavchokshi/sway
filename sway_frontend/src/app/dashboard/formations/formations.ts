@@ -26,6 +26,9 @@ export class FormationsComponent implements OnInit {
   newSegmentWidth = 32;
   newSegmentStyles: string[] = [];
   teamStyles: any[] = [];
+  showAddStyleInput = false;
+  newStyleName = '';
+  isAddingStyle = false;
 
   constructor(
     private segmentService: SegmentService,
@@ -142,9 +145,48 @@ export class FormationsComponent implements OnInit {
 
   deleteSegment(segmentId: string) {
     if (!confirm('Are you sure you want to delete this segment?')) return;
-    this.segmentService.deleteSegment(segmentId).subscribe({
-      next: () => this.loadSegments(),
-      error: (err) => alert('Failed to delete segment!')
+    // 1. Fetch the segment to get the roster
+    this.teamService.getSegmentById(segmentId).subscribe({
+      next: (segmentRes) => {
+        const segment = segmentRes.segment || segmentRes;
+        const roster: string[] = segment.roster || [];
+        if (!roster.length) {
+          // No roster, just delete the segment
+          this.segmentService.deleteSegment(segmentId).subscribe({
+            next: () => this.loadSegments(),
+            error: (err) => alert('Failed to delete segment!')
+          });
+          return;
+        }
+        // 2. For each user in the roster, fetch and check if dummy
+        Promise.all(
+          roster.map(userId =>
+            this.teamService.getUserById(userId).toPromise()
+              .then(userRes => {
+                const user = userRes.user || userRes;
+                if (user && user.isDummy && user._id) {
+                  // Delete dummy user
+                  return this.teamService.deleteDummyUser(user._id).toPromise().catch(() => null);
+                }
+                return null;
+              })
+              .catch(() => null)
+          )
+        ).then(() => {
+          // 3. After all dummy deletions, delete the segment
+          this.segmentService.deleteSegment(segmentId).subscribe({
+            next: () => this.loadSegments(),
+            error: (err) => alert('Failed to delete segment!')
+          });
+        });
+      },
+      error: () => {
+        // If segment fetch fails, still try to delete the segment
+        this.segmentService.deleteSegment(segmentId).subscribe({
+          next: () => this.loadSegments(),
+          error: (err) => alert('Failed to delete segment!')
+        });
+      }
     });
   }
 
@@ -225,5 +267,31 @@ export class FormationsComponent implements OnInit {
     Promise.all(updateObservables.map(obs => obs.toPromise?.() ?? obs)).then(() => {
       this.loadSegments(); // Refresh from backend to ensure order is correct
     });
+  }
+
+  addNewStyle() {
+    if (!this.newStyleName.trim() || this.isAddingStyle) return;
+    this.isAddingStyle = true;
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?.team?._id) return;
+    // Optionally, you can generate a random color or use a default
+    const color = '#6366f1';
+    this.teamService.addStyle(currentUser.team._id, { name: this.newStyleName.trim(), color }).subscribe({
+      next: (res) => {
+        this.teamStyles = res.team.styles || [];
+        this.newStyleName = '';
+        this.showAddStyleInput = false;
+        this.isAddingStyle = false;
+      },
+      error: (err) => {
+        alert('Failed to add style.');
+        this.isAddingStyle = false;
+      }
+    });
+  }
+
+  cancelAddStyle() {
+    this.showAddStyleInput = false;
+    this.newStyleName = '';
   }
 } 

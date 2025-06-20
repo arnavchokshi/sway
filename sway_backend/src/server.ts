@@ -397,13 +397,14 @@ app.get('/api/segment/:id/video-url', async (req, res) => {
 app.post('/api/teams/:id/members', async (req: Request, res: Response) => {
   try {
     const teamId = req.params.id;
-    const { name } = req.body;
+    const { name, isDummy } = req.body;
 
     // Create a new user for this member
     const user = new User({
       name,
       team: teamId,
-      captain: false
+      captain: false,
+      isDummy: !!isDummy
     });
     await user.save();
 
@@ -418,7 +419,7 @@ app.post('/api/teams/:id/members', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Team not found' });
     }
 
-    res.json({ message: 'Member added successfully', team });
+    res.json({ message: 'Member added successfully', team, user });
   } catch (error: any) {
     console.error('Error adding team member:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to add team member' });
@@ -536,6 +537,62 @@ app.delete('/api/teams/:teamId/styles/:styleIndex', async (req: Request, res: Re
   } catch (error: any) {
     console.error('Error deleting style:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete style' });
+  }
+});
+
+app.post('/api/dummy-users', async (req: Request, res: Response) => {
+  try {
+    const { name } = req.body;
+    const user = new User({
+      name,
+      isDummy: true
+    });
+    await user.save();
+    res.status(201).json({ user });
+  } catch (error) {
+    console.error('Error creating dummy user:', error);
+    res.status(500).json({ error: (error instanceof Error ? error.message : 'Failed to create dummy user') });
+  }
+});
+
+app.delete('/api/dummy-users/:id', async (req: Request, res: Response) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (!user.isDummy) {
+      return res.status(400).json({ error: 'Cannot delete non-dummy user' });
+    }
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Dummy user deleted' });
+  } catch (error) {
+    console.error('Error deleting dummy user:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete dummy user' });
+  }
+});
+
+app.delete('/api/teams/:teamId/members/:memberId', async (req: Request, res: Response) => {
+  try {
+    const { teamId, memberId } = req.params;
+
+    // Remove the member from the team's members array
+    const team = await Team.findByIdAndUpdate(
+      teamId,
+      { $pull: { members: memberId } },
+      { new: true }
+    ).populate('members');
+
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    // Actually delete the user document as well
+    await User.findByIdAndDelete(memberId);
+
+    res.json({ message: 'Member removed successfully', team });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to remove member' });
   }
 });
 

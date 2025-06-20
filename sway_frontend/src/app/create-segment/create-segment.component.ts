@@ -416,10 +416,157 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // New method to load team roster and map formations with fresh user data
   private loadTeamRosterAndMapFormations(teamId: string) {
     this.teamService.getTeamById(teamId).subscribe({
-      next: (res) => {
+      next: async (res) => {
         this.teamRoster = res.team.members || [];
-        console.log('Loaded team roster:', JSON.stringify(this.teamRoster, null, 2));
-        
+        // After loading, find the highest dummy number to set the counter
+        let maxDummyNum = 0;
+        if (this.segment && this.segment.formations) {
+          this.segment.formations.forEach((formation: any[]) => {
+            formation.forEach((p: { isDummy?: boolean; dummyName?: string; name?: string }) => {
+              if (p.isDummy) {
+                const name = p.dummyName || p.name || '';
+                const match = name.match(/(\d+)$/);
+                if (match) {
+                  const num = parseInt(match[1], 10);
+                  if (num > maxDummyNum) {
+                    maxDummyNum = num;
+                  }
+                }
+              }
+            });
+          });
+        }
+        this.dummyCounter = maxDummyNum + 1;
+
+        // --- Fetch missing users for segmentRoster (dummies) ---
+        const teamIds = new Set(this.teamRoster.map(m => m._id));
+        const segmentUserIds = (this.segment?.roster || []);
+        const missingIds = segmentUserIds.filter((id: string) => !teamIds.has(id));
+        const fetchedUsers = await Promise.all(
+          missingIds.map((id: string) =>
+            this.teamService.getUserById(id).toPromise()
+              .then(res => {
+                if (res.user) return res.user;
+                if (res._id) return res;
+                // If it's a wrapper, unwrap
+                if (res && typeof res === 'object' && Object.values(res as any).length === 1 && (Object.values(res as any)[0] as any)._id) {
+                  return Object.values(res as any)[0];
+                }
+                return null;
+              })
+              .catch(() => null)
+          )
+        );
+        this.segmentRoster = [
+          ...this.teamRoster,
+          ...fetchedUsers.filter(u => u)
+        ];
+        console.log('segmentRoster:', this.segmentRoster);
+
+        if (this.segment) {
+          const nameToIdMap = new Map<string, string>(); // key: dummyName, value: canonical dummyId
+          // Pass 1: Scan all formations to build a consistent map of dummy names to IDs.
+          if (this.segment.formations) {
+            this.segment.formations.forEach((formation: any[]) => {
+              formation.forEach(p => {
+                if ((p.isDummy || p.user === null) && p.id) {
+                  const name = p.dummyName || p.name;
+                  if (name && !nameToIdMap.has(name)) {
+                    nameToIdMap.set(name, p.id);
+                  }
+                }
+              });
+            });
+            // Second sub-pass: fill in for dummies that didn't have an ID.
+            this.segment.formations.forEach((formation: any[]) => {
+              formation.forEach(p => {
+                if (p.isDummy || p.user === null) {
+                  const name = p.dummyName || p.name;
+                  if (name && !nameToIdMap.has(name)) {
+                    nameToIdMap.set(name, `dummy-${this.dummyCounter++}`);
+                  }
+                }
+              });
+            });
+          }
+
+          // Pass 2: Map formations using the consistent ID map.
+          if (this.segment.formations && this.segment.formations.length > 0) {
+            this.formations = this.segment.formations.map((formation: any[]) => 
+              formation.map((p: any) => {
+                // Check if this is a dummy performer by looking for isDummy flag or null user
+                if (p.isDummy || p.user === null) {
+                  const originalName = p.dummyName || p.name;
+                  const canonicalId = nameToIdMap.get(originalName);
+                  if (!canonicalId) {
+                    const id = p.id || `dummy-${this.dummyCounter++}`;
+                    const name = `Dummy ${id.split('-')[1]}`;
+                    return {
+                      id: id, name: name, x: p.x, y: p.y, skillLevels: {},
+                      height: p.height || 5.5, isDummy: true, dummyName: name
+                    };
+                  }
+                  const nameNumberMatch = originalName ? String(originalName).match(/(\d+)$/) : null;
+                  const idNumber = canonicalId.split('-')[1];
+                  const nameNumber = nameNumberMatch ? nameNumberMatch[1] : idNumber;
+                  const canonicalName = `Dummy ${nameNumber}`;
+                  const dummyPerformer = {
+                    id: canonicalId,
+                    name: canonicalName,
+                    x: p.x,
+                    y: p.y,
+                    skillLevels: {},
+                    height: p.height || 5.5,
+                    isDummy: true,
+                    dummyName: canonicalName
+                  };
+                  console.log('Reconstructed dummy performer:', JSON.stringify(dummyPerformer, null, 2));
+                  return dummyPerformer;
+                } else {
+                  const user = this.teamRoster.find(m => String(m._id) === String(p.user)) || this.segmentRoster.find(m => String(m._id) === String(p.user));
+                  console.log('🔍 DEBUG Initial performer mapping:');
+                  console.log('  - performer user ID:', p.user);
+                  console.log('  - user found in roster:', user);
+                  console.log('  - user height:', user?.height);
+                  console.log('  - performer height from formation:', p.height);
+                  if (user) {
+                    const skillLevel = user?.skillLevels?.[this.selectedStyle?.name?.toLowerCase() || ''] || p.skillLevel || 1;
+                    const mappedPerformer = {
+                      id: p.user,
+                      name: user.name,
+                      x: p.x,
+                      y: p.y,
+                      skillLevels: { ...(user?.skillLevels || {}) },
+                      height: user.height, // Use user height if available
+                      isDummy: !!user.isDummy
+                    };
+                    console.log('✅ DEBUG Mapped performer with fresh user data:', mappedPerformer);
+                    return mappedPerformer;
+                  } else {
+                    // Fallback if user not found in roster
+                    console.log('❌ DEBUG User not found in roster, using fallback data');
+                    return {
+                      id: p.user,
+                      name: 'Unknown',
+                      x: p.x,
+                      y: p.y,
+                      skillLevels: {},
+                      height: p.height || 66, // Default height
+                      isDummy: false
+                    };
+                  }
+                }
+              })
+            );
+            console.log('Reconstructed formations with fresh user data:', JSON.stringify(this.formations, null, 2));
+          } else {
+            this.formations = [[]];
+          }
+          this.formationDurations = this.segment.formationDurations && this.segment.formationDurations.length > 0 ? this.segment.formationDurations : [5];
+          this.animationDurations = this.segment.animationDurations || [];
+          this.currentFormationIndex = 0;
+        }
+
         // Update segment roster based on the segment's roster
         if (this.segment.roster) {
           this.segmentRoster = this.teamRoster.filter(member => 
@@ -428,102 +575,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         } else {
           this.segmentRoster = [];
         }
-
-        // Create a map to track dummy performers across formations
-        const dummyMap = new Map<string, { id: string, name: string }>();
-
-        // Now map the formations with fresh user data
-        if (this.segment.formations && this.segment.formations.length > 0) {
-          console.log('Loading formations from segment:', JSON.stringify(this.segment.formations, null, 2));
-          this.formations = this.segment.formations.map((formation: any[]) => 
-            formation.map((p: { 
-              isDummy?: boolean; 
-              dummyName?: string; 
-              name?: string;
-              x: number; 
-              y: number; 
-              user?: string; 
-              id?: string; 
-              skillLevel?: number; 
-              height?: number; 
-              _id?: string 
-            }) => {
-              console.log('Processing performer:', JSON.stringify(p, null, 2));
-              // Check if this is a dummy performer by looking for isDummy flag or null user
-              if (p.isDummy || p.user === null) {
-                // Use the existing dummy ID if available, or create a new one
-                const dummyId = p.id || `dummy-${this.dummyCounter++}`;
-                
-                // If we haven't seen this dummy before, create a new entry
-                if (!dummyMap.has(dummyId)) {
-                  // Extract the number from the dummy name or ID
-                  const dummyNumber = p.dummyName || p.name || dummyId.split('-')[1];
-                  dummyMap.set(dummyId, {
-                    id: dummyId,
-                    name: dummyNumber
-                  });
-                }
-
-                const dummyInfo = dummyMap.get(dummyId)!;
-                const dummyPerformer = {
-                  id: dummyInfo.id,
-                  name: dummyInfo.name,
-                  x: p.x,
-                  y: p.y,
-                  skillLevels: {},
-                  height: p.height || 5.5,
-                  isDummy: true,
-                  dummyName: dummyInfo.name
-                };
-                console.log('Reconstructed dummy performer:', JSON.stringify(dummyPerformer, null, 2));
-                return dummyPerformer;
-              } else {
-                const user = this.teamRoster.find(m => m._id === p.user);
-                console.log('🔍 DEBUG Initial performer mapping:');
-                console.log('  - performer user ID:', p.user);
-                console.log('  - user found in roster:', user);
-                console.log('  - user height:', user?.height);
-                console.log('  - performer height from formation:', p.height);
-                
-                // Always use the most up-to-date user data from team roster
-                const currentUser = this.teamRoster.find(m => m._id === p.user);
-                if (currentUser) {
-                  // Get skill level for the selected style if available
-                  const skillLevel = currentUser?.skillLevels?.[this.selectedStyle?.name.toLowerCase() || ''] || p.skillLevel || 1;
-                  const mappedPerformer = {
-                    id: p.user,
-                    name: currentUser.name,
-                    x: p.x,
-                    y: p.y,
-                    skillLevels: { ...(currentUser?.skillLevels || {}) },
-                    height: currentUser.height, // Always use current user height
-                    isDummy: false
-                  };
-                  console.log('✅ DEBUG Mapped performer with fresh user data:', mappedPerformer);
-                  return mappedPerformer;
-                } else {
-                  // Fallback if user not found in roster
-                  console.log('❌ DEBUG User not found in roster, using fallback data');
-                  return {
-                    id: p.user,
-                    name: 'Unknown',
-                    x: p.x,
-                    y: p.y,
-                    skillLevels: {},
-                    height: p.height || 66, // Default height
-                    isDummy: false
-                  };
-                }
-              }
-            })
-          );
-          console.log('Reconstructed formations with fresh user data:', JSON.stringify(this.formations, null, 2));
-        } else {
-          this.formations = [[]];
-        }
-        this.formationDurations = this.segment.formationDurations && this.segment.formationDurations.length > 0 ? this.segment.formationDurations : [5];
-        this.animationDurations = this.segment.animationDurations || [];
-        this.currentFormationIndex = 0;
       },
       error: (err) => {
         console.error('Failed to load team roster:', err);
@@ -860,33 +911,42 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.triggerAutoSave();
   }
   addDummyPerformer() {
-    const dummyId = `dummy-${this.dummyCounter}`;
-    const dummyName = `${this.dummyCounter}`;
-    console.log('Creating new dummy performer:', { id: dummyId, name: dummyName });
-    
-    // Add the dummy performer to the current formation
-    const newFormation = [...this.formations[this.currentFormationIndex]];
-    newFormation.push({
-      id: dummyId,
-      name: dummyName,
-      x: this.width / 2,  // Place in middle of stage width
-      y: this.depth / 2,  // Place in middle of stage depth
-      isDummy: true,
-      dummyName: dummyName,
-      skillLevels: {},
-      height: 5.5
+    console.log("addDummyPerformer called");
+    const dummyName = `Dummy ${this.dummyCounter}`;
+    this.teamService.addDummyUser(dummyName).subscribe({
+      next: (res: any) => {
+        console.log("addDummyUser response", res);
+        const newUser = res?.user;
+        if (!newUser || !newUser._id) {
+          alert('Failed to create dummy user.');
+          return;
+        }
+        // Only add to segment roster if not already present
+        if (!this.segmentRoster.some(m => m._id === newUser._id)) {
+          this.segmentRoster.push(newUser);
+        }
+        // Add dummy to all formations
+        this.formations = this.formations.map(formation => [
+          ...formation,
+          {
+            id: newUser._id,
+            name: dummyName,
+            x: this.width / 2,
+            y: this.depth / 2,
+            isDummy: true,
+            dummyName: dummyName,
+            skillLevels: {},
+            height: 5.5
+          }
+        ]);
+        this.dummyCounter++;
+        this.triggerAutoSave();
+      },
+      error: (err: any) => {
+        alert('Failed to add dummy performer.');
+        console.error(err);
+      }
     });
-    
-    this.formations[this.currentFormationIndex] = newFormation;
-    this.dummyCounter++;
-    console.log('Formations after adding dummy:', JSON.stringify(this.formations, null, 2));
-    
-    // If we have a segment ID, save immediately
-    if (this.segment?._id) {
-      this.saveSegment();
-    } else {
-      this.triggerAutoSave();
-    }
   }
   get availablePerformers() {
     // Members not in current formation (ignore dummy performers)
@@ -2045,21 +2105,26 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   removePerformer() {
     if (!this.selectedPerformer) return;
-    
     const performerId = this.selectedPerformer.id;
-    
+    const isDummy = this.selectedPerformer.isDummy;
     // Remove from all formations
     this.formations = this.formations.map(formation => 
       formation.filter(p => p.id !== performerId)
     );
-    
+    // Remove from segment roster if present
+    this.segmentRoster = this.segmentRoster.filter(m => m._id !== performerId);
+    // If dummy, delete from backend
+    if (isDummy) {
+      this.teamService.deleteDummyUser(performerId).subscribe({
+        next: () => console.log('Dummy user deleted from backend'),
+        error: (err) => console.error('Failed to delete dummy user from backend', err)
+      });
+    }
     // Clear selection
     this.selectedPerformerIds.delete(performerId);
     this.selectedPerformerId = null;
-    
     // Switch back to roster panel
     this.sidePanelMode = 'roster';
-    
     // Trigger auto-save
     this.triggerAutoSave();
   }
@@ -2450,16 +2515,19 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   convertToDummy() {
     if (!this.selectedPerformer) return;
 
+    const dummyName = `Dummy ${this.dummyCounter}`;
+    const dummyId = `dummy-${this.dummyCounter}`;
+
     // Create a new dummy performer with the same properties
     const dummyPerformer: Performer = {
-      id: `dummy-${Date.now()}`,
-      name: "dummy",
+      id: dummyId,
+      name: dummyName,
       x: this.selectedPerformer.x,
       y: this.selectedPerformer.y,
       skillLevels: { ...this.selectedPerformer.skillLevels },
       height: this.selectedPerformer.height,
       isDummy: true,
-      dummyName: "dummy"
+      dummyName: dummyName
     };
 
     this.formations = this.formations.map(formation =>
@@ -2474,11 +2542,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Close the dropdown
     this.showPerformerPairingDropdown = false;
 
+    this.dummyCounter++;
     this.triggerAutoSave();
   }
 
   convertToUser(user: any) {
-    if (!this.selectedPerformer) return;
+    if (!this.selectedPerformer || !this.selectedPerformer.isDummy) return;
 
     // Create a new user performer
     const userPerformer: Performer = {
@@ -3680,6 +3749,29 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const scale = this.currentZoom || 1;
     const translateY = this.stageVerticalOffset || 0;
     return `scale(${scale}) translate(0, ${translateY}px)`;
+  }
+
+  // Add logic to delete all dummies when deleting a segment
+  deleteSegment() {
+    if (!this.segment?._id) return;
+    // Delete all dummy users in the segment roster
+    const dummyIds = (this.segmentRoster || []).filter(m => m.isDummy && m._id).map(m => m._id);
+    dummyIds.forEach(id => {
+      this.teamService.deleteDummyUser(id).subscribe({
+        next: () => console.log('Dummy user deleted from backend'),
+        error: (err) => console.error('Failed to delete dummy user from backend', err)
+      });
+    });
+    // Now delete the segment (assume you have a segmentService.deleteSegment method)
+    this.segmentService.deleteSegment(this.segment._id).subscribe({
+      next: () => {
+        console.log('Segment deleted');
+        this.router.navigate(['/dashboard']);
+      },
+      error: (err) => {
+        console.error('Failed to delete segment', err);
+      }
+    });
   }
 }
  

@@ -48,4 +48,24 @@ export class TeamService {
   updateUser(userId: string, updateData: any): Observable<any> {
     return this.http.patch(`${this.apiUrl}/users/${userId}`, updateData);
   }
+
+  addMember(teamId: string, member: { name: string; isDummy?: boolean }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/teams/${teamId}/members`, member);
+  }
+
+  addDummyUser(name: string) {
+    return this.http.post<{ user: any }>(`${this.apiUrl}/dummy-users`, { name });
+  }
+
+  getUserById(userId: string) {
+    return this.http.get<any>(`${this.apiUrl}/users/${userId}`);
+  }
+
+  deleteDummyUser(userId: string) {
+    return this.http.delete(`${this.apiUrl}/dummy-users/${userId}`);
+  }
+
+  getSegmentById(segmentId: string) {
+    return this.http.get<any>(`${this.apiUrl}/segment/${segmentId}`);
+  }
 } 

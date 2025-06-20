@@ -434,4 +434,32 @@
 .segment-card.drag-over {
   border: 2.5px dashed #ffd700;
   background: rgba(255, 255, 0, 0.08);
+}
+
+.style-checkbox-modal.new-style-card {
+  background: rgba(99,102,241,0.10);
+  border: 2.5px dashed #6366f1;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.10);
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  min-width: 120px;
+  position: relative;
+  padding: 16px 18px 18px 18px;
+}
+
+.close-style-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: none;
+  border: none;
+  color: #b3b3c6;
+  font-size: 1.2em;
+  cursor: pointer;
+  transition: color 0.18s;
+  z-index: 2;
+}
+.close-style-btn:hover {
+  color: #ff3b3b;
 } 

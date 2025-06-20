@@ -3,44 +3,9 @@
   
   <!-- Styles Section -->
   <div class="styles-section prominent">
-    <h2 class="section-title prominent">Styles</h2>
-    <div class="section-subheader">Connect segments and dancers with skill levels</div>
     
-    <div class="styles-list compact">
-      <div *ngFor="let style of styles; let i = index" class="style-item compact">
-        <div class="style-color" [style.background-color]="style.color"></div>
-        <span>{{ style.name }}</span>
-        <div class="style-actions">
-          <button (click)="startEditStyle(i)">Edit</button>
-          <button class="trash-btn" (click)="deleteStyle(i)" aria-label="Delete style">
-            <i class="fas fa-trash"></i>
-          </button>
-        </div>
-      </div>
-    </div>
 
     <!-- Add/Edit Style Form -->
-    <div class="style-form compact">
-      <input 
-        type="text" 
-        [(ngModel)]="newStyle.name" 
-        placeholder="Style name"
-        [disabled]="editingStyleIndex !== null">
-      <input 
-        type="color" 
-        [(ngModel)]="newStyle.color">
-      <button 
-        *ngIf="editingStyleIndex === null" 
-        (click)="addStyle()"
-        [disabled]="!newStyle.name">
-        Add
-      </button>
-      <div *ngIf="editingStyleIndex !== null" class="edit-actions">
-        <button (click)="updateStyle()">Save</button>
-        <button (click)="cancelStyleEdit()">Cancel</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Edit Roster Table -->
   <div class="edit-roster-section prominent">
