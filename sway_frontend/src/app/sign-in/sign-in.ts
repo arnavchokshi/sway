@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../services/auth.service';
+import { environment } from '../../environments/environment';
 
 @Component({
   selector: 'app-sign-in',
@@ -40,7 +41,7 @@ export class SignIn implements OnInit {
 
   signIn() {
     // Send PATCH request to update user in MongoDB
-    this.http.patch(`http://localhost:3000/api/users/${this.member._id}`, {
+    this.http.patch(`${environment.apiUrl}/users/${this.member._id}`, {
       email: this.email,
       password: this.password,
       gender: this.gender,

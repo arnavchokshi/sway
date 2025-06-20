@@ -5,6 +5,7 @@ import { TeamService, Style } from '../../services/team.service';
 import { AuthService } from '../../services/auth.service';
 import { HttpClient } from '@angular/common/http';
 import { forkJoin } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 interface UserResponse {
   message: string;
@@ -51,6 +52,35 @@ export class RosterComponent implements OnInit {
       this.loadTeamMembers(currentUser.team._id);
     } else {
       console.log('No team ID found in user data');
+    }
+
+    if (currentUser) {
+      this.http.get(`${environment.apiUrl}/users/${currentUser._id}`).subscribe({
+        next: (userResponse: any) => {
+          const teamId = userResponse.team?._id;
+          if (!teamId) {
+            this.errorMessage = 'No team found for current user';
+            this.isAddingMember = false;
+            return;
+          }
+
+          this.teamService.addTeamMember(teamId, currentUser.name).subscribe({
+            next: (res) => {
+              this.loadTeamMembers(teamId);
+            },
+            error: (err) => {
+              console.error('Error adding member:', err);
+              this.errorMessage = err.error?.message || 'Failed to add member';
+              this.isAddingMember = false;
+            }
+          });
+        },
+        error: (err) => {
+          console.error('Error getting user data:', err);
+          this.errorMessage = 'Failed to get user data';
+          this.isAddingMember = false;
+        }
+      });
     }
   }
 
@@ -169,7 +199,7 @@ export class RosterComponent implements OnInit {
     }
 
     // First, get the team information
-    this.http.get(`http://localhost:3000/api/users/${currentUser._id}`).subscribe({
+    this.http.get(`${environment.apiUrl}/users/${currentUser._id}`).subscribe({
       next: (userResponse: any) => {
         const teamId = userResponse.team?._id;
         if (!teamId) {
@@ -219,7 +249,7 @@ export class RosterComponent implements OnInit {
     }
 
     // Update the member's captain status immediately
-    this.http.patch(`http://localhost:3000/api/users/${member._id}`, {
+    this.http.patch(`${environment.apiUrl}/users/${member._id}`, {
       captain: !member.captain
     }).subscribe({
       next: (res) => {
@@ -251,7 +281,7 @@ export class RosterComponent implements OnInit {
 
     if (confirm('Are you sure you want to remove this member?')) {
       // First, get the team information
-      this.http.get(`http://localhost:3000/api/users/${currentUser._id}`).subscribe({
+      this.http.get(`${environment.apiUrl}/users/${currentUser._id}`).subscribe({
         next: (userResponse: any) => {
           const teamId = userResponse.team?._id;
           if (!teamId) {
@@ -347,7 +377,7 @@ export class RosterComponent implements OnInit {
     }
 
     const updatePayload = { [field]: value };
-    this.http.patch(`http://localhost:3000/api/users/${member._id}`, updatePayload).subscribe({
+    this.http.patch(`${environment.apiUrl}/users/${member._id}`, updatePayload).subscribe({
       next: (res) => {
         console.log(`Member ${field} updated`);
       },
@@ -386,7 +416,7 @@ export class RosterComponent implements OnInit {
       }]
     };
 
-    this.http.patch(`http://localhost:3000/api/teams/${currentUser.team._id}/members/${member._id}/skills`, payload)
+    this.http.patch(`${environment.apiUrl}/teams/${currentUser.team._id}/members/${member._id}/skills`, payload)
       .subscribe({
         next: (response) => {
           console.log('Skill levels updated successfully for member:', member._id);
@@ -426,7 +456,7 @@ export class RosterComponent implements OnInit {
 
       console.log('Saving member:', member._id, 'with payload:', payload);
       
-      return this.http.patch(`http://localhost:3000/api/users/${member._id}`, payload).toPromise();
+      return this.http.patch(`${environment.apiUrl}/users/${member._id}`, payload).toPromise();
     });
     
     try {

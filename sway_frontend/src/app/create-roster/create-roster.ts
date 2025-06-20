@@ -1,9 +1,10 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { environment } from '../../environments/environment';
 
 @Component({
   selector: 'app-create-roster',
@@ -12,7 +13,7 @@ import { AuthService } from '../services/auth.service';
   templateUrl: './create-roster.html',
   styleUrl: './create-roster.scss'
 })
-export class CreateRoster {
+export class CreateRoster implements OnInit {
   columns = ['name']; // Only 'name'
   members: Record<string, any>[] = [{}];
 
@@ -21,6 +22,10 @@ export class CreateRoster {
     private router: Router,
     private authService: AuthService
   ) {}
+
+  ngOnInit() {
+    // Initialize any additional setup if needed
+  }
 
   addMember() {
     this.members.push({});
@@ -37,7 +42,7 @@ export class CreateRoster {
       return;
     }
 
-    this.http.post('http://localhost:3000/api/bulk-users', {
+    this.http.post(`${environment.apiUrl}/bulk-users`, {
       team: teamId,
       users: this.members
     }).subscribe({

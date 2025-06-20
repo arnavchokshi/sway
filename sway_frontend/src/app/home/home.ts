@@ -1,10 +1,11 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Login } from '../login/login';
 import { AuthService } from '../services/auth.service';
+import { environment } from '../../environments/environment';
 
 interface TeamMember {
   _id: string;
@@ -19,7 +20,7 @@ interface TeamMember {
   standalone: true,
   imports: [CommonModule, FormsModule, Login]
 })
-export class HomeComponent {
+export class HomeComponent implements OnInit {
   showSplit = false;
   showLoginPopup = false;
   showJoinTeamModal = false;
@@ -46,6 +47,8 @@ export class HomeComponent {
     private http: HttpClient, 
     private authService: AuthService
   ) {}
+
+  ngOnInit() {}
 
   onButtonClick() {
     if (!this.isAnimating) {
@@ -118,7 +121,7 @@ export class HomeComponent {
       return;
     }
 
-    this.http.get<any>(`http://localhost:3000/api/team-by-join-code/${this.joinCode}`)
+    this.http.get<any>(`${environment.apiUrl}/team-by-join-code/${this.joinCode}`)
       .subscribe({
         next: (res) => {
           this.teamId = res.team._id;
@@ -166,7 +169,7 @@ export class HomeComponent {
     const height = (this.heightFeet * 12) + this.heightInches;
 
     // Always update the existing user since we're selecting from team members
-    this.http.patch(`http://localhost:3000/api/users/${this.selectedMember?._id}`, {
+    this.http.patch(`${environment.apiUrl}/users/${this.selectedMember?._id}`, {
       email: this.userEmail,
       password: this.userPassword,
       gender: this.gender,
@@ -186,6 +189,19 @@ export class HomeComponent {
   }
 
   CreateUser() {
+    this.router.navigate(['/create-user']);
+  }
+
+  searchTeam() {
+    this.http.get<any>(`${environment.apiUrl}/team-by-join-code/${this.joinCode}`)
+  }
+
+  updateMember() {
+    this.http.patch(`${environment.apiUrl}/users/${this.selectedMember?._id}`, {
+    })
+  }
+
+  goToCreateUser() {
     this.router.navigate(['/create-user']);
   }
 }

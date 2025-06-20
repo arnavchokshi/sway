@@ -16,19 +16,19 @@ export class SegmentService {
   }
 
   getSegmentsForTeam(teamId: string) {
-    return this.http.get<{ segments: any[] }>(`http://localhost:3000/api/segments/${teamId}`);
+    return this.http.get<{ segments: any[] }>(`${environment.apiUrl}/segments/${teamId}`);
   }
 
   getSegmentById(segmentId: string) {
-    return this.http.get<{ segment: any }>(`http://localhost:3000/api/segment/${segmentId}`);
+    return this.http.get<{ segment: any }>(`${environment.apiUrl}/segment/${segmentId}`);
   }
 
   updateSegment(segmentId: string, update: any) {
-    return this.http.patch(`http://localhost:3000/api/segment/${segmentId}`, update);
+    return this.http.patch(`${environment.apiUrl}/segment/${segmentId}`, update);
   }
 
   deleteSegment(segmentId: string) {
-    return this.http.delete(`http://localhost:3000/api/segment/${segmentId}`);
+    return this.http.delete(`${environment.apiUrl}/segment/${segmentId}`);
   }
 
   getMusicPresignedUrl(segmentId: string, filename: string, filetype: string) {

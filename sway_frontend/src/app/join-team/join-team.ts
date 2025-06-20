@@ -1,9 +1,10 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { environment } from '../../environments/environment';
 
 @Component({
   selector: 'app-join-team',
@@ -12,7 +13,7 @@ import { AuthService } from '../services/auth.service';
   templateUrl: './join-team.html',
   styleUrl: './join-team.scss'
 })
-export class JoinTeam {
+export class JoinTeam implements OnInit {
   joinCode: string = '';
   roster: any[] = [];
   sortedRoster: any[] = [];
@@ -32,9 +33,11 @@ export class JoinTeam {
 
   constructor(private http: HttpClient, private router: Router, private authService: AuthService) {}
 
+  ngOnInit() {}
+
   joinTeam() {
     if (this.joinCode) {
-      this.http.get<any>(`http://localhost:3000/api/team-by-join-code/${this.joinCode}`)
+      this.http.get<any>(`${environment.apiUrl}/team-by-join-code/${this.joinCode}`)
         .subscribe({
           next: (res) => {
             this.teamId = res.team._id;
@@ -75,7 +78,7 @@ export class JoinTeam {
     const height = (parseInt(this.profileForm.heightFeet, 10) || 0) * 12 + (parseInt(this.profileForm.heightInches, 10) || 0);
     if (this.isNewUser) {
       // Create a new user in the team
-      this.http.post('http://localhost:3000/api/register', {
+      this.http.post(`${environment.apiUrl}/register`, {
         name: this.profileForm.name,
         email: this.profileForm.email,
         password: this.profileForm.password,
@@ -97,7 +100,7 @@ export class JoinTeam {
       });
     } else {
       // Update the selected user
-      this.http.patch(`http://localhost:3000/api/users/${this.selectedMember._id}`, {
+      this.http.patch(`${environment.apiUrl}/users/${this.selectedMember._id}`, {
         name: this.profileForm.name,
         email: this.profileForm.email,
         password: this.profileForm.password,
