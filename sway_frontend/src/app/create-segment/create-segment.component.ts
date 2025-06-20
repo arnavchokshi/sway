@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { TeamService } from '../services/team.service';
 import { AuthService } from '../services/auth.service';
 import { SegmentService } from '../services/segment.service';
+import { PerformerConsistencyService, ConsistencyWarning } from '../services/performer-consistency.service';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { environment } from '../../environments/environment';
 import WaveSurfer from 'wavesurfer.js';
@@ -260,20 +261,23 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private isDraggingSlider = false;
   private sliderRect: DOMRect | null = null;
 
+  // Add these properties after the existing properties
+  consistencyWarnings: ConsistencyWarning[] = [];
+  showConsistencyWarnings = false;
+
   constructor(
+    private route: ActivatedRoute,
+    private router: Router,
     private teamService: TeamService,
     private authService: AuthService,
     private segmentService: SegmentService,
-    private route: ActivatedRoute,
+    private performerConsistencyService: PerformerConsistencyService,
     private renderer: Renderer2,
-    private sanitizer: DomSanitizer,
     private cdr: ChangeDetectorRef,
-    private router: Router
+    private sanitizer: DomSanitizer
   ) {
-    // Set up auto-save subscription
-    this.saveSubject.pipe(
-      debounceTime(this.autoSaveDebounceTime)
-    ).subscribe(() => {
+    // Set up auto-save with debouncing
+    this.saveSubject.pipe(debounceTime(this.autoSaveDebounceTime)).subscribe(() => {
       this.saveSegment();
     });
   }
@@ -399,6 +403,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
     // Set initial side panel mode
     this.sidePanelMode = this.selectedPerformer ? 'performer' : 'roster';
+
+    // Check for consistency warnings after a short delay to ensure all data is loaded
+    setTimeout(() => {
+      this.checkConsistencyWarnings();
+    }, 2000);
   }
 
   // Method to refresh data when component is activated
@@ -870,6 +879,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       // Otherwise trigger auto-save
       this.triggerAutoSave();
     }
+
+    // Check for consistency warnings after adding formation
+    setTimeout(() => {
+      this.checkConsistencyWarnings();
+    }, 1000); // Small delay to ensure the formation is properly saved
   }
 
   addPerformer(member: any) {
@@ -909,7 +923,36 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.segmentRoster = [...this.segmentRoster, dancer];
     }
     this.triggerAutoSave();
+
+    // Check for positioning guidance for this specific performer
+    this.checkPerformerPositioningGuidance(dancer._id);
   }
+
+  /**
+   * Check for positioning guidance for a specific performer
+   */
+  private checkPerformerPositioningGuidance(performerId: string) {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?.team?._id) return;
+
+    this.performerConsistencyService.analyzePerformerAcrossSegments(performerId, currentUser.team._id).subscribe({
+      next: (positions) => {
+        if (positions.length >= 2) {
+          const lastPosition = positions[positions.length - 2]; // Previous segment
+          const currentPosition = positions[positions.length - 1]; // Current segment
+          
+          if (lastPosition.side !== currentPosition.side) {
+            // Show a specific guidance message for this performer
+            console.log(`Positioning guidance for ${currentPosition.performerName}: Consider placing them on the ${lastPosition.side} side for consistency with ${lastPosition.segmentName}`);
+          }
+        }
+      },
+      error: (err) => {
+        console.error('Failed to check performer positioning guidance:', err);
+      }
+    });
+  }
+
   addDummyPerformer() {
     console.log("addDummyPerformer called");
     const dummyName = `Dummy ${this.dummyCounter}`;
@@ -1110,6 +1153,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
     this.draggingId = null;
     this.triggerAutoSave();
+
+    // Check for consistency warnings after moving performers
+    setTimeout(() => {
+      this.checkConsistencyWarnings();
+    }, 500); // Small delay to ensure the movement is properly saved
   };
 
   onPerformerClick(performer: Performer) {
@@ -1402,6 +1450,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       next: () => {
         console.log('Segment saved successfully');
         this.lastSaveTime = new Date();
+        
+        // Check for consistency warnings after saving
+        this.checkConsistencyWarnings();
       },
       error: (err) => {
         console.error('Failed to save segment:', err);
@@ -1409,6 +1460,52 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         console.error('Error data:', JSON.stringify(updateData, null, 2));
       }
     });
+  }
+
+  /**
+   * Check for performer consistency warnings across segments
+   */
+  private checkConsistencyWarnings() {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?.team?._id) return;
+
+    this.performerConsistencyService.analyzePerformerConsistency(currentUser.team._id).subscribe({
+      next: (warnings) => {
+        this.consistencyWarnings = warnings;
+        this.showConsistencyWarnings = warnings.length > 0;
+        
+        if (warnings.length > 0) {
+          console.log('Found consistency warnings:', warnings);
+        }
+      },
+      error: (err) => {
+        console.error('Failed to check consistency warnings:', err);
+      }
+    });
+  }
+
+  /**
+   * Public method to manually trigger consistency check (for testing/debugging)
+   */
+  public triggerConsistencyCheck() {
+    this.checkConsistencyWarnings();
+  }
+
+  /**
+   * Dismiss consistency warnings
+   */
+  dismissConsistencyWarnings() {
+    this.showConsistencyWarnings = false;
+  }
+
+  /**
+   * Get warnings for the current segment
+   */
+  getCurrentSegmentWarnings(): ConsistencyWarning[] {
+    if (!this.segment?.name) return [];
+    return this.consistencyWarnings.filter(warning => 
+      warning.currentSegment === this.segment.name
+    );
   }
 
   getPerformerPath(performerId: string, prevMap?: { [id: string]: Performer }, nextMap?: { [id: string]: Performer }): string {

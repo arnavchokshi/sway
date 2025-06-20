@@ -11,13 +11,59 @@
     <app-formations></app-formations>
   </div>
 
-   <div class="dashboard-join-code" *ngIf="team">
+  <button class="info-icon-btn" (click)="showInfoModal = true">
+    <i class="fas fa-info-circle"></i>
+  </button>
+
+  <div class="dashboard-join-code" *ngIf="team">
     Join Code: <span class="join-code">{{ team.joinCode }}</span>
   </div>
 
   <div class="roster-modal-overlay" *ngIf="showRosterModal">
     <div class="roster-modal-popup">
       <app-dashboard-roster (close)="showRosterModal = false"></app-dashboard-roster>
+    </div>
+  </div>
+
+  <!-- Info Modal -->
+  <div class="info-modal-overlay" *ngIf="showInfoModal" (click)="showInfoModal = false">
+    <div class="info-modal-popup" (click)="$event.stopPropagation()">
+      <div class="info-modal-header">
+        <h3>Getting Started with Sway</h3>
+        <button class="close-btn" (click)="showInfoModal = false">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="info-modal-content">
+        <div class="info-item">
+          <i class="fas fa-plus-circle"></i>
+          <div class="info-text">
+            <strong>Add segments and build formations</strong>
+            <p>Create segments to organize your choreography and build formations.</p>
+          </div>
+        </div>
+        <div class="info-item">
+          <i class="fas fa-user-plus"></i>
+          <div class="info-text">
+            <strong>Add performers to segments</strong>
+            <p>Add team members so they can see their formations at practice.</p>
+          </div>
+        </div>
+        <div class="info-item">
+          <i class="fas fa-palette"></i>
+          <div class="info-text">
+            <strong>Add styles</strong>
+            <p>Connect segments with styles to view skill level when building formations.</p>
+          </div>
+        </div>
+        <div class="info-item">
+          <i class="fas fa-arrows-alt"></i>
+          <div class="info-text">
+            <strong>Drag and move formations</strong>
+            <p>Rearrange formations in your set order to get feedback on where users should be positioned.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

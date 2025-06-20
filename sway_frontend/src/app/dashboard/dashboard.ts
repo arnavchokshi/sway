@@ -15,6 +15,7 @@ import { TeamService } from '../services/team.service';
 export class DashboardComponent implements OnInit {
   isCaptain = false;
   showRosterModal = false;
+  showInfoModal = false;
   team: any = null;
   segment = {
     stylesInSegment: ['bhangra', 'HH']

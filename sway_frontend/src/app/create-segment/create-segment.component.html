@@ -59,6 +59,26 @@
   </div>
 
   <div class="main-content">
+    <!-- Consistency Warnings Panel -->
+    <div class="consistency-warnings-panel" *ngIf="showConsistencyWarnings && getCurrentSegmentWarnings().length > 0">
+      <div class="warnings-header">
+        <span class="material-icons warning-icon">info</span>
+        <span class="warnings-title">Performer Positioning Tips</span>
+        <button class="dismiss-warnings-btn" (click)="dismissConsistencyWarnings()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="warnings-content">
+        <div class="warning-item" *ngFor="let warning of getCurrentSegmentWarnings()">
+          <div class="warning-message">{{ warning.message }}</div>
+          <div class="warning-details">
+            <span class="segment-info">{{ warning.previousSegment }} → {{ warning.currentSegment }}</span>
+            <span class="side-info">{{ warning.previousSide }} → {{ warning.currentSide }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="roster-sidebar" *ngIf="isCaptain">
       <div class="sidepanel-top-line"></div>
       <div class="sidepanel-vertical-line"></div>
