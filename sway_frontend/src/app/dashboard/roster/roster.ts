@@ -26,7 +26,7 @@ interface UserResponse {
 })
 export class RosterComponent implements OnInit {
   @Output() close = new EventEmitter<void>();
-  members: { name: string; role: string; _id: string; captain: boolean; skillLevels: { [styleName: string]: number }, height?: string | number, feet?: number, inches?: number, gender?: string }[] = [];
+  members: { name: string; role: string; _id: string; captain: boolean; skillLevels: { [styleName: string]: number }, height?: string | number, feet?: number, inches?: number, gender?: string, isNew?: boolean }[] = [];
   showEditModal = false;
   newMemberName = '';
   editingMember: { _id: string; name: string; captain: boolean } | null = null;
@@ -36,6 +36,7 @@ export class RosterComponent implements OnInit {
   showStylesSection = false;
   newStyle: Style = { name: '', color: '#000000' };
   editingStyleIndex: number | null = null;
+  selectedStyleForSkills: string = '';
 
   constructor(private teamService: TeamService, private authService: AuthService, private http: HttpClient) {}
 
@@ -94,7 +95,8 @@ export class RosterComponent implements OnInit {
             height: member.height || '',
             feet,
             inches,
-            gender: member.gender || ''
+            gender: member.gender || '',
+            isNew: false
           };
         });
       },
@@ -103,6 +105,40 @@ export class RosterComponent implements OnInit {
         this.errorMessage = 'Failed to load team members';
       }
     });
+  }
+
+  promptAddNewMember() {
+    if (this.members.find(m => m.isNew)) {
+      return; // Only allow one new member row at a time
+    }
+
+    const newMember: {
+      _id: string;
+      name: string;
+      role: string;
+      captain: boolean;
+      skillLevels: { [key: string]: number };
+      feet: number | undefined;
+      inches: number | undefined;
+      gender: string;
+      isNew: boolean;
+    } = {
+      _id: `new-${Date.now()}`, // temp id
+      name: '',
+      role: 'Member',
+      captain: false,
+      skillLevels: {},
+      feet: undefined,
+      inches: undefined,
+      gender: '',
+      isNew: true
+    };
+    
+    this.styles.forEach(style => {
+      newMember.skillLevels[style.name.toLowerCase()] = 1;
+    });
+
+    this.members.push(newMember);
   }
 
   editRoster() {
@@ -116,8 +152,8 @@ export class RosterComponent implements OnInit {
     this.errorMessage = '';
   }
 
-  addNewMember() {
-    if (!this.newMemberName.trim()) {
+  addNewMember(name: string, tempMember: any) {
+    if (!name.trim()) {
       this.errorMessage = 'Please enter a member name';
       return;
     }
@@ -143,16 +179,17 @@ export class RosterComponent implements OnInit {
         }
 
         // Now create the new user and add them to the team
-        this.teamService.addTeamMember(teamId, this.newMemberName).subscribe({
+        this.teamService.addTeamMember(teamId, name).subscribe({
           next: (res) => {
-            this.loadTeamMembers(teamId);
-            this.newMemberName = '';
+            this.loadTeamMembers(teamId); // This will refresh the list
             this.isAddingMember = false;
           },
           error: (err) => {
             console.error('Error adding member:', err);
             this.errorMessage = err.error?.message || 'Failed to add member';
             this.isAddingMember = false;
+            // if adding failed, remove the temporary row
+            this.members = this.members.filter(m => m !== tempMember);
           }
         });
       },
@@ -164,7 +201,8 @@ export class RosterComponent implements OnInit {
     });
   }
 
-  toggleCaptainStatus(member: { _id: string; name: string; captain: boolean; role: string }) {
+  toggleCaptainStatus(member: { _id: string; name: string; captain: boolean; role: string, isNew?: boolean }) {
+    if (member.isNew) return;
     const currentUser = this.authService.getCurrentUser();
     if (!currentUser?._id) {
       this.errorMessage = 'No user found';
@@ -198,7 +236,13 @@ export class RosterComponent implements OnInit {
     });
   }
 
-  removeMember(memberId: string) {
+  removeMember(member: any) {
+    if (member.isNew) {
+      this.members = this.members.filter(m => m !== member);
+      return;
+    }
+
+    const memberId = member._id;
     const currentUser = this.authService.getCurrentUser();
     if (!currentUser?._id) {
       this.errorMessage = 'No user found';
@@ -295,58 +339,71 @@ export class RosterComponent implements OnInit {
   }
 
   updateMemberField(member: any, field: string, value: any) {
-    // TODO: Implement backend update if needed
-    member[field] = value;
-  }
-
-  updateMemberSkill(member: any, styleName: string, value: number) {
-    if (!member.skillLevels) {
-      member.skillLevels = {};
+    if (member.isNew) {
+      if (field === 'name' && value && value.trim()) {
+        this.addNewMember(value.trim(), member);
+      }
+      return; // Don't update other fields until name is set and member is created
     }
-    // Ensure value is a number and style name is lowercase
-    const numericValue = Number(value);
-    const normalizedStyleName = styleName.toLowerCase();
-    member.skillLevels[normalizedStyleName] = numericValue;
-    
-    console.log('Updating skill level:', {
-      memberId: member._id,
-      style: normalizedStyleName,
-      value: numericValue,
-      currentSkillLevels: member.skillLevels
-    });
 
-    // Create a complete payload with all member data
-    const payload = {
-      name: member.name,
-      height: member.height,
-      skillLevels: member.skillLevels,
-      captain: member.captain
-    };
-
-    // Immediately save the skill level change
-    this.http.patch<UserResponse>(`http://localhost:3000/api/users/${member._id}`, payload).subscribe({
+    const updatePayload = { [field]: value };
+    this.http.patch(`http://localhost:3000/api/users/${member._id}`, updatePayload).subscribe({
       next: (res) => {
-        console.log('Skill level updated successfully:', res);
-        // Update the local member data with the response
-        if (res.user) {
-          // Convert Map to object if needed
-          const updatedSkillLevels = res.user.skillLevels instanceof Map 
-            ? Object.fromEntries(res.user.skillLevels)
-            : res.user.skillLevels;
-          member.skillLevels = updatedSkillLevels;
-        }
+        console.log(`Member ${field} updated`);
       },
       error: (err) => {
-        console.error('Error updating skill level:', err);
-        this.errorMessage = 'Failed to update skill level';
+        console.error(`Failed to update member ${field}:`, err);
+        // Optionally revert the change in the UI
+        const teamId = this.authService.getCurrentUser()?.team?._id;
+        if (teamId) {
+          this.loadTeamMembers(teamId);
+        }
       }
     });
   }
 
+  updateMemberSkill(member: any, styleName: string, value: number) {
+    if (member.isNew) return;
+
+    // Ensure value is a number and style name is lowercase
+    const numericValue = Number(value);
+    const normalizedStyleName = styleName.toLowerCase();
+    
+    if (!member.skillLevels) {
+      member.skillLevels = {};
+    }
+    member.skillLevels[normalizedStyleName] = numericValue;
+
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?.team?._id) {
+      return;
+    }
+
+    const payload = {
+      skillUpdates: [{
+        styleName: normalizedStyleName,
+        level: numericValue
+      }]
+    };
+
+    this.http.patch(`http://localhost:3000/api/teams/${currentUser.team._id}/members/${member._id}/skills`, payload)
+      .subscribe({
+        next: (response) => {
+          console.log('Skill levels updated successfully for member:', member._id);
+        },
+        error: (error) => {
+          console.error('Error updating skill levels:', error);
+        }
+      });
+  }
+
   updateMemberHeight(member: any, field: 'feet' | 'inches', value: number) {
-    member[field] = value;
+    if (member.isNew) return;
+    // Debounce or save on blur/change
+    const feet = field === 'feet' ? value : member.feet;
+    const inches = field === 'inches' ? value : member.inches;
     // Update the height in inches
-    const totalInches = (parseInt(member.feet, 10) || 0) * 12 + (parseInt(member.inches, 10) || 0);
+    const totalInches = (parseInt(feet, 10) || 0) * 12 + (parseInt(inches, 10) || 0);
     member.height = totalInches;
     // Optionally, update backend here
   }
@@ -386,17 +443,26 @@ export class RosterComponent implements OnInit {
     }
   }
 
-  async closeAndSave() {
-    try {
-      await this.saveAllMembers();
+  closeAndSave() {
+    this.saveAllMembers().then(() => {
       this.close.emit();
-    } catch (error) {
+    }).catch((error) => {
       console.error('Error saving members:', error);
-      this.errorMessage = 'Failed to save changes';
-    }
+    });
   }
 
   onClose() {
     this.closeAndSave();
+  }
+
+  onStyleSelectionChange() {
+    // This method is called when the style selector changes
+    // The view will automatically update due to the ngModel binding
+    console.log('Selected style for skills:', this.selectedStyleForSkills);
+  }
+
+  getStyleColor(styleName: string): string {
+    const style = this.styles.find(s => s.name === styleName);
+    return style ? style.color : '#3b82f6'; // Default blue if style not found
   }
 } 

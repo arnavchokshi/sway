@@ -64,19 +64,24 @@
           </div>
         </label>
         <div class="styles-section-modal">
-          <div style="font-weight: 500; margin-bottom: 6px; display: flex; align-items: center; gap: 10px;">
+          <div style="font-weight: 500; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; position: relative;">
             Styles
             <button type="button" class="add-style-btn" (click)="showAddStyleInput = true" *ngIf="isCaptain && !showAddStyleInput" style="margin-left: auto; background: none; border: none; color: #6366f1; font-size: 1.5em; cursor: pointer;">+</button>
           </div>
           <div class="styles-list-modal" *ngIf="teamStyles.length > 0 || showAddStyleInput">
-            <label *ngFor="let style of teamStyles" class="style-checkbox-modal"
+            <div class="styles-grid">
+              <div *ngFor="let style of teamStyles; let i = index" class="style-checkbox-modal"
                    [class.selected]="isStyleSelected(style)"
                    (click)="toggleStyle(style, !isStyleSelected(style))">
-              <span class="style-color-modal" [style.background]="style.color"></span>
-              <span>{{ style.name }}</span>
-            </label>
+                <span class="style-color-modal" [style.background]="style.color"></span>
+                <span>{{ style.name }}</span>
+                <button type="button" class="delete-single-style-btn" (click)="deleteStyle(style, $event)" *ngIf="isCaptain" title="Delete this style">
+                  <span class="material-icons">delete</span>
+                </button>
+              </div>
+            </div>
             <div *ngIf="showAddStyleInput" class="style-checkbox-modal new-style-card" style="position: relative; min-width: 120px;">
-              <input type="text" [(ngModel)]="newStyleName" name="newStyleName" placeholder="Style name" style="flex: 1; padding: 0.5em 1.2em 0.5em 0.8em; border-radius: 10px; border: 1.5px solid #6366f1; font-size: 1.08em; font-weight: 600; background: rgba(255,255,255,0.13); color: #fff; outline: none;" (keydown.enter)="addNewStyle()" aria-label="New style name" autofocus />
+              <input type="text" [(ngModel)]="newStyleName" name="newStyleName" placeholder="Style name" style="flex: 1; margin-left: -80px; width: 150px;padding: 0.5em 1.2em 0.5em 0.8em; border-radius: 10px; border: 1.5px solid #6366f1; font-size: 1.08em; font-weight: 600; background: rgba(255,255,255,0.13); color: #fff; outline: none;" (keydown.enter)="addNewStyle()" aria-label="New style name" autofocus />
               <button type="button" (click)="addNewStyle()" class="submit-btn" style="position: absolute; right: 32px; top: 50%; transform: translateY(-50%); padding: 0.3em 0.9em; font-size: 1em;">Add</button>
               <button type="button" (click)="cancelAddStyle()" class="close-style-btn" aria-label="Cancel new style" style="position: absolute; right: 4px; top: 4px; background: none; border: none; color: #b3b3c6; font-size: 1.2em; cursor: pointer;">&#10005;</button>
             </div>

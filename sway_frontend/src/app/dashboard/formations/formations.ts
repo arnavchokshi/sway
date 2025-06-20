@@ -294,4 +294,30 @@ export class FormationsComponent implements OnInit {
     this.showAddStyleInput = false;
     this.newStyleName = '';
   }
+
+  deleteStyle(style: any, event: MouseEvent) {
+    event.stopPropagation();
+    if (!confirm(`Are you sure you want to delete the style "${style.name}"?`)) return;
+    
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?.team?._id) return;
+    
+    // Find the index of the style in the teamStyles array
+    const styleIndex = this.teamStyles.findIndex(s => s.name === style.name);
+    if (styleIndex === -1) {
+      alert('Style not found.');
+      return;
+    }
+    
+    this.teamService.deleteStyle(currentUser.team._id, styleIndex).subscribe({
+      next: (res) => {
+        this.teamStyles = res.team.styles || [];
+        // Remove from selected styles if it was selected
+        this.newSegmentStyles = this.newSegmentStyles.filter(s => s !== style.name);
+      },
+      error: (err) => {
+        alert('Failed to delete style.');
+      }
+    });
+  }
 } 

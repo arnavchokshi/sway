@@ -2432,15 +2432,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   get segmentStyles(): Style[] {
     if (!this.segment?.stylesInSegment) return [];
-    // Get the team's styles to get the colors
-    const currentUser = this.authService.getCurrentUser();
-    if (!currentUser?.team?._id) return [];
     
     // Return styles with their actual colors from the team
     return this.segment.stylesInSegment.map((name: string) => {
-      const teamStyle = this.teamRoster.find(m => m.team?._id === currentUser.team._id)?.team?.styles?.find(
-        (s: Style) => s.name.toLowerCase() === name.toLowerCase()
-      );
+      const teamStyle = this.teamStyles.find(s => s.name.toLowerCase() === name.toLowerCase());
       return {
         name,
         color: teamStyle?.color || '#ffffff'

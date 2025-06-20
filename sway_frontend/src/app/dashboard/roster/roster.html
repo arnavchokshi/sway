@@ -17,7 +17,15 @@
         <thead>
           <tr>
             <th>Name</th>
-            <th>Skills</th>
+            <th>
+              <div class="skills-header">
+                <span>Skill</span>
+                <select [(ngModel)]="selectedStyleForSkills" (change)="onStyleSelectionChange()" class="style-selector">
+                  <option value="">Select Style</option>
+                  <option *ngFor="let style of styles" [value]="style.name">{{ style.name }}</option>
+                </select>
+              </div>
+            </th>
             <th>Height</th>
             <th>Captain</th>
             <th></th>
@@ -29,17 +37,21 @@
               <input type="text" [(ngModel)]="member.name" (blur)="updateMemberField(member, 'name', member.name)" />
             </td>
             <td>
-              <div class="skill-level-vertical-align" [style.gridTemplateRows]="'repeat(' + styles.length + ', 1fr)'">
-                <ng-container *ngFor="let style of styles; let s = index">
-                  <div class="slider-inline-row skill-row-{{s}}">
+              <div class="skill-display" *ngIf="selectedStyleForSkills">
+                <div class="skill-slider-container">
+                  <div class="skill-style-name">{{ selectedStyleForSkills }}</div>
+                  <div class="slider-controls">
                     <input type="range" min="1" max="5" 
-                           [(ngModel)]="member.skillLevels[style.name.toLowerCase()]" 
-                           (change)="updateMemberSkill(member, style.name, member.skillLevels[style.name.toLowerCase()])" 
-                           [ngStyle]="{'accent-color': style.color}"
-                           [value]="member.skillLevels[style.name.toLowerCase()] || 1" />
-                    <span class="slider-value">{{ (member.skillLevels[style.name.toLowerCase()] || 1) + '/5' }}</span>
+                           [(ngModel)]="member.skillLevels[selectedStyleForSkills.toLowerCase()]" 
+                           (change)="updateMemberSkill(member, selectedStyleForSkills, member.skillLevels[selectedStyleForSkills.toLowerCase()])" 
+                           [ngStyle]="{'accent-color': getStyleColor(selectedStyleForSkills)}"
+                           [value]="member.skillLevels[selectedStyleForSkills.toLowerCase()] || 1" />
+                    <span class="slider-value">{{ (member.skillLevels[selectedStyleForSkills.toLowerCase()] || 1) + '/5' }}</span>
                   </div>
-                </ng-container>
+                </div>
+              </div>
+              <div class="no-style-selected" *ngIf="!selectedStyleForSkills">
+                <span>Select a style above to view skills</span>
               </div>
             </td>
             <td>
@@ -57,7 +69,7 @@
               </label>
             </td>
             <td>
-              <button class="trash-btn" (click)="removeMember(member._id)" aria-label="Remove member">
+              <button class="trash-btn" (click)="removeMember(member)" aria-label="Remove member">
                 <i class="fas fa-trash"></i>
               </button>
             </td>
@@ -66,16 +78,10 @@
       </table>
     </div>
     
-    <!-- Add Member Form -->
-    <div class="add-member-form add-bottom">
-      <input 
-        type="text" 
-        [(ngModel)]="newMemberName" 
-        placeholder="New member name">
-      <button 
-        (click)="addNewMember()" 
-        [disabled]="!newMemberName">
-        Add Member
+    <!-- Add Member Button -->
+    <div class="add-member-row">
+      <button (click)="promptAddNewMember()" class="add-member-btn-circle" aria-label="Add new member">
+        <i class="fas fa-plus"></i>
       </button>
     </div>
   </div>

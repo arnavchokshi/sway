@@ -291,10 +291,40 @@
 
 .styles-list-modal {
   display: flex;
-  flex-wrap: wrap;
-  gap: 18px 32px;
+  flex-direction: column;
+  gap: 12px;
   margin-top: 0.2rem;
-  justify-content: flex-start;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 8px;
+  
+  /* Custom scrollbar styling */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(99, 102, 241, 0.3);
+    border-radius: 3px;
+    transition: background 0.18s;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.5);
+  }
+}
+
+.styles-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
 }
 
 .style-checkbox-modal {
@@ -305,14 +335,15 @@
   font-size: 1.08em;
   font-weight: 600;
   cursor: pointer;
-  padding: 16px 18px 18px 18px;
+  padding: 16px 12px 18px 12px;
   border-radius: 16px;
   background: rgba(255,255,255,0.07);
   transition: background 0.13s, box-shadow 0.13s, transform 0.13s, border 0.13s;
-  min-width: 100px;
+  min-width: 80px;
   border: 2.5px solid transparent;
   box-shadow: none;
   user-select: none;
+  position: relative;
 }
 
 .style-checkbox-modal.selected {
@@ -443,7 +474,7 @@
   display: flex;
   align-items: center;
   gap: 0.5em;
-  min-width: 120px;
+  min-width: 12px;
   position: relative;
   padding: 16px 18px 18px 18px;
 }
@@ -462,4 +493,34 @@
 }
 .close-style-btn:hover {
   color: #ff3b3b;
+}
+
+.delete-single-style-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(255, 59, 59, 0.1);
+  border: none;
+  color: #ff3b3b;
+  font-size: 0.9em;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s;
+  opacity: 0;
+  z-index: 2;
+}
+
+.style-checkbox-modal:hover .delete-single-style-btn {
+  opacity: 1;
+}
+
+.delete-single-style-btn:hover {
+  background: rgba(255, 59, 59, 0.2);
+  color: #d90429;
+  transform: scale(1.1);
 } 

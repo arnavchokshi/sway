@@ -474,11 +474,11 @@
 }
 
 .roster-table tbody tr:nth-child(even) {
-  background: #f3f4f6;
+  background: #35497142;
 }
 
 .roster-table tbody tr:nth-child(odd) {
-  background: #f8fafc;
+  background: #856d2c22;
 }
 
 .roster-table tr:last-child td {
@@ -903,7 +903,7 @@
 }
 
 .roster-table th {
-  background: rgba(59, 130, 246, 0.15);
+  background: rgba(14, 31, 57, 0.333);
   color: #ffffff;
   font-weight: 600;
   font-size: 0.95rem;
@@ -915,6 +915,8 @@
 
 .roster-table td {
   padding: 0.75rem;
+  padding-right: 2rem;
+  width: 100px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   vertical-align: middle;
 }
@@ -991,7 +993,7 @@
 }
 
 .height-feet, .height-inches {
-  width: 2.5em;
+  width: 2.5rem;
   padding: 0.5rem 0.25rem;
   border: 1px solid rgba(59, 130, 246, 0.2);
   border-radius: 6px;
@@ -1006,12 +1008,6 @@
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   outline: none;
-}
-
-.height-sep {
-  color: #9ca3af;
-  font-size: 0.9rem;
-  font-weight: 500;
 }
 
 /* Toggle Switch */
@@ -1152,6 +1148,18 @@ input:checked + .slider:before {
     height: 28px;
     font-size: 1.1rem;
   }
+
+  .skills-header {
+    gap: 0.2rem;
+    align-items: center;
+  }
+
+  .style-selector {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.3rem;
+    width: 70px;
+    max-width: 70px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1171,6 +1179,20 @@ input:checked + .slider:before {
   .height-feet, .height-inches {
     width: 2.2em;
     font-size: 0.9rem;
+  }
+
+  .skills-header {
+    gap: 0.2rem;
+  }
+
+  .style-selector {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.3rem;
+  }
+
+  .no-style-selected {
+    font-size: 0.75rem;
+    padding: 0.3rem;
   }
 }
 
@@ -1233,4 +1255,115 @@ input:checked + .slider:before {
 
 .style-actions .trash-btn i {
   font-size: 0.7rem;
+}
+
+/* Add Member Button */
+.add-member-row {
+  display: flex;
+  justify-content: flex-start;
+  padding: 1rem 0;
+}
+
+.add-member-btn-circle {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transition: all 0.2s ease;
+}
+
+.add-member-btn-circle:hover {
+  background: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+}
+
+.skill-slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-start;
+}
+
+.skill-style-name {
+  font-size: 0.75rem;
+  color: #000000;
+  font-weight: 500;
+  text-transform: capitalize;
+  margin-bottom: 0.1rem;
+}
+
+.slider-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.skills-header {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.style-selector {
+  padding: 1rem 0.5rem;
+  width: 100px;
+  max-width: 100px;
+  border: 50px solid rgba(59, 131, 246, 0.659);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #3b82f6 !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: none;
+}
+
+.style-selector:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  outline: none;
+}
+
+.roster-table th .style-selector {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #3b82f6 !important;
+}
+
+.skill-display {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.no-style-selected {
+  color: #6b7280;
+  font-size: 0.85rem;
+  font-style: italic;
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.style-selector option {
+  color: #3b82f6 !important;
+  background: rgba(59, 130, 246, 0.1) !important;
+}
+
+.style-selector option:checked {
+  color: #3b82f6 !important;
+  background: rgba(59, 130, 246, 0.2) !important;
 } 

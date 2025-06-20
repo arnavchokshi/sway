@@ -529,8 +529,21 @@ app.delete('/api/teams/:teamId/styles/:styleIndex', async (req: Request, res: Re
       return res.status(404).json({ error: 'Team not found' });
     }
 
+    // Get the style name before deleting it
+    const styleToDelete = team.styles[parseInt(styleIndex)];
+    if (!styleToDelete) {
+      return res.status(404).json({ error: 'Style not found' });
+    }
+
+    // Remove the style from the team
     team.styles.splice(parseInt(styleIndex), 1);
     await team.save();
+
+    // Remove the style from all segments that contain it
+    await Segment.updateMany(
+      { team: teamId, stylesInSegment: styleToDelete.name },
+      { $pull: { stylesInSegment: styleToDelete.name } }
+    );
 
     const updatedTeam = await Team.findById(teamId).populate('members');
     res.json({ message: 'Style deleted successfully', team: updatedTeam });

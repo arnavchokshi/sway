@@ -34,7 +34,7 @@
           </div>
         </div>
         <div class="style-options" *ngIf="!selectedStyle">
-          <button class="style-option" *ngFor="let style of teamStyles" 
+          <button class="style-option" *ngFor="let style of segmentStyles" 
                   (click)="selectStyle(style)"
                   [style.background]="style.color">
             {{ style.name }}
@@ -127,7 +127,7 @@
             </div>
           </div>
           <div class="skill-levels" *ngIf="!selectedPerformer.isDummy">
-            <div class="skill-group" *ngFor="let style of teamStyles">
+            <div class="skill-group" *ngFor="let style of segmentStyles">
               <div class="skill-header">
                 <label>{{style.name}}</label>
                 <span class="skill-value">{{getSelectedUserSkillLevel(style.name.toLowerCase())}}/5</span>
