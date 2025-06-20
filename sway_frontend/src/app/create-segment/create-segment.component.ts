@@ -2508,58 +2508,58 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   updatePerformerName() {
-    if (!this.selectedPerformer) return;
-    // Update in teamRoster as well
-    const user = this.teamRoster.find(m => m._id === this.selectedPerformer!.id);
-    if (user && this.teamService) {
-      user.name = this.selectedPerformer.name;
-      this.teamService.updateUser(user._id, { name: user.name }).subscribe();
+    if (!this.selectedPerformerId) return;
+    const user = this.teamRoster.find(m => m._id === this.selectedPerformerId);
+    if (user) {
+      this.teamService.updateUser(user._id, { name: user.name }).subscribe({
+        next: (res) => console.log('Name updated:', res),
+        error: (err) => console.error('Name update failed:', err)
+      });
     }
     this.triggerAutoSave();
   }
 
   updatePerformerHeight() {
-    if (!this.selectedPerformer) return;
-    
-    // Validate feet (3-7)
-    this.selectedPerformerFeet = Math.min(Math.max(this.selectedPerformerFeet, 3), 7);
-    
-    // Handle inches > 12 by converting to feet
-    if (this.selectedPerformerInches >= 12) {
-      const additionalFeet = Math.floor(this.selectedPerformerInches / 12);
-      this.selectedPerformerFeet = Math.min(this.selectedPerformerFeet + additionalFeet, 7);
-      this.selectedPerformerInches = this.selectedPerformerInches % 12;
-    }
-    
-    // Convert to total inches and ensure within bounds (36in to 84in)
-    const totalInches = this.getHeightInInches(this.selectedPerformerFeet, this.selectedPerformerInches);
-    const minInches = 36; // 3ft
-    const maxInches = 84; // 7ft
-    const boundedInches = Math.min(Math.max(totalInches, minInches), maxInches);
-    
-    this.selectedPerformer.height = boundedInches;
-    
-    // Update in teamRoster as well
-    const user = this.teamRoster.find(m => m._id === this.selectedPerformer!.id);
-    if (user && this.teamService) {
-      user.height = boundedInches;
-      this.teamService.updateUser(user._id, { height: user.height }).subscribe();
+    if (!this.selectedPerformerId) return;
+    const user = this.teamRoster.find(m => m._id === this.selectedPerformerId);
+    if (user) {
+      const heightInInches = this.getHeightInInches(this.selectedPerformerFeet, this.selectedPerformerInches);
+      this.teamService.updateUser(user._id, { height: heightInInches }).subscribe({
+        next: (res) => console.log('Height updated:', res),
+        error: (err) => console.error('Height update failed:', err)
+      });
     }
     this.triggerAutoSave();
   }
 
-  updatePerformerSkill(styleName: string) {
-    if (!this.selectedPerformer) return;
-    // Ensure skill level is within bounds (1-5)
-    const skillLevel = this.selectedPerformer.skillLevels[styleName.toLowerCase()];
-    if (skillLevel) {
-      this.selectedPerformer.skillLevels[styleName.toLowerCase()] = Math.max(1, Math.min(5, skillLevel));
+  getSelectedUserSkillLevel(styleKey: string): number {
+    if (!this.selectedPerformerId) return 1;
+    const user = this.teamRoster.find(m => m._id === this.selectedPerformerId);
+    return user?.skillLevels?.[styleKey] || 1;
+  }
+
+  updatePerformerSkill(styleName: string, newValue: number) {
+    if (!this.selectedPerformerId) {
+      console.warn('[SkillSlider] No selectedPerformerId');
+      return;
     }
-    // Update in teamRoster as well
-    const user = this.teamRoster.find(m => m._id === this.selectedPerformer!.id);
-    if (user && this.teamService) {
-      user.skillLevels = { ...this.selectedPerformer.skillLevels };
-      this.teamService.updateUser(user._id, { skillLevels: user.skillLevels }).subscribe();
+    const styleKey = styleName.toLowerCase();
+    // Find the user in teamRoster
+    const user = this.teamRoster.find(m => m._id === this.selectedPerformerId);
+    if (user) {
+      // Update the skill level directly in teamRoster
+      if (!user.skillLevels) {
+        user.skillLevels = {};
+      }
+      user.skillLevels[styleKey] = newValue;
+      const payload = { skillLevels: user.skillLevels };
+      console.log('[SkillSlider] Sending PATCH payload:', payload, 'to userId:', user._id);
+      this.teamService.updateUser(user._id, payload).subscribe({
+        next: (res) => console.log('[SkillSlider] Skill updated:', res),
+        error: (err) => console.error('[SkillSlider] Skill update failed:', err)
+      });
+    } else {
+      console.warn('[SkillSlider] No user found in teamRoster for selectedPerformerId:', this.selectedPerformerId);
     }
     this.triggerAutoSave();
   }

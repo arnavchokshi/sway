@@ -23,6 +23,8 @@ export class HomeComponent {
   showSplit = false;
   showLoginPopup = false;
   showJoinTeamModal = false;
+  showFeaturesModal = false;
+  showContactModal = false;
   isAnimating = false;
   joinStep = 1;
 
@@ -62,6 +64,22 @@ export class HomeComponent {
 
   closeLoginPopup() {
     this.showLoginPopup = false;
+  }
+
+  showFeatures() {
+    this.showFeaturesModal = true;
+  }
+
+  closeFeaturesModal() {
+    this.showFeaturesModal = false;
+  }
+
+  showContact() {
+    this.showContactModal = true;
+  }
+
+  closeContactModal() {
+    this.showContactModal = false;
   }
 
   CreateTeam() {

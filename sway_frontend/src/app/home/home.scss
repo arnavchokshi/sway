@@ -45,6 +45,11 @@
     box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
     background: linear-gradient(90deg, #6366f1 0%, #c026d3 100%);
   }
+
+  @media (max-width: 480px) {
+    padding: 0.5rem 1.1rem;
+    font-size: 0.95rem;
+  }
 }
 
 .role-container {
@@ -193,6 +198,15 @@
     background: rgba(83, 3, 164, 0.15);
   }
 
+  @media (max-width: 768px) {
+    padding: 1.2rem 2rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 1rem 1.5rem;
+    margin-left: 20px;
+  }
+
   .dashboard-logo {
     height: 20px;
     width: auto;
@@ -202,11 +216,16 @@
     margin-left: 10px;
     margin-top: 10px;
 
+    @media (max-width: 480px) {
+       scale: 4;
+       margin-top:0px;
+       margin-left: 0px;
+    }
+
     &:hover {
       transform: scale(1.05);
     }
   }
-
 }
 
 .logo {
@@ -218,6 +237,56 @@
 .nav-links {
   display: flex;
   align-items: center;
+  gap: 2rem;
+
+  @media (max-width: 768px) {
+    gap: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    gap: 1rem;
+  }
+}
+
+.nav-link {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  padding: 0.5rem 0;
+  
+  @media (max-width: 480px) {
+    font-size: 0.9rem;
+    padding: 0.4rem 0;
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #e4c31f 0%, #ffd700 100%);
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 1px;
+  }
+  
+  &:hover {
+    color: #fff;
+    transform: translateY(-1px);
+    
+    &::after {
+      width: 100%;
+    }
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
 }
 
 .nav-links a {
@@ -1015,5 +1084,406 @@
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+  }
+}
+
+// Modal Overlay and Base Styles
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(20, 20, 30, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.modal-content {
+  background: linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(166,147,51,0.08) 100%);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
+  padding: 2.5rem 2rem 2rem 2rem;
+  width: 90%;
+  max-width: 600px;
+  position: relative;
+  animation: slideUp 0.4s cubic-bezier(0.68, -0.6, 0.32, 1.6);
+  color: white;
+  display: flex;
+  flex-direction: column;
+
+  @media (max-width: 768px) {
+    width: 95%;
+    max-width: 95%;
+    padding: 2rem 1.5rem 1.5rem 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    width: 98%;
+    max-width: 98%;
+    padding: 1.5rem 1rem 1rem 1rem;
+    margin: 1rem;
+  }
+
+  h2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 2rem;
+    text-align: center;
+    background: linear-gradient(90deg, #6366f1 0%, #e4c31f 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+
+    @media (max-width: 480px) {
+      font-size: 2rem;
+      margin-bottom: 1.5rem;
+    }
+  }
+
+  .close-modal-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1.2rem;
+    background: none;
+    border: none;
+    color: #cbd5e1;
+    font-size: 2rem;
+    cursor: pointer;
+    transition: color 0.3s ease;
+    z-index: 10;
+
+    &:hover {
+      color: white;
+    }
+  }
+}
+
+// Features Modal Specific Styles
+.features-modal {
+  max-width: 700px;
+
+  .features-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+
+    @media (max-width: 480px) {
+      gap: 0.7rem;
+    }
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    @media (max-width: 480px) {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 0.5rem;
+      padding: 0.7rem 0.5rem;
+    }
+  }
+
+  .feature-icon {
+    font-size: 2.5rem;
+    min-width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(228,195,31,0.2) 100%);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+
+    @media (max-width: 480px) {
+      font-size: 1.5rem;
+      min-width: 36px;
+      height: 36px;
+    }
+  }
+
+  .feature-content {
+    flex: 1;
+
+    h3 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #fff;
+      letter-spacing: 0.02em;
+
+      @media (max-width: 480px) {
+        font-size: 1rem;
+        margin-bottom: 0.2rem;
+      }
+    }
+
+    p {
+      font-size: 1rem;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.8);
+      margin: 0;
+
+      @media (max-width: 480px) {
+        font-size: 0.85rem;
+        line-height: 1.4;
+      }
+    }
+  }
+
+  @media (max-width: 480px) {
+    max-width: 98vw;
+    padding: 0.7rem 0.2rem 1.2rem 0.2rem;
+    h2 {
+      font-size: 1.3rem;
+      margin-bottom: 0.7rem;
+    }
+  }
+}
+
+// Contact Modal Specific Styles
+.contact-modal {
+  max-width: 500px;
+
+  .contact-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .contact-item {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    @media (max-width: 480px) {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 1rem;
+      padding: 1.2rem;
+    }
+
+    // Make LinkedIn item fully clickable
+    &:has(.linkedin-link) {
+      cursor: pointer;
+      
+      &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1;
+      }
+      
+      .contact-content {
+        position: relative;
+        z-index: 2;
+      }
+      
+      .linkedin-link {
+        position: relative;
+        z-index: 3;
+      }
+    }
+  }
+
+  .contact-icon {
+    font-size: 2.5rem;
+    min-width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(228,195,31,0.2) 100%);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+
+    @media (max-width: 480px) {
+      font-size: 2rem;
+      min-width: 50px;
+      height: 50px;
+    }
+  }
+
+  .contact-content {
+    flex: 1;
+
+    h3 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: rgba(255, 255, 255, 0.9);
+      letter-spacing: 0.02em;
+
+      @media (max-width: 480px) {
+        font-size: 1.1rem;
+      }
+    }
+  }
+
+  .contact-link {
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 1.1rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    position: relative;
+    padding: 0.5rem 0;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #e4c31f 0%, #ffd700 100%);
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 1px;
+    }
+
+    &:hover {
+      color: #ffd700;
+      transform: translateY(-1px);
+
+      &::after {
+        width: 100%;
+      }
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+
+    @media (max-width: 480px) {
+      font-size: 1rem;
+    }
+
+    // LinkedIn specific styling
+    &.linkedin-link {
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      
+      &::after {
+        display: none;
+      }
+      
+      &:hover {
+        transform: scale(1.1);
+      }
+      
+      &:active {
+        transform: scale(1.05);
+      }
+    }
+  }
+
+  .linkedin-logo {
+    width: 32px;
+    height: 32px;
+    color: #0077b5;
+    transition: all 0.3s ease;
+    
+    @media (max-width: 480px) {
+      width: 28px;
+      height: 28px;
+    }
+  }
+}
+
+.linkedin-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #0077b5;
+  color: #fff;
+  border-radius: 12px;
+  padding: 0.7rem 1.4rem;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.1rem;
+  box-shadow: 0 2px 12px rgba(0, 119, 181, 0.08);
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+  margin: 0 auto;
+  width: fit-content;
+
+  &:hover {
+    background: #005983;
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 6px 24px rgba(0, 119, 181, 0.18);
+    text-decoration: none;
+  }
+
+  &:active {
+    background: #004471;
+    transform: scale(0.98);
+  }
+
+  .linkedin-logo {
+    width: 28px;
+    height: 28px;
+    color: #fff;
+    background: none;
+    display: block;
+    transition: color 0.2s;
+  }
+
+  .linkedin-handle {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: 0.01em;
+    background: none;
+    margin-left: 0.2rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.6rem 1rem;
+    font-size: 1rem;
+    .linkedin-logo {
+      width: 22px;
+      height: 22px;
+    }
+    .linkedin-handle {
+      font-size: 1rem;
+    }
   }
 }

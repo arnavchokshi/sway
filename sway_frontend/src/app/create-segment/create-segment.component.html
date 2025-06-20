@@ -130,12 +130,12 @@
             <div class="skill-group" *ngFor="let style of teamStyles">
               <div class="skill-header">
                 <label>{{style.name}}</label>
-                <span class="skill-value">{{selectedPerformer.skillLevels[style.name.toLowerCase()] || 1}}/5</span>
+                <span class="skill-value">{{getSelectedUserSkillLevel(style.name.toLowerCase())}}/5</span>
               </div>
               <input type="range" 
                      class="skill-slider" 
-                     [(ngModel)]="selectedPerformer.skillLevels[style.name.toLowerCase()]"
-                     (change)="updatePerformerSkill(style.name)"
+                     [ngModel]="getSelectedUserSkillLevel(style.name.toLowerCase())"
+                     (ngModelChange)="updatePerformerSkill(style.name, $event)"
                      min="1" 
                      max="5"
                      [style.accent-color]="style.color">
