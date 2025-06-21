@@ -1,4 +1,12 @@
 {
+  "name": "sway",
+  "scripts": {
+    "dev": "cd sway_backend && npm run dev",
+    "start": "cd sway_backend && npm start",
+    "frontend": "cd sway_frontend && npm start",
+    "backend": "cd sway_backend && npm run dev",
+    "install:all": "npm install && cd sway_backend && npm install && cd ../sway_frontend && npm install"
+  },
   "dependencies": {
     "@babylonjs/materials": "^8.12.1",
     "aws-sdk": "^2.1692.0",
