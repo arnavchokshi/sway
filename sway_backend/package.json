@@ -2,12 +2,12 @@
   "name": "sway",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/server.js",
+  "main": "src/server.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "ts-node-dev --transpile-only src/server.ts"
   },
   "keywords": [],
   "author": "",

@@ -61,7 +61,7 @@ You'll need these environment variables for your backend service in Render:
    - **Name**: `sway-backend`
    - **Root Directory**: `sway_backend`
    - **Environment**: `Node`
-   - **Build Command**: `npm install && npm run build`
+   - **Build Command**: `npm install`
    - **Start Command**: `npm start`
    - **Plan**: Free
 

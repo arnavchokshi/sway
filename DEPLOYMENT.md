@@ -17,9 +17,10 @@ You'll need to set these in Render for your backend service:
 - `ATLAS_URI`: Your MongoDB Atlas connection string
 - `AWS_ACCESS_KEY_ID`: Your AWS access key
 - `AWS_SECRET_ACCESS_KEY`: Your AWS secret key
-- `AWS_REGION`: Your AWS region (e.g., us-east-1)
-- `NODE_ENV`: production
-- `PORT`: 10000 (Render will override this)
+- `AWS_REGION`: `us-west-2`
+- `AWS_S3_BUCKET`: `sway-music-upload`
+- `NODE_ENV`: `production`
+- `PORT`: `10000` (or let Render assign automatically)
 
 ### Frontend Environment Variables
 - `NODE_ENV`: production
@@ -39,7 +40,7 @@ You'll need to set these in Render for your backend service:
    - **Name**: `sway-backend`
    - **Root Directory**: `sway_backend`
    - **Environment**: `Node`
-   - **Build Command**: `npm install && npm run build`
+   - **Build Command**: `npm install`
    - **Start Command**: `npm start`
    - **Plan**: Free
 
