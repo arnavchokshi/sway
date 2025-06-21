@@ -349,6 +349,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }
     }
     
+    // Initialize mobile audio context if needed
+    if (this.isMobile) {
+      this.initializeMobileAudioContextOnLoad();
+    }
+    
     const segmentId = this.route.snapshot.queryParamMap.get('id') || this.route.snapshot.paramMap.get('id');
     const currentUser = this.authService.getCurrentUser();
     this.isCaptain = currentUser?.captain || false;
@@ -1653,7 +1658,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }
 
       console.log('Creating new wavesurfer instance');
-      this.waveSurfer = WaveSurfer.create({
+      
+      // Mobile-specific configuration
+      const config: any = {
         container: '#waveform',
         waveColor: '#3b82f6',
         progressColor: '#ffd700',
@@ -1665,7 +1672,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         barGap: 2,
         normalize: true,
         backend: 'WebAudio'
-      });
+      };
+
+      // Mobile-specific settings
+      if (this.isMobile) {
+        config.backend = 'WebAudio';
+        config.mediaControls = false;
+        config.autoplay = false;
+        config.interact = true;
+        console.log('Using mobile-specific audio configuration');
+      }
+
+      this.waveSurfer = WaveSurfer.create(config);
 
       console.log('Wavesurfer instance created successfully');
       
@@ -1675,6 +1693,26 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         this.waveSurfer.on('finish', () => {
           this.isPlaying = false;
         });
+
+        // Mobile-specific audio event handlers
+        if (this.isMobile) {
+          this.waveSurfer.on('ready', () => {
+            console.log('Audio ready on mobile');
+            this.handleMobileAudioReady();
+          });
+
+          this.waveSurfer.on('play', () => {
+            console.log('Audio play started on mobile');
+            // Resume audio context when play starts
+            if (this.waveSurfer && (this.waveSurfer as any).backend && (this.waveSurfer as any).backend.audioContext) {
+              (this.waveSurfer as any).backend.audioContext.resume();
+            }
+          });
+
+          this.waveSurfer.on('error', (error) => {
+            console.error('Audio error on mobile:', error);
+          });
+        }
       }
     } catch (error) {
       console.error('Error initializing waveform:', error);
@@ -1705,7 +1743,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.hoveredTimelineTime = null;
       console.log('[Playback Debug] Playback stopped');
     } else {
-      // Start playback
+      // Start playback - with mobile audio context handling
+      if (this.isMobile && this.waveSurfer) {
+        this.initializeMobileAudioContext();
+      }
+      
       if (this.waveSurfer) {
         this.waveSurfer.play();
       }
@@ -1781,6 +1823,32 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.isPlaying = true;
       this.playbackTimer = requestAnimationFrame(updatePlayback);
       console.log('[Playback Debug] Playback started');
+    }
+  }
+
+  initializeMobileAudioContext() {
+    if (!this.isMobile || !this.waveSurfer) return;
+    
+    try {
+      // Resume audio context for mobile browsers
+      if ((this.waveSurfer as any).backend && (this.waveSurfer as any).backend.audioContext) {
+        const audioContext = (this.waveSurfer as any).backend.audioContext;
+        if (audioContext.state === 'suspended') {
+          audioContext.resume().then(() => {
+            console.log('Mobile audio context resumed successfully');
+          }).catch((error: any) => {
+            console.error('Failed to resume mobile audio context:', error);
+          });
+        }
+      }
+      
+      // Also try to resume any existing audio context
+      if (window.AudioContext || (window as any).webkitAudioContext) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        console.log('AudioContext available for mobile audio handling');
+      }
+    } catch (error) {
+      console.error('Error initializing mobile audio context:', error);
     }
   }
 
@@ -2357,25 +2425,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   onTimelineClick(event: MouseEvent) {
     const bar = this.timelineBarRef?.nativeElement;
-    if (!bar || !this.waveSurfer || !this.waveSurfer.getDuration()) return;
+    if (!bar) return;
+
     const rect = bar.getBoundingClientRect();
-    const x = event.clientX - rect.left + bar.scrollLeft;
-    const barInfo = this.getTimelineBarAtCursor(x);
-    let timelineTime = null;
-    if (barInfo) {
-      if (barInfo.type === 'formation') {
-        const percentInFormation = Math.max(0, Math.min(1, (x - barInfo.startPx) / barInfo.widthPx));
-        const formationStartTimeline = this.getFormationStartTimelineTime(barInfo.index);
-        const formationDurationTimeline = this.formationDurations[barInfo.index] || 4;
-        timelineTime = formationStartTimeline + percentInFormation * formationDurationTimeline;
-      } else if (barInfo.type === 'transition') {
-        const percentInTransition = Math.max(0, Math.min(1, (x - barInfo.startPx) / barInfo.widthPx));
-        const transitionStartTimeline = this.getTransitionStartTimelineTime(barInfo.index);
-        const transitionDurationTimeline = this.animationDurations[barInfo.index] || 1;
-        timelineTime = transitionStartTimeline + percentInTransition * transitionDurationTimeline;
-      }
-    }
+    const x = event.clientX - rect.left;
+    const timelineTime = (x / this.getTimelinePixelWidth()) * this.getTimelineTotalDuration();
+
+    console.log('[Timeline Debug] Click at', x, 'px, timeline time:', timelineTime);
+
     if (timelineTime !== null && this.waveSurfer && this.waveSurfer.getDuration()) {
+      // Initialize mobile audio context on timeline interaction
+      if (this.isMobile) {
+        this.initializeMobileAudioContext();
+      }
+      
       const audioDuration = this.waveSurfer.getDuration();
       // Clamp to audio duration
       const audioTime = Math.max(0, Math.min(timelineTime, audioDuration));
@@ -2426,6 +2489,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   toggleUnifiedPlay() {
     if (this.signedMusicUrl && this.waveSurfer) {
       // If audio is present, use audio controls
+      // For mobile, ensure audio context is initialized on user interaction
+      if (this.isMobile) {
+        this.initializeMobileAudioContext();
+      }
       this.togglePlay();
       return;
     }
@@ -3864,6 +3931,44 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         console.error('Failed to delete segment', err);
       }
     });
+  }
+
+  initializeMobileAudioContextOnLoad() {
+    if (!this.isMobile) return;
+    
+    // Add a one-time click handler to the document to initialize audio context
+    const initAudioOnInteraction = () => {
+      console.log('Mobile audio context initialization triggered by user interaction');
+      this.initializeMobileAudioContext();
+      document.removeEventListener('click', initAudioOnInteraction);
+      document.removeEventListener('touchstart', initAudioOnInteraction);
+    };
+    
+    document.addEventListener('click', initAudioOnInteraction);
+    document.addEventListener('touchstart', initAudioOnInteraction);
+    
+    // Also try to initialize on window focus (for when user returns to tab)
+    const initAudioOnFocus = () => {
+      console.log('Mobile audio context initialization triggered by window focus');
+      this.initializeMobileAudioContext();
+    };
+    
+    window.addEventListener('focus', initAudioOnFocus);
+  }
+
+  handleMobileAudioReady() {
+    console.log('Mobile audio context ready');
+    // Ensure audio context is resumed on mobile
+    if (this.waveSurfer && (this.waveSurfer as any).backend && (this.waveSurfer as any).backend.audioContext) {
+      const audioContext = (this.waveSurfer as any).backend.audioContext;
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+          console.log('Mobile audio context resumed successfully on ready');
+        }).catch((error: any) => {
+          console.error('Failed to resume mobile audio context on ready:', error);
+        });
+      }
+    }
   }
 }
  

@@ -286,7 +286,7 @@
         </div>
       </div>
       <div class="floating-controls">
-        <button class="unified-play-btn" *ngIf="signedMusicUrl" (click)="toggleUnifiedPlay()">
+        <button class="unified-play-btn" *ngIf="signedMusicUrl" (click)="toggleUnifiedPlay()" (touchstart)="initializeMobileAudioContext()">
           <span class="material-icons">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
         </button>
         <button class="unified-arrow-btn" (click)="prevFormation()">
