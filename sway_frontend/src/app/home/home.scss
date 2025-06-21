@@ -369,13 +369,6 @@
     background-clip: text;
     -webkit-text-fill-color: transparent;
     
-    @for $i from 1 through 6 {
-      &:nth-child(#{$i}) {
-        animation-delay: #{$i * 0.15}s;
-      }
-    }
-
-    // Mobile-first approach - visible by default
     @media (max-width: 480px) {
       opacity: 1;
       transform: translateY(0) scale(1);
@@ -384,8 +377,39 @@
       // Only apply animation if AOS is working
       &.aos-animate {
         animation: slideUp 0.6s ease forwards;
-        animation-delay: #{$i * 0.1}s;
       }
+    }
+  }
+
+  // Explicit animation delays for mobile
+  .word:nth-child(1) {
+    @media (max-width: 480px) {
+      &.aos-animate { animation-delay: 0.1s; }
+    }
+  }
+  .word:nth-child(2) {
+    @media (max-width: 480px) {
+      &.aos-animate { animation-delay: 0.2s; }
+    }
+  }
+  .word:nth-child(3) {
+    @media (max-width: 480px) {
+      &.aos-animate { animation-delay: 0.3s; }
+    }
+  }
+  .word:nth-child(4) {
+    @media (max-width: 480px) {
+      &.aos-animate { animation-delay: 0.4s; }
+    }
+  }
+  .word:nth-child(5) {
+    @media (max-width: 480px) {
+      &.aos-animate { animation-delay: 0.5s; }
+    }
+  }
+  .word:nth-child(6) {
+    @media (max-width: 480px) {
+      &.aos-animate { animation-delay: 0.6s; }
     }
   }
 
@@ -470,7 +494,6 @@
     // Only apply animation if AOS is working
     &.aos-animate {
       animation: fadeInUp 0.6s ease forwards;
-      animation-delay: 0.4s;
     }
     br {
       display: none;
@@ -495,28 +518,19 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-width: 400px;
-  min-height: 80px;
+  width: 100%;
+  min-height: 100px;
   perspective: 1000px;
 
   @media (max-width: 480px) {
-    min-width: 300px;
-    min-height: 60px;
-    // Mobile-first approach - visible by default
-    opacity: 1;
-    transform: translateY(0);
-    animation: none;
-    
-    // Only apply animation if AOS is working
-    &.aos-animate {
-      animation: fadeInUp 0.6s ease forwards;
-      animation-delay: 0.6s;
-    }
+    min-height: 80px;
+    width: 100%;
+    max-width: 320px;
   }
 
   @media (max-width: 360px) {
-    min-width: 280px;
-    min-height: 60px;
+    min-height: 70px;
+    max-width: 280px;
   }
 }
 
@@ -532,8 +546,8 @@
   box-shadow: 0 4px 20px rgba(100, 0, 200, 0.2);
   transition: all 0.6s cubic-bezier(0.68, -0.6, 0.32, 1.6);
   position: absolute;
-  top: 50%;
   left: 50%;
+  top: 50%;
   transform: translate(-50%, -50%);
   opacity: 1;
   backdrop-filter: blur(10px);
@@ -563,33 +577,6 @@
     transform: translate(-50%, -50%) scale(0.1);
     opacity: 0;
   }
-
-  @media (max-width: 480px) {
-    width: 260px;
-    height: 56px;
-    padding: 1rem 2.5rem;
-    font-size: 1.2rem;
-    transition: all 0.4s ease;
-    min-height: 44px;
-    
-    &.splitting {
-      width: 56px;
-      height: 56px;
-    }
-  }
-
-  @media (max-width: 360px) {
-    width: 240px;
-    height: 52px;
-    padding: 0.9rem 2rem;
-    font-size: 1.1rem;
-    min-height: 44px;
-    
-    &.splitting {
-      width: 52px;
-      height: 52px;
-    }
-  }
 }
 
 .split-btns {
@@ -598,14 +585,13 @@
   width: 100%;
   justify-content: center;
   align-items: center;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  position: relative;
   opacity: 0;
   transition: all 0.6s cubic-bezier(0.68, -0.6, 0.32, 1.6);
   transition-delay: 0.3s;
   pointer-events: none;
+  max-width: 100%;
+  margin-top: 1rem;
 
   &.active {
     opacity: 1;
@@ -615,6 +601,10 @@
   // Fallback for mobile devices
   @media (max-width: 480px) {
     transition: all 0.4s ease;
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 0.5rem;
     
     &.active {
       opacity: 1 !important; // Force opacity
@@ -677,22 +667,33 @@
     // Fallback for mobile devices
     @media (max-width: 480px) {
       transform: scale(1) !important; // Force scale
+      min-width: 160px; // Increased minimum width
+      max-width: 180px; // Increased maximum width
+      padding: 1rem 1.5rem;
+      font-size: 1rem;
+      white-space: nowrap; // Keep text on one line
+      overflow: hidden; // Hide any overflow
+      text-overflow: ellipsis; // Add ellipsis if needed
     }
   }
 }
 
 @media (max-width: 480px) {
   .split-btns {
-    gap: 1rem;
+    gap: 1.5rem;
     transition: all 0.4s ease;
   }
   
   .split-btns.active .split-btn {
-    padding: 1.2rem 1.5rem;
-    font-size: 1.1rem;
-    min-width: 140px;
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+    min-width: 160px;
+    max-width: 180px;
     min-height: 44px;
     transition: all 0.4s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -1638,8 +1639,18 @@
   }
 
   .cta-btn {
-    animation: forceShow 0.1s ease forwards;
-    animation-delay: 1.6s;
+    position: static;
+    left: unset;
+    top: unset;
+    transform: none;
+    width: 100%;
+    max-width: 260px;
+    height: 56px;
+    margin-left: auto;
+    margin-right: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
