@@ -28,14 +28,15 @@
         class="cta-btn"
         [class.splitting]="showSplit"
         (click)="onButtonClick()"
+        (touchstart)="onButtonClick()"
         (transitionend)="onAnimationComplete()">
         Get started
       </button>
       <div 
         class="split-btns"
         [class.active]="showSplit">
-        <button class="split-btn" (click)="CreateUser()">Create Team</button>
-        <button class="split-btn" (click)="JoinTeam()">Join a Team</button>
+        <button class="split-btn" (click)="CreateUser()" (touchstart)="CreateUser()">Create Team</button>
+        <button class="split-btn" (click)="JoinTeam()" (touchstart)="JoinTeam()">Join a Team</button>
       </div>
     </div>
   </div>

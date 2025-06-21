@@ -48,16 +48,46 @@ export class HomeComponent implements OnInit {
     private authService: AuthService
   ) {}
 
-  ngOnInit() {}
+  ngOnInit() {
+    // Debug: Check if elements are properly rendered
+    setTimeout(() => {
+      const ctaBtn = document.querySelector('.cta-btn');
+      const splitBtns = document.querySelector('.split-btns');
+      console.log('CTA Button found:', !!ctaBtn);
+      console.log('Split buttons found:', !!splitBtns);
+      console.log('Screen width:', window.innerWidth);
+      console.log('User agent:', navigator.userAgent);
+    }, 1000);
+  }
 
   onButtonClick() {
+    console.log('Button clicked, isAnimating:', this.isAnimating);
     if (!this.isAnimating) {
+      console.log('Starting split animation');
       this.isAnimating = true;
       this.showSplit = true;
+      
+      // Fallback for mobile devices that might have animation issues
+      setTimeout(() => {
+        if (this.isAnimating) {
+          console.log('Animation fallback triggered');
+          this.isAnimating = false;
+        }
+      }, 2000); // 2 second fallback
+
+      // Force show split buttons after 1 second as additional fallback
+      setTimeout(() => {
+        if (!this.showSplit) {
+          console.log('Force showing split buttons');
+          this.showSplit = true;
+          this.isAnimating = false;
+        }
+      }, 1000);
     }
   }
 
   onAnimationComplete() {
+    console.log('Animation completed');
     this.isAnimating = false;
   }
 
