@@ -1,6 +1,6 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://your-backend-url.onrender.com/api', // Update this with your actual backend URL
+  apiUrl: 'https://sway-backend-3t6a.onrender.com/api',
   s3Bucket: 'sway-music-upload',
   s3Region: 'us-west-2'
 }; 
