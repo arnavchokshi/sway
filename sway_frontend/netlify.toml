@@ -1,5 +1,5 @@
 [build]
-  publish = "dist/sway_frontend/browser"
+  publish = "dist"
 
 [[redirects]]
   from = "/*"

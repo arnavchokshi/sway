@@ -2,7 +2,7 @@ services:
   - type: static
     name: sway-frontend
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist/sway_frontend/browser
+    staticPublishPath: ./dist/browser
     envVars:
       - key: NODE_ENV
         value: production 
