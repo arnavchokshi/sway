@@ -17,6 +17,7 @@ interface Segment extends Document {
   animationDurations: number[];
   formationDurations: number[];
   musicUrl: string;
+  videoUrl?: string;
   segmentOrder: number;
   stylesInSegment: [{ type: String }];
   propSpace: number;
@@ -39,6 +40,7 @@ const SegmentSchema = new Schema<Segment>({
   animationDurations: [{ type: Number, default: 1 }],
   formationDurations: [{ type: Number, default: 4 }],
   musicUrl: { type: String },
+  videoUrl: { type: String },
   segmentOrder: { type: Number, default: 0 },
   stylesInSegment: [{ type: String }],
   propSpace: { type: Number, default: 2 }

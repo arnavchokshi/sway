@@ -25,7 +25,7 @@ mongoose.connect(uri)
   .then(() => {
     console.log("Successfully connected to MongoDB Atlas");
   })
-  .catch((error) => {
+  .catch((error: any) => {
     console.error("Error connecting to MongoDB Atlas:", error);
     process.exit(1);
   });
@@ -45,24 +45,24 @@ const s3 = new AWS.S3({
   region: process.env.AWS_REGION,
 });
 
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
   res.send('Hello from the backend!');
 });
 
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', async (req: Request, res: Response) => {
   try {
     const { email, password, name, team } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ email, password: hashedPassword, name, team, captain: true });
     await user.save();
     res.status(201).json({ message: 'User created', user });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating user:', error);
     res.status(500).json({ error: error.message || 'Failed to create user' });
   }
 });
 
-app.post('/api/teams', async (req, res) => {
+app.post('/api/teams', async (req: Request, res: Response) => {
   try {
     const { name, school, owner } = req.body;
 
@@ -79,13 +79,13 @@ app.post('/api/teams', async (req, res) => {
     const team = new Team({ name, school, owner, members: [owner], joinCode });
     await team.save();
     res.status(201).json({ message: 'Team created', team });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating team:', error);
     res.status(500).json({ error: error.message || 'Failed to create team' });
   }
 });
 
-app.patch('/api/users/:id', async (req, res) => {
+app.patch('/api/users/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.params.id;
     const update = req.body;
@@ -118,11 +118,11 @@ app.patch('/api/users/:id', async (req, res) => {
   }
 });
 
-app.post('/api/bulk-users', async (req, res) => {
+app.post('/api/bulk-users', async (req: Request, res: Response) => {
   try {
     const { team, users } = req.body;
     // Create users and assign them to the team
-    const createdUsers = await User.insertMany(users.map((u, idx) => ({
+    const createdUsers = await User.insertMany(users.map((u: any, idx: number) => ({
       ...u,
       team,
       email: u.email || `user${Date.now()}_${idx}@placeholder.com`
@@ -133,12 +133,12 @@ app.post('/api/bulk-users', async (req, res) => {
     await Team.findByIdAndUpdate(team, { $addToSet: { members: { $each: userIds } } });
 
     res.json({ message: 'Users created and added to team', users: createdUsers });
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to create users' });
   }
 });
 
-app.get('/api/team-by-join-code/:joinCode', async (req, res) => {
+app.get('/api/team-by-join-code/:joinCode', async (req: Request, res: Response) => {
   try {
     const { joinCode } = req.params;
     const team = await Team.findOne({ joinCode }).populate({
@@ -149,12 +149,12 @@ app.get('/api/team-by-join-code/:joinCode', async (req, res) => {
       return res.status(404).json({ error: 'Team not found' });
     }
     res.json({ team, members: team.members });
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch team' });
   }
 });
 
-app.post('/api/segments', async (req, res) => {
+app.post('/api/segments', async (req: Request, res: Response) => {
   try {
     const { teamId, name, depth, width, divisions, animationDurations, stylesInSegment } = req.body;
     // Find the team to verify it exists
@@ -163,8 +163,8 @@ app.post('/api/segments', async (req, res) => {
       return res.status(404).json({ error: 'Team not found' });
     }
     // Only allow styles that exist in the team's styles array
-    const validStyleNames = (team.styles || []).map(s => s.name);
-    const filteredStyles = (Array.isArray(stylesInSegment) ? stylesInSegment : []).filter(s => validStyleNames.includes(s));
+    const validStyleNames = (team.styles || []).map((s: any) => s.name);
+    const filteredStyles = (Array.isArray(stylesInSegment) ? stylesInSegment : []).filter((s: any) => validStyleNames.includes(s));
     // Create the segment with provided name and grid settings
     const segment = new Segment({
       name,
@@ -186,7 +186,7 @@ app.post('/api/segments', async (req, res) => {
   }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
   console.log('Login attempt:', { email });
   try {
@@ -208,37 +208,37 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.get('/api/segments/:teamId', async (req, res) => {
+app.get('/api/segments/:teamId', async (req: Request, res: Response) => {
   try {
     const { teamId } = req.params;
     const segments = await Segment.find({ team: teamId });
     res.json({ segments });
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch segments' });
   }
 });
 
-app.get('/api/teams/:id', async (req, res) => {
+app.get('/api/teams/:id', async (req: Request, res: Response) => {
   try {
     const team = await Team.findById(req.params.id).populate('members');
     if (!team) return res.status(404).json({ error: 'Team not found' });
     res.json({ team });
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch team' });
   }
 });
 
-app.get('/api/segment/:id', async (req, res) => {
+app.get('/api/segment/:id', async (req: Request, res: Response) => {
   try {
     const segment = await Segment.findById(req.params.id);
     if (!segment) return res.status(404).json({ error: 'Segment not found' });
     res.json({ segment });
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch segment' });
   }
 });
 
-app.patch('/api/segment/:id', async (req, res) => {
+app.patch('/api/segment/:id', async (req: Request, res: Response) => {
   try {
     const update = req.body;
     let oldMusicUrl = null;
@@ -248,8 +248,8 @@ app.patch('/api/segment/:id', async (req, res) => {
       if (!segment) return res.status(404).json({ error: 'Segment not found' });
       const team = await Team.findById(segment.team);
       if (!team) return res.status(404).json({ error: 'Team not found' });
-      const validStyleNames = (team.styles || []).map(s => s.name);
-      update.stylesInSegment = (Array.isArray(update.stylesInSegment) ? update.stylesInSegment : []).filter(s => validStyleNames.includes(s));
+      const validStyleNames = (team.styles || []).map((s: any) => s.name);
+      update.stylesInSegment = (Array.isArray(update.stylesInSegment) ? update.stylesInSegment : []).filter((s: any) => validStyleNames.includes(s));
     }
     // If musicUrl is being updated, delete the old audio file from S3
     if (update.musicUrl) {
@@ -286,7 +286,7 @@ app.patch('/api/segment/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/segment/:id', async (req, res) => {
+app.delete('/api/segment/:id', async (req: Request, res: Response) => {
   try {
     const segment = await Segment.findById(req.params.id);
     if (!segment) return res.status(404).json({ error: 'Segment not found' });
@@ -311,12 +311,12 @@ app.delete('/api/segment/:id', async (req, res) => {
     // Now delete the segment from the database
     await Segment.findByIdAndDelete(req.params.id);
     res.json({ message: 'Segment deleted', segment });
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to delete segment' });
   }
 });
 
-app.post('/api/segment/:id/music-presigned-url', async (req, res) => {
+app.post('/api/segment/:id/music-presigned-url', async (req: Request, res: Response) => {
   const { filename, filetype } = req.body;
   const segmentId = req.params.id;
   const key = `segments/${segmentId}/${Date.now()}_${filename}`;
@@ -336,7 +336,7 @@ app.post('/api/segment/:id/music-presigned-url', async (req, res) => {
 });
 
 // Add new endpoint to get signed URL for reading the file
-app.get('/api/segment/:id/music-url', async (req, res) => {
+app.get('/api/segment/:id/music-url', async (req: Request, res: Response) => {
   try {
     const segment = await Segment.findById(req.params.id);
     if (!segment || !segment.musicUrl) {
@@ -358,7 +358,7 @@ app.get('/api/segment/:id/music-url', async (req, res) => {
   }
 });
 
-app.post('/api/segment/:id/video-presigned-url', async (req, res) => {
+app.post('/api/segment/:id/video-presigned-url', async (req: Request, res: Response) => {
   const { filename, filetype } = req.body;
   const segmentId = req.params.id;
   const key = `segments/${segmentId}/videos/${Date.now()}_${filename}`;
@@ -378,7 +378,7 @@ app.post('/api/segment/:id/video-presigned-url', async (req, res) => {
 });
 
 // Add new endpoint to get signed URL for reading video
-app.get('/api/segment/:id/video-url', async (req, res) => {
+app.get('/api/segment/:id/video-url', async (req: Request, res: Response) => {
   try {
     const segment = await Segment.findById(req.params.id);
     if (!segment) {
@@ -388,7 +388,7 @@ app.get('/api/segment/:id/video-url', async (req, res) => {
       return res.status(404).json({ error: 'Video file not found' });
     }
     res.json({ url: segment.videoUrl });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error getting video URL:', error);
     res.status(500).json({ error: 'Failed to get video URL' });
   }
@@ -562,7 +562,7 @@ app.post('/api/dummy-users', async (req: Request, res: Response) => {
     });
     await user.save();
     res.status(201).json({ user });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating dummy user:', error);
     res.status(500).json({ error: (error instanceof Error ? error.message : 'Failed to create dummy user') });
   }
@@ -579,7 +579,7 @@ app.delete('/api/dummy-users/:id', async (req: Request, res: Response) => {
     }
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'Dummy user deleted' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting dummy user:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete dummy user' });
   }
