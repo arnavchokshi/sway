@@ -1,0 +1,7 @@
+[build]
+  publish = "dist/sway_frontend/browser"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200 
