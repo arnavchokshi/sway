@@ -347,6 +347,8 @@
   @media (max-width: 480px) {
     font-size: 2.8rem;
     margin-bottom: 1.2rem;
+    // Fallback animation for mobile
+    animation: fadeInUp 1s ease forwards;
   }
 
   .animate-text {
@@ -370,6 +372,19 @@
     @for $i from 1 through 6 {
       &:nth-child(#{$i}) {
         animation-delay: #{$i * 0.15}s;
+      }
+    }
+
+    // Mobile-first approach - visible by default
+    @media (max-width: 480px) {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      animation: none;
+      
+      // Only apply animation if AOS is working
+      &.aos-animate {
+        animation: slideUp 0.6s ease forwards;
+        animation-delay: #{$i * 0.1}s;
       }
     }
   }
@@ -396,6 +411,14 @@
       animation: underlineExpand 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
       animation-delay: 1.2s;
       box-shadow: 0 2px 8px rgba(228, 195, 31, 0.4);
+    }
+
+    // Fallback for mobile
+    @media (max-width: 480px) {
+      &::after {
+        animation: underlineExpand 0.4s ease forwards;
+        animation-delay: 0.8s;
+      }
     }
   }
 }
@@ -439,6 +462,16 @@
     line-height: 1.4;
     margin-bottom: 2rem;
     padding: 0 1rem;
+    // Mobile-first approach - visible by default
+    opacity: 1;
+    transform: translateY(0);
+    animation: none;
+    
+    // Only apply animation if AOS is working
+    &.aos-animate {
+      animation: fadeInUp 0.6s ease forwards;
+      animation-delay: 0.4s;
+    }
     br {
       display: none;
     }
@@ -469,6 +502,16 @@
   @media (max-width: 480px) {
     min-width: 300px;
     min-height: 60px;
+    // Mobile-first approach - visible by default
+    opacity: 1;
+    transform: translateY(0);
+    animation: none;
+    
+    // Only apply animation if AOS is working
+    &.aos-animate {
+      animation: fadeInUp 0.6s ease forwards;
+      animation-delay: 0.6s;
+    }
   }
 
   @media (max-width: 360px) {
@@ -1568,5 +1611,62 @@
     .linkedin-handle {
       font-size: 1rem;
     }
+  }
+}
+
+// Mobile fallback animations
+@media (max-width: 480px) {
+  .headline .word {
+    animation: forceShow 0.1s ease forwards;
+    
+    &:nth-child(1) { animation-delay: 0.5s; }
+    &:nth-child(2) { animation-delay: 0.6s; }
+    &:nth-child(3) { animation-delay: 0.7s; }
+    &:nth-child(4) { animation-delay: 0.8s; }
+    &:nth-child(5) { animation-delay: 0.9s; }
+    &:nth-child(6) { animation-delay: 1.0s; }
+  }
+
+  .subheadline {
+    animation: forceShow 0.1s ease forwards;
+    animation-delay: 1.2s;
+  }
+
+  .cta-btn-wrapper {
+    animation: forceShow 0.1s ease forwards;
+    animation-delay: 1.4s;
+  }
+
+  .cta-btn {
+    animation: forceShow 0.1s ease forwards;
+    animation-delay: 1.6s;
+  }
+}
+
+@keyframes forceShow {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Simple mobile visibility override
+@media (max-width: 480px) {
+  .headline,
+  .subheadline,
+  .cta-btn-wrapper,
+  .cta-btn {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+  
+  .headline .word {
+    opacity: 1 !important;
+    transform: translateY(0) scale(1) !important;
   }
 }
