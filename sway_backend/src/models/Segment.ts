@@ -4,6 +4,7 @@ interface Position {
   x: number;
   y: number;
   user: mongoose.Types.ObjectId;
+  customColor?: string;
 }
 
 interface Segment extends Document {
@@ -26,7 +27,8 @@ interface Segment extends Document {
 const PositionSchema = new Schema<Position>({
   x: { type: Number, required: true },
   y: { type: Number, required: true },
-  user: { type: Schema.Types.ObjectId, ref: 'User', required: false }
+  user: { type: Schema.Types.ObjectId, ref: 'User', required: false },
+  customColor: { type: String, required: false }
 });
 
 const SegmentSchema = new Schema<Segment>({

@@ -46,7 +46,7 @@
         <span class="material-icons">video_library</span>
         Add Backdrop
       </label>
-      <button class="view-toggle" (click)="toggle3DView()">
+      <button class="roster-add-btn" (click)="toggle3DView()">
         <span class="material-icons">
           {{ is3DView ? 'grid_on' : 'view_in_ar' }}
         </span>
@@ -159,6 +159,38 @@
                      min="1" 
                      max="5"
                      [style.accent-color]="style.color">
+            </div>
+          </div>
+          
+          <!-- Custom Color Section -->
+          <div class="custom-color-section">
+            <div class="color-header">
+              <label>Custom Color</label>
+              <button *ngIf="selectedPerformer?.customColor" 
+                      class="reset-color-btn" 
+                      (click)="removePerformerColor(selectedPerformer!.id)"
+                      title="Reset to default color">
+                <span class="material-icons">refresh</span>
+              </button>
+            </div>
+            <div class="color-picker-container">
+              <div class="color-swatches">
+                <button *ngFor="let color of customColorOptions"
+                        class="color-swatch"
+                        [ngStyle]="{'background-color': color, 'border': isSelectedColor(selectedPerformer!, color) ? '3px solid #ffd700' : '2px solid #23263a'}"
+                        [class.selected]="isSelectedColor(selectedPerformer!, color)"
+                        (click)="updatePerformerColor(selectedPerformer!.id, color)"
+                        [attr.aria-label]="color"
+                        [title]="color">
+                </button>
+              </div>
+              <div class="color-preview" 
+                   [style.background-color]="getPerformerColor(selectedPerformer!)">
+              </div>
+            </div>
+            <div class="color-info">
+
+
             </div>
           </div>
         </div>

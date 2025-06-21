@@ -36,7 +36,6 @@ export class SignIn implements OnInit {
     this.password = '';
     this.gender = '';
     this.height = null;
-    console.log('Loaded segment:', this.member);
   }
 
   signIn() {

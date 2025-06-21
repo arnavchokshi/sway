@@ -49,121 +49,63 @@ export class HomeComponent implements OnInit {
   ) {}
 
   ngOnInit() {
-    // Debug: Check if elements are properly rendered
-    setTimeout(() => {
-      const ctaBtn = document.querySelector('.cta-btn');
-      const splitBtns = document.querySelector('.split-btns');
-      console.log('CTA Button found:', !!ctaBtn);
-      console.log('Split buttons found:', !!splitBtns);
-      console.log('Screen width:', window.innerWidth);
-      console.log('User agent:', navigator.userAgent);
-    }, 1000);
-
-    // Check if AOS is working and apply appropriate classes
-    this.checkAOSAndApplyClasses();
-
-    // Remove AOS attributes on mobile to prevent interference
-    if (window.innerWidth <= 480) {
-      this.removeAOSAttributes();
-    }
-
-    // Force show elements on mobile after a delay
-    setTimeout(() => {
-      this.forceShowElements();
-    }, 2000);
-  }
-
-  checkAOSAndApplyClasses() {
-    // Check if AOS is available and working
-    if (typeof (window as any).AOS !== 'undefined' && (window as any).AOS.init) {
-      console.log('AOS is available');
-      // AOS is working, let it handle animations
+    // Check if we're on mobile
+    const isMobile = window.innerWidth <= 768;
+    
+    if (isMobile) {
+      // Force show split buttons on mobile
+      setTimeout(() => {
+        const ctaBtn = document.querySelector('.cta-btn') as HTMLElement;
+        const splitBtns = document.querySelector('.split-btns') as HTMLElement;
+        
+        if (ctaBtn) {
+          ctaBtn.style.display = 'none';
+        }
+        if (splitBtns) {
+          splitBtns.classList.add('active');
+          splitBtns.style.display = 'flex';
+        }
+      }, 100);
     } else {
-      console.log('AOS not available, applying fallback classes');
-      // AOS is not working, apply fallback classes
-      this.applyFallbackClasses();
+      // Desktop AOS initialization
+      setTimeout(() => {
+        if (typeof (window as any).AOS !== 'undefined') {
+          (window as any).AOS.init({
+            duration: 1000,
+            once: true,
+            offset: 100
+          });
+        } else {
+          // Fallback for when AOS is not loaded
+          const elements = document.querySelectorAll('[data-aos]');
+          elements.forEach(el => {
+            el.classList.add('aos-animate');
+          });
+        }
+      }, 500);
     }
-  }
-
-  applyFallbackClasses() {
-    // Apply aos-animate class to elements to trigger fallback animations
-    const elements = document.querySelectorAll('[data-aos]');
-    elements.forEach(element => {
-      element.classList.add('aos-animate');
-    });
-  }
-
-  removeAOSAttributes() {
-    // Remove AOS attributes from elements that might interfere
-    const elementsWithAOS = document.querySelectorAll('[data-aos]');
-    elementsWithAOS.forEach(element => {
-      element.removeAttribute('data-aos');
-      element.removeAttribute('data-aos-duration');
-      element.removeAttribute('data-aos-delay');
-    });
-    console.log('Removed AOS attributes for mobile');
-  }
-
-  forceShowElements() {
-    // Force show headline words
-    const words = document.querySelectorAll('.headline .word');
-    words.forEach((word, index) => {
-      (word as HTMLElement).style.opacity = '1';
-      (word as HTMLElement).style.transform = 'translateY(0) scale(1)';
-    });
-
-    // Force show subheadline
-    const subheadline = document.querySelector('.subheadline');
-    if (subheadline) {
-      (subheadline as HTMLElement).style.opacity = '1';
-      (subheadline as HTMLElement).style.transform = 'translateY(0)';
-    }
-
-    // Force show CTA button wrapper
-    const ctaWrapper = document.querySelector('.cta-btn-wrapper');
-    if (ctaWrapper) {
-      (ctaWrapper as HTMLElement).style.opacity = '1';
-      (ctaWrapper as HTMLElement).style.transform = 'translateY(0)';
-    }
-
-    // Force show CTA button
-    const ctaBtn = document.querySelector('.cta-btn');
-    if (ctaBtn) {
-      (ctaBtn as HTMLElement).style.opacity = '1';
-      (ctaBtn as HTMLElement).style.transform = 'translate(-50%, -50%)';
-    }
-
-    console.log('Forced show elements for mobile');
   }
 
   onButtonClick() {
-    console.log('Button clicked, isAnimating:', this.isAnimating);
-    if (!this.isAnimating) {
-      console.log('Starting split animation');
-      this.isAnimating = true;
+    if (this.isAnimating) return;
+    
+    this.isAnimating = true;
+    this.showSplit = true;
+    
+    // Trigger the split animation
+    const ctaBtn = document.querySelector('.cta-btn') as HTMLElement;
+    const splitBtns = document.querySelector('.split-btns') as HTMLElement;
+    
+    if (ctaBtn && splitBtns) {
+      ctaBtn.classList.add('splitting');
+      splitBtns.classList.add('active');
+    } else {
+      // Fallback animation
       this.showSplit = true;
-      
-      // Fallback for mobile devices that might have animation issues
-      setTimeout(() => {
-        if (this.isAnimating) {
-          console.log('Animation fallback triggered');
-          this.isAnimating = false;
-        }
-      }, 2000); // 2 second fallback
-
-      // Force show split buttons after 1 second as additional fallback
-      setTimeout(() => {
-        if (!this.showSplit) {
-          console.log('Force showing split buttons');
-          this.showSplit = true;
-          this.isAnimating = false;
-        }
-      }, 1000);
     }
   }
 
   onAnimationComplete() {
-    console.log('Animation completed');
     this.isAnimating = false;
   }
 

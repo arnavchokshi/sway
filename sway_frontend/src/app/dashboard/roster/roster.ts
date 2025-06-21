@@ -45,96 +45,23 @@ export class RosterComponent implements OnInit {
 
   ngOnInit() {
     const currentUser = this.authService.getCurrentUser();
-    console.log('Current user in roster:', currentUser);
-    this.isCaptain = !!currentUser?.captain;
-    if (currentUser?.team?._id) {
-      console.log('Team ID found:', currentUser.team._id);
+    
+    if (currentUser && currentUser.team && currentUser.team._id) {
       this.loadTeamMembers(currentUser.team._id);
-    } else {
-      console.log('No team ID found in user data');
-    }
-
-    if (currentUser) {
-      this.http.get(`${environment.apiUrl}/users/${currentUser._id}`).subscribe({
-        next: (userResponse: any) => {
-          const teamId = userResponse.team?._id;
-          if (!teamId) {
-            this.errorMessage = 'No team found for current user';
-            this.isAddingMember = false;
-            return;
-          }
-
-          this.teamService.addTeamMember(teamId, currentUser.name).subscribe({
-            next: (res) => {
-              this.loadTeamMembers(teamId);
-            },
-            error: (err) => {
-              console.error('Error adding member:', err);
-              this.errorMessage = err.error?.message || 'Failed to add member';
-              this.isAddingMember = false;
-            }
-          });
-        },
-        error: (err) => {
-          console.error('Error getting user data:', err);
-          this.errorMessage = 'Failed to get user data';
-          this.isAddingMember = false;
-        }
-      });
     }
   }
 
   loadTeamMembers(teamId: string) {
-    this.teamService.getTeamById(teamId).subscribe({
-      next: (res) => {
-        this.styles = res.team.styles || [];
-        this.members = (res.team.members || []).map((member: any) => {
-          // Parse height into feet/inches if possible
-          let feet = 0, inches = 0;
-          if (typeof member.height === 'number') {
-            feet = Math.floor(member.height / 12);
-            inches = member.height % 12;
-          } else if (typeof member.height === 'string') {
-            const match = member.height.match(/(\d+)'\s*(\d+)?/);
-            if (match) {
-              feet = parseInt(match[1], 10);
-              inches = match[2] ? parseInt(match[2], 10) : 0;
-            }
-          }
-
-          // Initialize skill levels for all styles
-          const skillLevels: { [key: string]: number } = {};
-          this.styles.forEach(style => {
-            const styleName = style.name.toLowerCase();
-            // Convert skill level to number, default to 1 if undefined
-            skillLevels[styleName] = Number(member.skillLevels?.get?.(styleName) || member.skillLevels?.[styleName] || 1);
-          });
-
-          console.log('Loading member skill levels:', {
-            memberId: member._id,
-            name: member.name,
-            skillLevels: skillLevels
-          });
-
-          return {
-            _id: member._id,
-            name: member.name,
-            role: member.captain ? 'Captain' : 'Member',
-            captain: member.captain,
-            skillLevels: skillLevels,
-            height: member.height || '',
-            feet,
-            inches,
-            gender: member.gender || '',
-            isNew: false
-          };
-        });
-      },
-      error: (err) => {
-        this.members = [];
-        this.errorMessage = 'Failed to load team members';
-      }
-    });
+    this.http.get<any>(`${environment.apiUrl}/teams/${teamId}`)
+      .subscribe({
+        next: (response) => {
+          this.members = response.team.members || [];
+          // Skill levels are already included in the team members data
+        },
+        error: (err) => {
+          alert('Failed to load team members: ' + (err.error?.error || err.message));
+        }
+      });
   }
 
   promptAddNewMember() {
@@ -379,7 +306,7 @@ export class RosterComponent implements OnInit {
     const updatePayload = { [field]: value };
     this.http.patch(`${environment.apiUrl}/users/${member._id}`, updatePayload).subscribe({
       next: (res) => {
-        console.log(`Member ${field} updated`);
+        // Member updated successfully
       },
       error: (err) => {
         console.error(`Failed to update member ${field}:`, err);
@@ -404,27 +331,17 @@ export class RosterComponent implements OnInit {
     }
     member.skillLevels[normalizedStyleName] = numericValue;
 
-    const currentUser = this.authService.getCurrentUser();
-    if (!currentUser?.team?._id) {
-      return;
-    }
-
-    const payload = {
-      skillUpdates: [{
-        styleName: normalizedStyleName,
-        level: numericValue
-      }]
-    };
-
-    this.http.patch(`${environment.apiUrl}/teams/${currentUser.team._id}/members/${member._id}/skills`, payload)
-      .subscribe({
-        next: (response) => {
-          console.log('Skill levels updated successfully for member:', member._id);
-        },
-        error: (error) => {
-          console.error('Error updating skill levels:', error);
-        }
-      });
+    // Update the user's skill levels using the user update endpoint
+    this.http.patch(`${environment.apiUrl}/users/${member._id}`, {
+      skillLevels: member.skillLevels
+    }).subscribe({
+      next: (response) => {
+        // Skill levels updated successfully
+      },
+      error: (error) => {
+        console.error('Error updating skill levels:', error);
+      }
+    });
   }
 
   updateMemberHeight(member: any, field: 'feet' | 'inches', value: number) {
@@ -453,15 +370,12 @@ export class RosterComponent implements OnInit {
         skillLevels: skillLevels,
         captain: member.captain
       };
-
-      console.log('Saving member:', member._id, 'with payload:', payload);
       
       return this.http.patch(`${environment.apiUrl}/users/${member._id}`, payload).toPromise();
     });
     
     try {
       const results = await Promise.all(requests);
-      console.log('All members saved successfully:', results);
       // Reload team members to ensure we have the latest data
       const currentUser = this.authService.getCurrentUser();
       if (currentUser?.team?._id) {
@@ -488,7 +402,6 @@ export class RosterComponent implements OnInit {
   onStyleSelectionChange() {
     // This method is called when the style selector changes
     // The view will automatically update due to the ngModel binding
-    console.log('Selected style for skills:', this.selectedStyleForSkills);
   }
 
   getStyleColor(styleName: string): string {

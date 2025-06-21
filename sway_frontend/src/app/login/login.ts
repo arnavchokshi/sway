@@ -30,7 +30,6 @@ export class Login {
       password: this.password
     }).subscribe({
       next: (response: any) => {
-        console.log('Login response:', response);
         // Store user data in AuthService
         const userData = {
           _id: response.user._id,
@@ -38,7 +37,6 @@ export class Login {
           team: response.user.team,
           captain: response.user.captain
         };
-        console.log('Setting user data:', userData);
         this.authService.setCurrentUser(userData);
         this.close.emit();
         this.router.navigate(['/dashboard']);

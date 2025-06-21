@@ -24,6 +24,7 @@ interface Performer {
   height?: number; // in inches
   isDummy?: boolean;
   dummyName?: string;
+  customColor?: string; // Custom color for this performer in this segment
 }
 
 interface Style {
@@ -173,6 +174,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   selectedPerformerIds: Set<string> = new Set();
   hoveredPerformerId: string | null = null;
   isShiftPressed = false;
+  
+  // Add property to track which performer's previous position should be shown
+  selectedPerformerForPreviousPosition: string | null = null;
 
   // Add new property to track initial positions of all selected performers
   private selectedPerformersInitialPositions: { [id: string]: { x: number, y: number } } = {};
@@ -265,6 +269,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   consistencyWarnings: ConsistencyWarning[] = [];
   showConsistencyWarnings = false;
 
+  // Predefined color options for custom performer color
+  customColorOptions: string[] = [
+    '#dc2626', // Red
+    '#ea580c', // Orange
+    '#eab308', // Yellow
+    '#059669', // Green
+    '#3b82f6', // Light Blue
+    '#a78bfa', // Lavender
+    '#000000'  // Black
+  ];
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -298,19 +313,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const performer = this.performers.find(p => p.id === this.selectedPerformerId);
     if (!performer) return null;
     
-    console.log('🔍 DEBUG selectedPerformer getter:');
-    console.log('  - selectedPerformerId:', this.selectedPerformerId);
-    console.log('  - performer found:', performer);
-    console.log('  - performer.isDummy:', performer.isDummy);
-    console.log('  - performer.height:', performer.height);
-    
     if (performer.isDummy) return performer;
     
     // Always merge in the latest user data for real users
     const user = this.teamRoster.find(m => m._id === performer.id);
-    console.log('  - teamRoster length:', this.teamRoster.length);
-    console.log('  - user found in roster:', user);
-    console.log('  - user height:', user?.height);
     
     if (user) {
       const mergedPerformer = {
@@ -319,11 +325,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         skillLevels: { ...(user.skillLevels || {}) },
         height: user.height // Always use the latest height
       };
-      console.log('  - merged performer height:', mergedPerformer.height);
       return mergedPerformer;
     }
     
-    console.log('  - No user found in roster, returning original performer');
     return performer;
   }
 
@@ -363,7 +367,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.segmentService.getSegmentById(segmentId).subscribe({
         next: (res) => {
           this.segment = res.segment;
-          console.log('Loaded segment data:', JSON.stringify(this.segment, null, 2));
           if (this.segment?.musicUrl) {
             this.getSignedMusicUrl();
           }
@@ -475,7 +478,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           ...this.teamRoster,
           ...fetchedUsers.filter(u => u)
         ];
-        console.log('segmentRoster:', this.segmentRoster);
 
         if (this.segment) {
           const nameToIdMap = new Map<string, string>(); // key: dummyName, value: canonical dummyId
@@ -517,7 +519,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                     const name = `Dummy ${id.split('-')[1]}`;
                     return {
                       id: id, name: name, x: p.x, y: p.y, skillLevels: {},
-                      height: p.height || 5.5, isDummy: true, dummyName: name
+                      height: p.height || 5.5, isDummy: true, dummyName: name,
+                      customColor: p.customColor // Include custom color if present
                     };
                   }
                   const nameNumberMatch = originalName ? String(originalName).match(/(\d+)$/) : null;
@@ -532,17 +535,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                     skillLevels: {},
                     height: p.height || 5.5,
                     isDummy: true,
-                    dummyName: canonicalName
+                    dummyName: canonicalName,
+                    customColor: p.customColor // Include custom color if present
                   };
                   console.log('Reconstructed dummy performer:', JSON.stringify(dummyPerformer, null, 2));
                   return dummyPerformer;
                 } else {
                   const user = this.teamRoster.find(m => String(m._id) === String(p.user)) || this.segmentRoster.find(m => String(m._id) === String(p.user));
-                  console.log('🔍 DEBUG Initial performer mapping:');
-                  console.log('  - performer user ID:', p.user);
-                  console.log('  - user found in roster:', user);
-                  console.log('  - user height:', user?.height);
-                  console.log('  - performer height from formation:', p.height);
                   if (user) {
                     const skillLevel = user?.skillLevels?.[this.selectedStyle?.name?.toLowerCase() || ''] || p.skillLevel || 1;
                     const mappedPerformer = {
@@ -552,13 +551,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                       y: p.y,
                       skillLevels: { ...(user?.skillLevels || {}) },
                       height: user.height, // Use user height if available
-                      isDummy: !!user.isDummy
+                      isDummy: !!user.isDummy,
+                      customColor: p.customColor // Include custom color if present
                     };
-                    console.log('✅ DEBUG Mapped performer with fresh user data:', mappedPerformer);
                     return mappedPerformer;
                   } else {
                     // Fallback if user not found in roster
-                    console.log('❌ DEBUG User not found in roster, using fallback data');
                     return {
                       id: p.user,
                       name: 'Unknown',
@@ -566,13 +564,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                       y: p.y,
                       skillLevels: {},
                       height: p.height || 66, // Default height
-                      isDummy: false
+                      isDummy: false,
+                      customColor: p.customColor // Include custom color if present
                     };
                   }
                 }
               })
             );
-            console.log('Reconstructed formations with fresh user data:', JSON.stringify(this.formations, null, 2));
           } else {
             this.formations = [[]];
           }
@@ -735,11 +733,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       const events = ['mousedown', 'mouseup', 'mousemove', 'click'];
       events.forEach(eventType => {
         stageArea.addEventListener(eventType, (e) => {
-          console.log(`Stage ${eventType}:`, {
-            event: e,
-            target: e.target,
-            stageTransform: stageArea.style.transform
-          });
+          // Removed console.log statement
         });
       });
     }
@@ -822,6 +816,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   goToFormation(index: number) {
     this.currentFormationIndex = index;
     this.playingFormationIndex = index;
+    
+    // Don't clear the previous position display when navigating between formations
+    // This allows the selected performer's previous position to persist across formation changes
+    // this.selectedPerformerForPreviousPosition = null;
     
     // Simply add up all formation and transition times before this index
     let t = 0;
@@ -947,23 +945,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           const currentPosition = positions[positions.length - 1]; // Current segment
           
           if (lastPosition.side !== currentPosition.side) {
-            // Show a specific guidance message for this performer
-            console.log(`Positioning guidance for ${currentPosition.performerName}: Consider placing them on the ${lastPosition.side} side for consistency with ${lastPosition.segmentName}`);
+
           }
         }
       },
       error: (err) => {
-        console.error('Failed to check performer positioning guidance:', err);
       }
     });
   }
 
   addDummyPerformer() {
-    console.log("addDummyPerformer called");
+
     const dummyName = `Dummy ${this.dummyCounter}`;
     this.teamService.addDummyUser(dummyName).subscribe({
       next: (res: any) => {
-        console.log("addDummyUser response", res);
+
         const newUser = res?.user;
         if (!newUser || !newUser._id) {
           alert('Failed to create dummy user.');
@@ -992,7 +988,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       },
       error: (err: any) => {
         alert('Failed to add dummy performer.');
-        console.error(err);
       }
     });
   }
@@ -1166,14 +1161,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   };
 
   onPerformerClick(performer: Performer) {
-    console.log('🎯 DEBUG onPerformerClick called:');
-    console.log('  - performer clicked:', performer);
-    console.log('  - performer.id:', performer.id);
-    console.log('  - performer.height:', performer.height);
-    console.log('  - performer.name:', performer.name);
+
     
     // Refresh team roster data before selection to ensure we have latest user data
     this.refreshDataBeforeSelection();
+    
+    // Set this performer as the one to show previous position for
+    this.selectedPerformerForPreviousPosition = performer.id;
     
     if (this.isShiftPressed) {
       // Toggle selection for this performer
@@ -1194,27 +1188,19 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.selectedPerformerId = performer.id;
     }
     
-    console.log('✅ DEBUG Selection updated:');
-    console.log('  - selectedPerformerId:', this.selectedPerformerId);
-    console.log('  - selectedPerformerIds:', Array.from(this.selectedPerformerIds));
-    
+  
     // Update feet and inches when selecting a performer
     if (this.selectedPerformerId) {
       // Get the most up-to-date user data from team roster
       const currentUser = this.teamRoster.find(m => m._id === this.selectedPerformerId);
       const heightToUse = currentUser?.height || performer.height;
-      
-      console.log('🔍 DEBUG onPerformerClick height update:');
-      console.log('  - selectedPerformerId:', this.selectedPerformerId);
-      console.log('  - currentUser height:', currentUser?.height);
-      console.log('  - performer height:', performer.height);
-      console.log('  - heightToUse:', heightToUse);
+
       
       const { feet, inches } = this.getHeightInFeetAndInches(heightToUse);
       this.selectedPerformerFeet = feet;
       this.selectedPerformerInches = inches;
       
-      console.log('✅ DEBUG Updated UI height display:', { feet, inches });
+
     }
     
     // Update side panel to show performer info
@@ -1222,7 +1208,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   getPreviousPosition(performerId: string): { x: number, y: number } | null {
+    // Only show previous position if this performer is selected for previous position display
+    if (this.selectedPerformerForPreviousPosition !== performerId) {
+      return null;
+    }
+    
+    // If we're on the first formation, there's no previous formation to show
     if (this.currentFormationIndex === 0) return null;
+    
     const prevFormation = this.formations[this.currentFormationIndex - 1];
     // For dummy performers, we need to match by name since IDs might be regenerated
     const currentPerformer = this.performers.find(p => p.id === performerId);
@@ -1296,7 +1289,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   getPerformerStyleWithColor(performer: Performer) {
     return {
       ...this.getPerformerStyle(performer),
-      'background-color': this.getSkillColor(performer)
+      'background-color': this.getPerformerColor(performer)
     };
   }
 
@@ -1343,7 +1336,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           this.showEditModal = true;
         },
         error: (err) => {
-          console.error('Failed to load team styles:', err);
+
           this.showEditModal = true;
         }
       });
@@ -1384,12 +1377,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }).subscribe({
         next: () => {
           this.lastSaveTime = new Date();
-          console.log('Stage settings updated successfully');
-          // Trigger auto-save after successful backend save
+    
           this.triggerAutoSave();
         },
         error: (err) => {
-          console.error('Failed to update stage settings:', err);
+
           alert('Failed to save stage settings. Please try again.');
         }
       });
@@ -1401,7 +1393,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   saveSegment() {
     if (!this.segment?._id) return;
-    console.log('Saving segment, current formations:', JSON.stringify(this.formations, null, 2));
+ 
     // Save all formations as arrays of {x, y, user}, including dummy performers
     const formations = this.formations.map(formation =>
       formation.map(p => {
@@ -1417,19 +1409,26 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             skillLevels: p.skillLevels,
             height: p.height || 5.5
           };
-          console.log('Saving dummy performer:', JSON.stringify(dummyData, null, 2));
+    
           return dummyData;
         }
-        return { 
+        const performerData: any = { 
           x: p.x, 
           y: p.y, 
           user: p.id,
           skillLevels: p.skillLevels,
           height: p.height || 5.5
         };
+        
+        // Only include customColor if it's set (sparse storage)
+        if (p.customColor) {
+          performerData.customColor = p.customColor;
+        }
+        
+        return performerData;
       })
     );
-    console.log('Formations to be saved:', JSON.stringify(formations, null, 2));
+  
 
     // Get unique user IDs from all formations (excluding dummy performers)
     const roster = Array.from(new Set(
@@ -1449,20 +1448,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       styles: this.editSelectedStyles,
       stylesInSegment: this.editSelectedStyles.map(s => s.name)
     };
-    console.log('Sending update data to backend:', JSON.stringify(updateData, null, 2));
+
 
     this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
       next: () => {
-        console.log('Segment saved successfully');
+ 
         this.lastSaveTime = new Date();
         
         // Check for consistency warnings after saving
         this.checkConsistencyWarnings();
       },
       error: (err) => {
-        console.error('Failed to save segment:', err);
-        // Log the exact data that caused the error
-        console.error('Error data:', JSON.stringify(updateData, null, 2));
+ 
       }
     });
   }
@@ -1480,11 +1477,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         this.showConsistencyWarnings = warnings.length > 0;
         
         if (warnings.length > 0) {
-          console.log('Found consistency warnings:', warnings);
+
         }
       },
       error: (err) => {
-        console.error('Failed to check consistency warnings:', err);
+
       }
     });
   }
@@ -1594,32 +1591,32 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
               // Save musicUrl to segment
               this.segmentService.updateSegment(this.segment._id, { musicUrl }).subscribe({
                 next: () => {
-                  console.log('Music uploaded and saved!');
+
                   // Get signed URL for playback
                   this.getSignedMusicUrl();
                   this.isUploadingMusic = false;
                 },
                 error: (err) => {
-                  console.error('Failed to save music URL:', err);
+
                   this.isUploadingMusic = false;
                 }
               });
             } else {
-              console.error('Upload failed:', response.status, response.statusText);
+
               this.isUploadingMusic = false;
             }
           } catch (err) {
-            console.error('Upload error:', err);
+
             this.isUploadingMusic = false;
           }
         },
         error: (err) => {
-          console.error('Failed to get S3 upload URL:', err);
+
           this.isUploadingMusic = false;
         }
       });
     } catch (error) {
-      console.error('Error handling music file:', error);
+
       this.isUploadingMusic = false;
     }
   }
@@ -1630,34 +1627,34 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.segmentService.getMusicUrl(this.segment._id).subscribe({
       next: ({ url }) => {
         this.signedMusicUrl = url;
-        console.log('Got signed music URL:', url);
+
         // Wait for the next render cycle to ensure the waveform container exists
         setTimeout(() => {
           this.initWaveform();
         }, 0);
       },
       error: (err) => {
-        console.error('Failed to get music URL:', err);
+
       }
     });
   }
 
   initWaveform() {
-    console.log('Initializing waveform...');
+
     const container = document.getElementById('waveform');
     
     if (!container) {
-      console.log('Waveform container not found, will retry when available');
+
       return;
     }
 
     try {
       if (this.waveSurfer) {
-        console.log('Destroying existing wavesurfer instance');
+
         this.waveSurfer.destroy();
       }
 
-      console.log('Creating new wavesurfer instance');
+
       
       // Mobile-specific configuration
       const config: any = {
@@ -1680,15 +1677,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         config.mediaControls = false;
         config.autoplay = false;
         config.interact = true;
-        console.log('Using mobile-specific audio configuration');
+
       }
 
       this.waveSurfer = WaveSurfer.create(config);
 
-      console.log('Wavesurfer instance created successfully');
       
       if (this.signedMusicUrl) {
-        console.log('Loading audio from URL:', this.signedMusicUrl);
+
         this.waveSurfer.load(this.signedMusicUrl);
         this.waveSurfer.on('finish', () => {
           this.isPlaying = false;
@@ -1697,12 +1693,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         // Mobile-specific audio event handlers
         if (this.isMobile) {
           this.waveSurfer.on('ready', () => {
-            console.log('Audio ready on mobile');
+
             this.handleMobileAudioReady();
           });
 
           this.waveSurfer.on('play', () => {
-            console.log('Audio play started on mobile');
+
             // Resume audio context when play starts
             if (this.waveSurfer && (this.waveSurfer as any).backend && (this.waveSurfer as any).backend.audioContext) {
               (this.waveSurfer as any).backend.audioContext.resume();
@@ -1710,22 +1706,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           });
 
           this.waveSurfer.on('error', (error) => {
-            console.error('Audio error on mobile:', error);
+
           });
         }
       }
     } catch (error) {
-      console.error('Error initializing waveform:', error);
+
     }
   }
 
   togglePlay() {
-    console.log('[Playback Debug] Toggle Play called', {
-      currentState: this.isPlaying,
-      playbackTime: this.playbackTime,
-      waveSurferExists: !!this.waveSurfer,
-      videoElementExists: !!this.videoElement
-    });
+
 
     if (this.isPlaying) {
       // Stop playback
@@ -1741,11 +1732,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }
       this.isPlaying = false;
       this.hoveredTimelineTime = null;
-      console.log('[Playback Debug] Playback stopped');
+
     } else {
       // Start playback - with mobile audio context handling
       if (this.isMobile && this.waveSurfer) {
-        this.initializeMobileAudioContext();
+        this.initializeMobileAudioContextOnLoad();
       }
       
       if (this.waveSurfer) {
@@ -1822,7 +1813,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
       this.isPlaying = true;
       this.playbackTimer = requestAnimationFrame(updatePlayback);
-      console.log('[Playback Debug] Playback started');
+
     }
   }
 
@@ -1835,9 +1826,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         const audioContext = (this.waveSurfer as any).backend.audioContext;
         if (audioContext.state === 'suspended') {
           audioContext.resume().then(() => {
-            console.log('Mobile audio context resumed successfully');
+
           }).catch((error: any) => {
-            console.error('Failed to resume mobile audio context:', error);
+
           });
         }
       }
@@ -1845,10 +1836,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       // Also try to resume any existing audio context
       if (window.AudioContext || (window as any).webkitAudioContext) {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        console.log('AudioContext available for mobile audio handling');
+
       }
     } catch (error) {
-      console.error('Error initializing mobile audio context:', error);
+
     }
   }
 
@@ -2063,7 +2054,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     newDuration = Math.max(1, Math.min(100, newDuration));
     
     if (isNaN(newDuration)) {
-      console.warn('newDuration is NaN', { startDuration: this.resizingStartDuration, dx, pixelsToDuration });
+
       return;
     }
     
@@ -2111,7 +2102,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     newDuration = Math.max(0.2, newDuration);
     
     if (isNaN(newDuration)) {
-      console.warn('newDuration is NaN', { startDuration: this.resizingTransitionStartDuration, dx, pixelsToDuration });
+
       return;
     }
     
@@ -2143,12 +2134,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Calculate the width based on the formation's proportion of the total timeline
     const baseWidth = (duration / totalTimelineDuration) * this.waveformWidthPx;
-    console.log(`Formation ${i} width calculation:`, {
-      duration,
-      totalTimelineDuration,
-      baseWidth,
-      zoom: this.timelineZoom
-    });
     
     return baseWidth * this.timelineZoom;
   }
@@ -2159,12 +2144,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Calculate the width based on the transition's proportion of the total timeline
     const baseWidth = (duration / totalTimelineDuration) * this.waveformWidthPx;
-    console.log(`Transition ${i} width calculation:`, {
-      duration,
-      totalTimelineDuration,
-      baseWidth,
-      zoom: this.timelineZoom
-    });
     
     return baseWidth * this.timelineZoom;
   }
@@ -2248,17 +2227,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       const currentUser = this.teamRoster.find(m => m._id === this.selectedPerformerId);
       const heightToUse = currentUser?.height || performer.height;
       
-      console.log('🔍 DEBUG selectPerformer height update:');
-      console.log('  - selectedPerformerId:', this.selectedPerformerId);
-      console.log('  - currentUser height:', currentUser?.height);
-      console.log('  - performer height:', performer.height);
-      console.log('  - heightToUse:', heightToUse);
-      
+
       const { feet, inches } = this.getHeightInFeetAndInches(heightToUse);
       this.selectedPerformerFeet = feet;
       this.selectedPerformerInches = inches;
       
-      console.log('✅ DEBUG Updated UI height display:', { feet, inches });
+
     }
     
     this.triggerAutoSave();
@@ -2431,7 +2405,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const x = event.clientX - rect.left;
     const timelineTime = (x / this.getTimelinePixelWidth()) * this.getTimelineTotalDuration();
 
-    console.log('[Timeline Debug] Click at', x, 'px, timeline time:', timelineTime);
+
 
     if (timelineTime !== null && this.waveSurfer && this.waveSurfer.getDuration()) {
       // Initialize mobile audio context on timeline interaction
@@ -2524,7 +2498,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   getSkillColor(performer: Performer): string {
     if (!this.showColorBySkill || !this.selectedStyle) {
-      return '#3b82f6'; // blue
+      // Return custom color if set, otherwise default color
+      return performer.customColor || '#0d3488';
     }
 
     // Get the user from teamRoster to access their skill levels
@@ -2568,7 +2543,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   selectStyle(style: Style) {
     this.selectedStyle = style;
-    console.log('Selected style:', style);
+
     // Update skill levels for all performers based on the new style
     this.formations = this.formations.map(formation =>
       formation.map(performer => {
@@ -2577,12 +2552,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
         const user = this.teamRoster.find(m => m._id === performer.id);
         const skillLevel = user?.skillLevels?.[style.name.toLowerCase()] || 1;
-        console.log('Updated performer skill level:', {
-          performer: performer.name,
-          style: style.name,
-          skillLevel,
-          skillLevels: user?.skillLevels
-        });
+
       return {
         ...performer,
           skillLevels: {
@@ -2827,6 +2797,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (event.target === this.stageRef.nativeElement) {
       this.selectedPerformerIds.clear();
       this.selectedPerformerId = null;
+      // Clear the previous position display when clicking on stage
+      this.selectedPerformerForPreviousPosition = null;
       this.triggerAutoSave();
       // Switch to roster mode when deselecting
       this.sidePanelMode = 'roster';
@@ -3163,7 +3135,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         const cylinderHeight = heightInFeet - radius * 2;
         const cylinderGeometry = new THREE.CylinderGeometry(radius, radius, cylinderHeight, 32);
         const material = new THREE.MeshPhongMaterial({
-          color: this.getSkillColor(performer),
+          color: this.getPerformerColor(performer),
           transparent: true,
           opacity: 0.9,
           shininess: 60
@@ -3969,6 +3941,59 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         });
       }
     }
+  }
+
+  // Get the effective color for a performer (custom color takes precedence over skill color)
+  getPerformerColor(performer: Performer): string {
+    // Custom color takes precedence over skill-based color
+    if (performer.customColor) {
+      return performer.customColor;
+    }
+    
+    // Fall back to skill-based color or default
+    return this.getSkillColor(performer);
+  }
+
+  // Update custom color for a performer
+  updatePerformerColor(performerId: string, color: string) {
+    // Update in all formations to maintain consistency
+    this.formations = this.formations.map(formation =>
+      formation.map(performer => {
+        if (performer.id === performerId) {
+          return { ...performer, customColor: color };
+        }
+        return performer;
+      })
+    );
+    
+    this.triggerAutoSave();
+  }
+
+  // Remove custom color for a performer (revert to default)
+  removePerformerColor(performerId: string) {
+    // Remove custom color from all formations
+    this.formations = this.formations.map(formation =>
+      formation.map(performer => {
+        if (performer.id === performerId) {
+          const { customColor, ...performerWithoutColor } = performer;
+          return performerWithoutColor;
+        }
+        return performer;
+      })
+    );
+    
+    this.triggerAutoSave();
+  }
+
+  // Handle color change event from the color picker
+  onColorChange(event: Event, performerId: string) {
+    const target = event.target as HTMLInputElement;
+    const color = target.value;
+    this.updatePerformerColor(performerId, color);
+  }
+
+  isSelectedColor(performer: Performer, color: string): boolean {
+    return performer.customColor === color || (!performer.customColor && color === '#0d3488');
   }
 }
  
