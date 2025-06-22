@@ -164,6 +164,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private saveSubject = new Subject<void>();
   private autoSaveDebounceTime = 2000; // 2 seconds
   lastSaveTime: Date | null = null;
+  private saveSubscription: any = null; // Add subscription tracking
 
   // Side Panel State
   activePanel: 'roster' | 'details' = 'roster';
@@ -186,20 +187,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private dragStartX: number = 0;
   private dragStartY: number = 0;
   private readonly DRAG_THRESHOLD = 5; // pixels
+  private lastClickTime = 0; // Track last click time for debouncing
+  private readonly CLICK_DEBOUNCE_MS = 300; // Minimum 300ms between clicks
+  private justDragged = false; // Track if we just finished dragging
 
   sidePanelMode: 'roster' | 'performer' | '3d' = 'roster';
 
   async setSidePanelMode(mode: 'roster' | 'performer' | '3d') {
     this.sidePanelMode = mode;
     
-    // Refresh data when switching to performer mode to ensure we have latest user data
-    if (mode === 'performer' && this.selectedPerformer) {
-      try {
-        await this.refreshDataBeforeSelection();
-      } catch (error) {
-        console.error('❌ DEBUG Error refreshing data in setSidePanelMode:', error);
-      }
-    }
+    // Remove the refresh call that was causing the page to become unresponsive
+    // The performer data is already available in the component
   }
 
   // Touch gesture properties
@@ -300,6 +298,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   isPerformerSelectionLoading = false; // Add loading state for UI feedback
   private refreshDisabled = false; // Add flag to disable refresh temporarily
 
+  // Event listener tracking for cleanup
+  private resizeListener: (() => void) | null = null;
+  private windowResizeListener: (() => void) | null = null;
+
+  private _lastColorCall: string | null = null;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -312,7 +316,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     private sanitizer: DomSanitizer
   ) {
     // Set up auto-save with debouncing
-    this.saveSubject.pipe(debounceTime(this.autoSaveDebounceTime)).subscribe(() => {
+    this.saveSubscription = this.saveSubject.pipe(debounceTime(this.autoSaveDebounceTime)).subscribe(() => {
       this.saveSegment();
     });
   }
@@ -338,7 +342,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Always merge in the latest user data for real users
     const user = this.teamRoster.find(m => m._id === performer.id);
     
-    if (user) {
+    if (user && user.skillLevels) {
       const mergedPerformer = {
         ...performer,
         name: user.name,
@@ -564,7 +568,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                   return dummyPerformer;
                 } else {
                   const user = this.teamRoster.find(m => String(m._id) === String(p.user)) || this.segmentRoster.find(m => String(m._id) === String(p.user));
-                  if (user) {
+                  if (user && user.skillLevels) {
                     const skillLevel = user?.skillLevels?.[this.selectedStyle?.name?.toLowerCase() || ''] || p.skillLevel || 1;
                     const mappedPerformer = {
                       id: p.user,
@@ -633,11 +637,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
               }
               
               const currentUser = this.teamRoster.find(m => m._id === performer.id);
-              if (currentUser) {
+              if (currentUser && currentUser.skillLevels) {
                 return {
                   ...performer,
                   name: currentUser.name,
-                  skillLevels: { ...(currentUser?.skillLevels || {}) },
+                  skillLevels: { ...(currentUser.skillLevels || {}) },
                   height: currentUser.height // Update with fresh height
                 };
               }
@@ -757,7 +761,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                     }
                     
                     const user = this.teamRoster.find(m => m._id === performer.id);
-                    if (user) {
+                    if (user && user.skillLevels) {
                       console.log(`🔄 DEBUG Updating performer ${performer.id} with fresh user data:`, {
                         oldHeight: performer.height,
                         newHeight: user.height,
@@ -833,7 +837,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.setupSliderDebug();
       // Fix: recalculate grid using actual DOM size
       this.calculateStageWithDOMSize();
-      window.addEventListener('resize', () => this.calculateStageWithDOMSize());
+      this.resizeListener = () => this.calculateStageWithDOMSize();
+      window.addEventListener('resize', this.resizeListener);
+      
+      // Fix: Use ChangeDetectorRef to handle the height change properly
+      setTimeout(() => {
+        this.calculateStageWithDOMSize();
+        this.cdr.detectChanges();
+      }, 0);
     } else {
       console.error('Stage reference not available in ngAfterViewInit');
     }
@@ -1278,12 +1289,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const dy = clientY - this.dragStartY;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    // If we haven't moved past the threshold, treat it as a click
-    if (distance < this.DRAG_THRESHOLD) {
-      const performer = this.performers.find(p => p.id === this.draggingId);
-      if (performer) {
-        this.onPerformerClick(performer);
-      }
+    // Only set justDragged flag if we actually moved significantly
+    if (distance > this.DRAG_THRESHOLD) {
+      this.justDragged = true;
+      setTimeout(() => {
+        this.justDragged = false;
+      }, 100); // Reset after 100ms
     }
 
     this.draggingId = null;
@@ -1298,31 +1309,62 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   async onPerformerClick(performer: Performer) {
     console.log('🎯 DEBUG onPerformerClick called for:', performer.name, performer.id);
+    console.log('🎯 DEBUG onPerformerClick: segment stylesInSegment:', this.segment?.stylesInSegment);
+    console.log('🎯 DEBUG onPerformerClick: teamStyles length:', this.teamStyles?.length);
+    console.log('🎯 DEBUG onPerformerClick: selectedStyle:', this.selectedStyle);
+    console.log('🎯 DEBUG onPerformerClick: showColorBySkill:', this.showColorBySkill);
+    
+    // Safety check: ensure performer is valid
+    if (!performer || !performer.id) {
+      console.error('❌ DEBUG onPerformerClick: Invalid performer data:', performer);
+      return;
+    }
+    
+    // Prevent click if we just finished dragging
+    if (this.justDragged) {
+      console.log('🔄 DEBUG onPerformerClick: Just dragged, skipping click...');
+      return;
+    }
+    
+    const now = Date.now();
+    
+    // Debounce rapid clicks
+    if (now - this.lastClickTime < this.CLICK_DEBOUNCE_MS) {
+      console.log('🔄 DEBUG onPerformerClick: Debounced, skipping...');
+      return;
+    }
+    
+    // Prevent multiple simultaneous clicks
+    if (this.isPerformerSelectionLoading) {
+      console.log('🔄 DEBUG onPerformerClick: Already loading, skipping...');
+      return;
+    }
+    
+    this.lastClickTime = now;
     
     try {
+      console.log('🎯 DEBUG onPerformerClick: Starting performer selection...');
       this.isPerformerSelectionLoading = true;
-      
-      // TEMPORARY: Skip refresh to test if that's causing the issue
-      console.log('🔄 DEBUG onPerformerClick: Skipping refresh for now to test...');
-      // await this.refreshDataBeforeSelection();
       
       // Set this performer as the one to show previous position for
       this.selectedPerformerForPreviousPosition = performer.id;
       
       if (this.isMultiSelectionEnabled()) {
+        console.log('🎯 DEBUG onPerformerClick: Multi-selection mode');
         // Toggle selection for this performer
         if (this.selectedPerformerIds.has(performer.id)) {
           this.selectedPerformerIds.delete(performer.id);
-          if (this.selectedPerformerId === performer.id) {
-            this.selectedPerformerId = this.selectedPerformerIds.size > 0 ? 
-              Array.from(this.selectedPerformerIds)[0] : null;
-          }
+          console.log('🎯 DEBUG onPerformerClick: Removed from selection');
         } else {
           this.selectedPerformerIds.add(performer.id);
-          this.selectedPerformerId = performer.id;
+          console.log('🎯 DEBUG onPerformerClick: Added to selection');
         }
+        
+        // Update the selected performer ID to the last one selected
+        this.selectedPerformerId = performer.id;
       } else {
-        // Single selection
+        console.log('🎯 DEBUG onPerformerClick: Single-selection mode');
+        // Single selection mode
         this.selectedPerformerIds.clear();
         this.selectedPerformerIds.add(performer.id);
         this.selectedPerformerId = performer.id;
@@ -1330,26 +1372,44 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       
       // Update feet and inches when selecting a performer
       if (this.selectedPerformerId) {
-        // Get the most up-to-date user data from team roster
-        const currentUser = this.teamRoster.find(m => m._id === this.selectedPerformerId);
-        const heightToUse = currentUser?.height || performer.height;
+        try {
+          console.log('🎯 DEBUG onPerformerClick: Updating height data...');
+          // Get the most up-to-date user data from team roster
+          const currentUser = this.teamRoster && this.teamRoster.length > 0 ? 
+            this.teamRoster.find(m => m._id === this.selectedPerformerId) : null;
+          const heightToUse = currentUser?.height || performer.height;
 
-        const heightData = this.getHeightInFeetAndInches(heightToUse);
-        this.selectedPerformerFeet = heightData.feet;
-        this.selectedPerformerInches = heightData.inches;
+          const heightData = this.getHeightInFeetAndInches(heightToUse);
+          this.selectedPerformerFeet = heightData.feet;
+          this.selectedPerformerInches = heightData.inches;
+          console.log('🎯 DEBUG onPerformerClick: Height updated:', heightData);
+        } catch (heightError) {
+          console.error('❌ DEBUG Error updating height data:', heightError);
+          // Use default values if height calculation fails
+          this.selectedPerformerFeet = 5;
+          this.selectedPerformerInches = 6;
+        }
       }
       
-      // Update side panel to show performer info
+      // Switch to performer details panel
       this.sidePanelMode = 'performer';
+      console.log('🎯 DEBUG onPerformerClick: Switched to performer panel');
+      
+      // Trigger auto-save
+      this.triggerAutoSave();
+      console.log('🎯 DEBUG onPerformerClick: Triggered auto-save');
       
       console.log('✅ DEBUG onPerformerClick completed successfully');
+      
     } catch (error) {
       console.error('❌ DEBUG Error in onPerformerClick:', error);
+      console.error('❌ DEBUG Error stack:', (error as Error).stack);
       // Try to recover gracefully
       this.selectedPerformerIds.clear();
       this.selectedPerformerId = null;
     } finally {
       this.isPerformerSelectionLoading = false;
+      console.log('🎯 DEBUG onPerformerClick: Loading state cleared');
     }
   }
 
@@ -1538,77 +1598,43 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   saveSegment() {
-    if (!this.segment?._id) return;
- 
-    // Save all formations as arrays of {x, y, user}, including dummy performers
-    const formations = this.formations.map(formation =>
-      formation.map(p => {
-        if (p?.id && p.id.startsWith('dummy-')) {
-          // For dummy performers, store all necessary information
-          const dummyData = {
-            x: p.x,
-            y: p.y,
-            user: null,
-            isDummy: true,
-            dummyName: p.name,  // Use the exact name from the performer
-            id: p.id,  // Preserve the exact ID
-            skillLevels: p.skillLevels,
-            height: p.height || 5.5
-          };
+    console.log('💾 DEBUG saveSegment called');
+    console.log('💾 DEBUG saveSegment: segment stylesInSegment:', this.segment?.stylesInSegment);
     
-          return dummyData;
-        }
-        const performerData: any = { 
-          x: p.x, 
-          y: p.y, 
-          user: p.id,
-          skillLevels: p.skillLevels,
-          height: p.height || 5.5
-        };
-        
-        // Only include customColor if it's set (sparse storage)
-        if (p.customColor) {
-          performerData.customColor = p.customColor;
-        }
-        
-        return performerData;
-      })
-    );
-  
+    if (!this.segment || !this.segment._id) {
+      console.log('💾 DEBUG saveSegment: No segment or segment ID, skipping save');
+      return;
+    }
 
-    // Get unique user IDs from all formations (excluding dummy performers)
-    const roster = Array.from(new Set(
-      formations.flatMap(formation => 
-        formation
-          .filter(p => p.user) // Filter out dummy performers
-          .map(p => p.user)
-      )
-    ));
-
-    const updateData = { 
-      formations, 
+    const updateData = {
+      name: this.segmentName,
+      width: this.width,
+      depth: this.depth,
+      divisions: this.divisions,
+      formations: this.formations,
       formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
-      roster,
-      name: this.segmentName,
-      styles: this.editSelectedStyles,
-      stylesInSegment: this.editSelectedStyles.map(s => s.name)
+      stylesInSegment: this.segment.stylesInSegment || []
     };
 
-
+    console.log('💾 DEBUG saveSegment: About to call segmentService.updateSegment');
+    
     this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
       next: () => {
- 
+        console.log('✅ DEBUG saveSegment: Segment saved successfully');
         this.lastSaveTime = new Date();
         
-        // Check for consistency warnings after saving
-        this.checkConsistencyWarnings();
-        this.checkFormationPositioningTips();
+        // TEMPORARILY DISABLED: Check for consistency warnings after saving
+        // This might be causing the hang
+        // this.checkConsistencyWarnings();
+        // this.checkFormationPositioningTips();
       },
       error: (err) => {
- 
+        console.error('❌ DEBUG saveSegment: Error saving segment:', err);
       }
     });
+    
+    console.log('💾 DEBUG saveSegment: updateSegment subscription created');
   }
 
   /**
@@ -2199,12 +2225,25 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   ngOnDestroy() {
+    // Stop all playback
     this.stopFormationPlayback();
+    
+    // Clean up WaveSurfer
     if (this.waveSurfer) {
       this.waveSurfer.destroy();
+      this.waveSurfer = null;
     }
+    
+    // Clean up intervals
     if (this.unifiedFormationInterval) {
       clearInterval(this.unifiedFormationInterval);
+      this.unifiedFormationInterval = null;
+    }
+    
+    // Clean up playback timer
+    if (this.playbackTimer) {
+      cancelAnimationFrame(this.playbackTimer);
+      this.playbackTimer = null;
     }
     
     // Clean up refresh-related properties
@@ -2217,19 +2256,55 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.currentRefreshRequest = null;
     }
     
+    // Clean up saveSubject subscription
+    if (this.saveSubscription) {
+      this.saveSubscription.unsubscribe();
+      this.saveSubscription = null;
+    }
+    if (this.saveSubject) {
+      this.saveSubject.complete();
+    }
+    
+    // Remove event listeners
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
     window.removeEventListener('blur', this.resetKeyStates);
+    
+    // Remove tracked resize listeners
+    if (this.resizeListener) {
+      window.removeEventListener('resize', this.resizeListener);
+      this.resizeListener = null;
+    }
+    if (this.windowResizeListener) {
+      window.removeEventListener('resize', this.windowResizeListener);
+      this.windowResizeListener = null;
+    }
+    
+    // Remove formation resize event listeners
+    document.removeEventListener('mousemove', this.onFormationResizeMove);
+    document.removeEventListener('mouseup', this.onFormationResizeEnd);
+    document.removeEventListener('mousemove', this.onTransitionResizeMove);
+    document.removeEventListener('mouseup', this.onTransitionResizeEnd);
+    
+    // Clean up 3D scene
     this.cleanup3DScene();
+    
+    // Clean up animation frame
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
     }
+    
+    // Clean up YouTube player
     if (this.youtubePlayer) {
       this.youtubePlayer.destroy();
       this.youtubePlayer = null;
     }
+    
+    // Clean up video elements
     if (this.videoContainer && this.videoContainer.parentNode) {
       this.videoContainer.parentNode.removeChild(this.videoContainer);
+      this.videoContainer = null;
     }
     if (this.videoPlane && this.scene) {
       this.scene.remove(this.videoPlane);
@@ -2237,14 +2312,36 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     if (this.videoElement && this.videoElement.parentNode) {
       this.videoElement.parentNode.removeChild(this.videoElement);
+      this.videoElement = null;
     }
     if (this.youtubeIframe && this.youtubeIframe.parentNode) {
       this.youtubeIframe.parentNode.removeChild(this.youtubeIframe);
+      this.youtubeIframe = null;
     }
+    
+    // Clean up video textures
     this.clearDirectVideoTexture();
+    
+    // Reset state
     this.showYoutubeOverlay = false;
     this.sanitizedYoutubeEmbedUrl = null;
     this.youtubeUrl = '';
+    
+    // Clear all arrays and objects to help garbage collection
+    this.formations = [];
+    this.formationDurations = [];
+    this.animationDurations = [];
+    this.teamRoster = [];
+    this.segmentRoster = [];
+    this.consistencyWarnings = [];
+    this.formationTips = [];
+    this.currentFormationTips = [];
+    this.selectedPerformerIds.clear();
+    this.performerMeshes = {};
+    this.animatedPositions = {};
+    this.selectedPerformersInitialPositions = {};
+    
+    console.log('✅ DEBUG ngOnDestroy: Component cleanup completed');
   }
 
   getTimelineTotalDuration(): number {
@@ -2456,28 +2553,57 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   async selectPerformer(performer: Performer) {
     console.log('🎯 DEBUG selectPerformer called for:', performer.name, performer.id);
+    console.log('🎯 DEBUG selectPerformer: segment stylesInSegment:', this.segment?.stylesInSegment);
+    console.log('🎯 DEBUG selectPerformer: teamStyles length:', this.teamStyles?.length);
+    console.log('🎯 DEBUG selectPerformer: selectedStyle:', this.selectedStyle);
+    console.log('🎯 DEBUG selectPerformer: showColorBySkill:', this.showColorBySkill);
+    
+    // Safety check: ensure performer is valid
+    if (!performer || !performer.id) {
+      console.error('❌ DEBUG selectPerformer: Invalid performer data:', performer);
+      return;
+    }
+    
+    const now = Date.now();
+    
+    // Debounce rapid clicks
+    if (now - this.lastClickTime < this.CLICK_DEBOUNCE_MS) {
+      console.log('🔄 DEBUG selectPerformer: Debounced, skipping...');
+      return;
+    }
+    
+    // Prevent multiple simultaneous clicks
+    if (this.isPerformerSelectionLoading) {
+      console.log('🔄 DEBUG selectPerformer: Already loading, skipping...');
+      return;
+    }
+    
+    this.lastClickTime = now;
     
     try {
+      console.log('🎯 DEBUG selectPerformer: Starting performer selection...');
       this.isPerformerSelectionLoading = true;
       
-      // TEMPORARY: Skip refresh to test if that's causing the issue
-      console.log('🔄 DEBUG selectPerformer: Skipping refresh for now to test...');
-      // await this.refreshDataBeforeSelection();
+      // Set this performer as the one to show previous position for
+      this.selectedPerformerForPreviousPosition = performer.id;
+      console.log('🎯 DEBUG selectPerformer: Set selectedPerformerForPreviousPosition');
       
       if (this.isMultiSelectionEnabled()) {
+        console.log('🎯 DEBUG selectPerformer: Multi-selection mode');
         // Toggle selection for this performer
         if (this.selectedPerformerIds.has(performer.id)) {
           this.selectedPerformerIds.delete(performer.id);
-          if (this.selectedPerformerId === performer.id) {
-            this.selectedPerformerId = this.selectedPerformerIds.size > 0 ? 
-              Array.from(this.selectedPerformerIds)[0] : null;
-          }
+          console.log('🎯 DEBUG selectPerformer: Removed from selection');
         } else {
           this.selectedPerformerIds.add(performer.id);
-          this.selectedPerformerId = performer.id;
+          console.log('🎯 DEBUG selectPerformer: Added to selection');
         }
+        
+        // Update the selected performer ID to the last one selected
+        this.selectedPerformerId = performer.id;
       } else {
-        // Single selection
+        console.log('🎯 DEBUG selectPerformer: Single-selection mode');
+        // Single selection mode
         this.selectedPerformerIds.clear();
         this.selectedPerformerIds.add(performer.id);
         this.selectedPerformerId = performer.id;
@@ -2485,29 +2611,44 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       
       // Update feet and inches when selecting a performer
       if (this.selectedPerformerId) {
-        // Get the most up-to-date user data from team roster
-        const currentUser = this.teamRoster.find(m => m._id === this.selectedPerformerId);
-        const heightToUse = currentUser?.height || performer.height;
+        try {
+          console.log('🎯 DEBUG selectPerformer: Updating height data...');
+          // Get the most up-to-date user data from team roster
+          const currentUser = this.teamRoster && this.teamRoster.length > 0 ? 
+            this.teamRoster.find(m => m._id === this.selectedPerformerId) : null;
+          const heightToUse = currentUser?.height || performer.height;
 
-        const heightData = this.getHeightInFeetAndInches(heightToUse);
-        this.selectedPerformerFeet = heightData.feet;
-        this.selectedPerformerInches = heightData.inches;
+          const heightData = this.getHeightInFeetAndInches(heightToUse);
+          this.selectedPerformerFeet = heightData.feet;
+          this.selectedPerformerInches = heightData.inches;
+          console.log('🎯 DEBUG selectPerformer: Height updated:', heightData);
+        } catch (heightError) {
+          console.error('❌ DEBUG Error updating height data:', heightError);
+          // Use default values if height calculation fails
+          this.selectedPerformerFeet = 5;
+          this.selectedPerformerInches = 6;
+        }
       }
       
+      // Switch to performer details panel
+      this.sidePanelMode = 'performer';
+      console.log('🎯 DEBUG selectPerformer: Switched to performer panel');
+      
+      // Trigger auto-save
       this.triggerAutoSave();
-      // Switch to performer info mode when a performer is selected
-      if (this.selectedPerformerId) {
-        this.sidePanelMode = 'performer';
-      }
+      console.log('🎯 DEBUG selectPerformer: Triggered auto-save');
       
       console.log('✅ DEBUG selectPerformer completed successfully');
+      
     } catch (error) {
       console.error('❌ DEBUG Error in selectPerformer:', error);
+      console.error('❌ DEBUG Error stack:', (error as Error).stack);
       // Try to recover gracefully
       this.selectedPerformerIds.clear();
       this.selectedPerformerId = null;
     } finally {
       this.isPerformerSelectionLoading = false;
+      console.log('🎯 DEBUG selectPerformer: Loading state cleared');
     }
   }
 
@@ -2773,19 +2914,27 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
     // Get the user from teamRoster to access their skill levels
     const user = this.teamRoster.find(m => m._id === performer.id);
-    if (!user) {
+    
+    if (!user || !user.skillLevels) {
       return '#00b4d8'; // electric blue
     }
 
-    // Get skill level for the selected style
-    const styleName = this.selectedStyle.name.toLowerCase();
+    // Get skill level for the selected style - add proper null checking
+    const styleName = this.selectedStyle?.name?.toLowerCase();
+    
+    if (!styleName) {
+      return '#00b4d8'; // electric blue
+    }
+    
     const skillLevel = user.skillLevels?.[styleName];
+    
     if (!skillLevel) {
       return '#00b4d8'; // electric blue
     }
 
     // Return the color based on the skill level section
-    return this.getGradientColor(skillLevel);
+    const color = this.getGradientColor(skillLevel);
+    return color;
   }
 
   getGradientColor(skillLevel: number): string {
@@ -2884,7 +3033,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Add new method for triggering auto-save
   private triggerAutoSave() {
+    console.log('💾 DEBUG triggerAutoSave called');
+    console.log('💾 DEBUG triggerAutoSave: segment stylesInSegment:', this.segment?.stylesInSegment);
     this.saveSubject.next();
+    console.log('💾 DEBUG triggerAutoSave: saveSubject.next() called');
   }
 
   toggleAddPerformerDropdown() {
@@ -2953,8 +3105,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         name: user.name,
       x: this.selectedPerformer.x,
       y: this.selectedPerformer.y,
-      skillLevels: user.skillLevels || {},
-      height: user.height || 5.5,
+      skillLevels: user?.skillLevels || {},
+      height: user?.height || 5.5,
       isDummy: false
     };
 
@@ -3399,7 +3551,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Performers
     this.update3DPerformers();
     this.animate();
-    window.addEventListener('resize', () => this.onWindowResize());
+    this.windowResizeListener = () => this.onWindowResize();
+    window.addEventListener('resize', this.windowResizeListener);
     console.log('3D scene initialized');
   }
 
@@ -4237,13 +4390,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Get the effective color for a performer (custom color takes precedence over skill color)
   getPerformerColor(performer: Performer): string {
+    console.log('🎨 DEBUG getPerformerColor called for performer:', performer.name, performer.id);
+    console.log('🎨 DEBUG getPerformerColor: performer.customColor:', performer.customColor);
+    
     // Custom color takes precedence over skill-based color
     if (performer.customColor) {
+      console.log('🎨 DEBUG getPerformerColor: Using custom color:', performer.customColor);
       return performer.customColor;
     }
     
+    console.log('🎨 DEBUG getPerformerColor: No custom color, calling getSkillColor');
     // Fall back to skill-based color or default
-    return this.getSkillColor(performer);
+    const skillColor = this.getSkillColor(performer);
+    console.log('🎨 DEBUG getPerformerColor: getSkillColor returned:', skillColor);
+    return skillColor;
   }
 
   // Update custom color for a performer

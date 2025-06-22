@@ -215,7 +215,8 @@
                 </button>
               </div>
               <div class="color-preview" 
-                   [style.background-color]="getPerformerColor(selectedPerformer!)">
+                   *ngIf="selectedPerformer"
+                   [style.background-color]="getPerformerColor(selectedPerformer)">
               </div>
             </div>
             <div class="color-info">
