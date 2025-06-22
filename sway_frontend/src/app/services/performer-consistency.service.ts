@@ -28,6 +28,30 @@ export interface ConsistencyWarning {
   message: string;
 }
 
+// New interfaces for the additional positioning tips
+export interface MirrorHeightWarning {
+  performer1Id: string;
+  performer1Name: string;
+  performer2Id: string;
+  performer2Name: string;
+  heightDifference: number;
+  message: string;
+}
+
+export interface SkillPositionWarning {
+  backPerformerId: string;
+  backPerformerName: string;
+  frontPerformerId: string;
+  frontPerformerName: string;
+  skillDifference: number;
+  message: string;
+}
+
+export interface FormationTip {
+  type: 'consistency' | 'mirror_height' | 'skill_position';
+  warning: ConsistencyWarning | MirrorHeightWarning | SkillPositionWarning;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -97,6 +121,188 @@ export class PerformerConsistencyService {
         );
       })
     );
+  }
+
+  /**
+   * Analyzes a specific formation for mirror height issues and skill-based position recommendations
+   */
+  analyzeFormationPositioning(formation: any[], segment: any, teamId: string): Observable<FormationTip[]> {
+    return this.teamService.getTeamById(teamId).pipe(
+      map(teamResponse => {
+        const teamRoster = teamResponse.team.members || [];
+        const rosterMap = new Map<string, any>(teamRoster.map((member: any) => [member._id, member]));
+        
+        const tips: FormationTip[] = [];
+        
+        // Analyze mirror height issues
+        const mirrorHeightWarnings = this.analyzeMirrorHeights(formation, segment, rosterMap);
+        mirrorHeightWarnings.forEach(warning => {
+          tips.push({ type: 'mirror_height', warning });
+        });
+        
+        // Analyze skill-based position recommendations
+        const skillPositionWarnings = this.analyzeSkillPositions(formation, segment, rosterMap);
+        skillPositionWarnings.forEach(warning => {
+          tips.push({ type: 'skill_position', warning });
+        });
+        
+        return tips;
+      })
+    );
+  }
+
+  /**
+   * Analyzes mirror performers for height differences
+   */
+  private analyzeMirrorHeights(formation: any[], segment: any, rosterMap: Map<string, any>): MirrorHeightWarning[] {
+    const warnings: MirrorHeightWarning[] = [];
+    const stageCenterX = segment.width / 2;
+    
+    // Group performers by their Y position (same row)
+    const performersByY = new Map<number, any[]>();
+    
+    formation.forEach((performer: any) => {
+      if (performer.user) { // Only analyze real performers
+        const y = Math.round(performer.y * 10) / 10; // Round to 1 decimal place for grouping
+        if (!performersByY.has(y)) {
+          performersByY.set(y, []);
+        }
+        performersByY.get(y)!.push(performer);
+      }
+    });
+    
+    // Check each row for mirror performers
+    performersByY.forEach((performersInRow, yPosition) => {
+      if (performersInRow.length < 2) return; // Need at least 2 performers in a row
+      
+      // Find mirror pairs
+      for (let i = 0; i < performersInRow.length; i++) {
+        for (let j = i + 1; j < performersInRow.length; j++) {
+          const performer1 = performersInRow[i];
+          const performer2 = performersInRow[j];
+          
+          // Check if they are mirrors (same Y, opposite X positions)
+          const distanceFromCenter1 = Math.abs(performer1.x - stageCenterX);
+          const distanceFromCenter2 = Math.abs(performer2.x - stageCenterX);
+          
+          // They are mirrors if they are roughly the same distance from center
+          const tolerance = 1.0; // 1 foot tolerance
+          if (Math.abs(distanceFromCenter1 - distanceFromCenter2) <= tolerance) {
+            // Check if they are on opposite sides
+            const isOppositeSides = (performer1.x < stageCenterX && performer2.x > stageCenterX) ||
+                                   (performer1.x > stageCenterX && performer2.x < stageCenterX);
+            
+            if (isOppositeSides) {
+              // Get their heights
+              const user1 = rosterMap.get(performer1.user);
+              const user2 = rosterMap.get(performer2.user);
+              
+              if (user1 && user2 && user1.height && user2.height) {
+                const heightDifference = Math.abs(user1.height - user2.height);
+                
+                // If height difference is more than 10 inches, create a warning
+                if (heightDifference > 10) {
+                  const warning: MirrorHeightWarning = {
+                    performer1Id: performer1.user,
+                    performer1Name: user1.name,
+                    performer2Id: performer2.user,
+                    performer2Name: user2.name,
+                    heightDifference,
+                    message: `${user1.name} and ${user2.name} have a significant height gap (${heightDifference.toFixed(0)} inches). Consider moving them for a more symmetrical formation.`
+                  };
+                  warnings.push(warning);
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    return warnings;
+  }
+
+  /**
+   * Analyzes performers for skill-based position recommendations
+   */
+  private analyzeSkillPositions(formation: any[], segment: any, rosterMap: Map<string, any>): SkillPositionWarning[] {
+    const warnings: SkillPositionWarning[] = [];
+    const stageDepth = segment.depth || 24; // Default stage depth
+    const stageCenterY = stageDepth / 2;
+    
+    // Analyze performers in the current formation
+    const performersWithPositions: Array<{
+      id: string;
+      name: string;
+      x: number;
+      y: number;
+      skillLevel: number;
+    }> = [];
+    
+    formation.forEach((performer: any) => {
+      if (performer.user) { // Only analyze real performers, not dummies
+        const user = rosterMap.get(performer.user);
+        if (user) {
+          // Get skill level from the segment's styles
+          let skillLevel = 1; // Default skill level
+          if (segment.stylesInSegment && segment.stylesInSegment.length > 0) {
+            // Try to find the highest skill level among the segment's styles
+            const segmentStyles = segment.stylesInSegment.map((style: any) => 
+              typeof style === 'string' ? style : style.name
+            );
+            
+            for (const styleName of segmentStyles) {
+              const styleKey = styleName.toLowerCase();
+              const userSkillLevel = user.skillLevels?.[styleKey];
+              if (userSkillLevel && userSkillLevel > skillLevel) {
+                skillLevel = userSkillLevel;
+              }
+            }
+          } else {
+            // Fallback to any available skill level if no segment styles
+            const availableSkills = Object.values(user.skillLevels || {});
+            if (availableSkills.length > 0) {
+              skillLevel = Math.max(...availableSkills.map(s => Number(s) || 1));
+            }
+          }
+          
+          performersWithPositions.push({
+            id: performer.user,
+            name: user.name,
+            x: performer.x,
+            y: performer.y,
+            skillLevel
+          });
+        }
+      }
+    });
+    
+    // Find performers in back half vs front half
+    const backHalfPerformers = performersWithPositions.filter(p => p.y > stageCenterY);
+    const frontHalfPerformers = performersWithPositions.filter(p => p.y <= stageCenterY);
+    
+    // Compare skill levels between back and front performers
+    backHalfPerformers.forEach(backPerformer => {
+      frontHalfPerformers.forEach(frontPerformer => {
+        const skillDifference = frontPerformer.skillLevel - backPerformer.skillLevel;
+        
+        // Recommend swap if front performer has significantly higher skill than back performer
+        // This means we have a good dancer in front and bad dancer in back, which should be swapped
+        if (skillDifference >= 2) {
+          const warning: SkillPositionWarning = {
+            backPerformerId: backPerformer.id,
+            backPerformerName: backPerformer.name,
+            frontPerformerId: frontPerformer.id,
+            frontPerformerName: frontPerformer.name,
+            skillDifference,
+            message: `${frontPerformer.name} (skill level ${frontPerformer.skillLevel}) is positioned in the front half while ${backPerformer.name} (skill level ${backPerformer.skillLevel}) is in the back half. Consider swapping their positions for better visual impact.`
+          };
+          warnings.push(warning);
+        }
+      });
+    });
+    
+    return warnings;
   }
 
   /**

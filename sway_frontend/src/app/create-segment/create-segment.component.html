@@ -68,8 +68,8 @@
       <!-- Tab Handle -->
       <div class="tips-tab-handle" (click)="togglePositioningTips()">
         <span class="tips-tab-label">Positioning Tips</span>
-        <div class="tips-badge" *ngIf="getCurrentSegmentWarnings().length > 0">
-          {{ getCurrentSegmentWarnings().length }}
+        <div class="tips-badge" *ngIf="getAllCurrentTips().length > 0">
+          {{ getAllCurrentTips().length }}
         </div>
       </div>
       
@@ -83,16 +83,26 @@
           <span class="tips-title">Performer Positioning Tips</span>
         </div>
         <div class="tips-content">
-          <div class="tips-empty" *ngIf="getCurrentSegmentWarnings().length === 0">
+          <div class="tips-empty" *ngIf="getAllCurrentTips().length === 0">
             <span class="material-icons">check_circle</span>
             <p>No positioning issues detected!</p>
-            <small>All performers are positioned consistently across their most recentsegments.</small>
+            <small>All performers are positioned optimally in this formation.</small>
           </div>
-          <div class="warning-item" *ngFor="let warning of getCurrentSegmentWarnings()">
-            <div class="warning-message">{{ warning.message }}</div>
+          <div class="warning-item" *ngFor="let tip of getAllCurrentTips()">
+            <div class="warning-message">{{ tip.message }}</div>
             <div class="warning-details">
-              <span class="segment-info">{{ warning.previousSegment }} → {{ warning.currentSegment }}</span>
-              <span class="side-info">{{ warning.previousSide }} → {{ warning.currentSide }}</span>
+              <span class="tip-type" [ngClass]="tip.type">
+                <span class="material-icons" *ngIf="tip.type === 'consistency'">sync</span>
+                <span class="material-icons" *ngIf="tip.type === 'mirror_height'">height</span>
+                <span class="material-icons" *ngIf="tip.type === 'skill_position'">star</span>
+                {{ tip.type === 'consistency' ? 'Consistency' : tip.type === 'mirror_height' ? 'Height Gap' : 'Skill Position' }}
+              </span>
+              <span class="segment-info" *ngIf="tip.type === 'consistency'">
+                {{ tip.details.previousSegment }} → {{ tip.details.currentSegment }}
+              </span>
+              <span class="side-info" *ngIf="tip.type === 'consistency'">
+                {{ tip.details.previousSide }} → {{ tip.details.currentSide }}
+              </span>
             </div>
           </div>
         </div>
@@ -314,12 +324,14 @@
                  [style]="getPerformerStyleWithColor(performer)"
                  [class.selected]="selectedPerformerIds.has(performer.id)"
                  [class.hovered]="isPerformerHovered(performer)"
+                 [class.loading]="isPerformerSelectionLoading"
                  (mousedown)="onDragStart($event, performer)"
                  (click)="onPerformerClick(performer)"
                  (mouseenter)="onPerformerMouseEnter(performer)"
                  (mouseleave)="onPerformerMouseLeave()"
                  [attr.data-id]="performer.id">
               {{performer.name}}
+              <div *ngIf="isPerformerSelectionLoading" class="loading-spinner"></div>
             </div>
             <!-- Stage border -->
             <div class="stage-border"></div>
@@ -439,6 +451,14 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div *ngIf="isPerformerSelectionLoading" class="loading-overlay">
+    <div class="loading-message">
+      <div class="loading-spinner-large"></div>
+      <span>Updating performer data...</span>
     </div>
   </div>
 

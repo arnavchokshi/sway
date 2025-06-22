@@ -56,6 +56,18 @@ export class RosterComponent implements OnInit {
       .subscribe({
         next: (response) => {
           this.members = response.team.members || [];
+          this.styles = response.team.styles || [];
+          
+          // Convert height from inches to feet/inches for display
+          this.members.forEach(member => {
+            if (member.height && typeof member.height === 'number') {
+              const feet = Math.floor(member.height / 12);
+              const inches = member.height % 12;
+              member.feet = feet;
+              member.inches = inches;
+            }
+          });
+          
           // Skill levels are already included in the team members data
         },
         error: (err) => {
@@ -346,13 +358,33 @@ export class RosterComponent implements OnInit {
 
   updateMemberHeight(member: any, field: 'feet' | 'inches', value: number) {
     if (member.isNew) return;
-    // Debounce or save on blur/change
+    
+    // Update the local values
     const feet = field === 'feet' ? value : member.feet;
     const inches = field === 'inches' ? value : member.inches;
-    // Update the height in inches
-    const totalInches = (parseInt(feet, 10) || 0) * 12 + (parseInt(inches, 10) || 0);
+    
+    // Update the height in inches - handle undefined/null values properly
+    const feetNum = feet !== undefined && feet !== null ? parseInt(String(feet), 10) : 0;
+    const inchesNum = inches !== undefined && inches !== null ? parseInt(String(inches), 10) : 0;
+    const totalInches = feetNum * 12 + inchesNum;
     member.height = totalInches;
-    // Optionally, update backend here
+    
+    // Save to backend immediately
+    this.http.patch(`${environment.apiUrl}/users/${member._id}`, {
+      height: totalInches
+    }).subscribe({
+      next: (response) => {
+        // Height updated successfully
+      },
+      error: (error) => {
+        console.error('Error updating height:', error);
+        // Optionally revert the change in the UI
+        const teamId = this.authService.getCurrentUser()?.team?._id;
+        if (teamId) {
+          this.loadTeamMembers(teamId);
+        }
+      }
+    });
   }
 
   async saveAllMembers(): Promise<any> {
@@ -364,9 +396,14 @@ export class RosterComponent implements OnInit {
         skillLevels[normalizedStyleName] = Number(member.skillLevels?.[normalizedStyleName]) || 1;
       });
       
+      // Calculate height in inches from feet and inches
+      const feet = member.feet !== undefined && member.feet !== null ? parseInt(String(member.feet), 10) : 0;
+      const inches = member.inches !== undefined && member.inches !== null ? parseInt(String(member.inches), 10) : 0;
+      const totalHeightInches = feet * 12 + inches;
+      
       const payload: any = {
         name: member.name,
-        height: member.height,
+        height: totalHeightInches,
         skillLevels: skillLevels,
         captain: member.captain
       };
