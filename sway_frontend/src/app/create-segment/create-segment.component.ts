@@ -210,6 +210,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // 3D View Properties
   is3DView = false;
+  isStageFlipped = false;
   private scene: THREE.Scene | null = null;
   private camera: THREE.PerspectiveCamera | null = null;
   private threeRenderer: THREE.WebGLRenderer | null = null;
@@ -268,6 +269,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // Add these properties after the existing properties
   consistencyWarnings: ConsistencyWarning[] = [];
   showConsistencyWarnings = false;
+  showPositioningTips = false; // New property for collapsible tab
 
   // Predefined color options for custom performer color
   customColorOptions: string[] = [
@@ -901,6 +903,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.triggerAutoSave();
   }
   addPerformerFromRoster(dancer: any) {
+    // Find an available position for the new performer
+    const position = this.findAvailablePosition();
+    
     // Add the dancer to all formations
     this.formations = this.formations.map(formation => {
       // Check if dancer is already in this formation
@@ -910,8 +915,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           {
             id: dancer._id,
             name: dancer.name,
-            x: this.width / 2,
-            y: this.depth / 2,
+            x: position.x,
+            y: position.y,
             skillLevels: { ...(dancer.skillLevels || {}) },
             height: dancer.height || 5.5,
             isDummy: false
@@ -969,14 +974,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         if (!this.segmentRoster.some(m => m._id === newUser._id)) {
           this.segmentRoster.push(newUser);
         }
+        
+        // Find an available position for the new dummy performer
+        const position = this.findAvailablePosition();
+        
         // Add dummy to all formations
         this.formations = this.formations.map(formation => [
           ...formation,
           {
             id: newUser._id,
             name: dummyName,
-            x: this.width / 2,
-            y: this.depth / 2,
+            x: position.x,
+            y: position.y,
             isDummy: true,
             dummyName: dummyName,
             skillLevels: {},
@@ -1501,13 +1510,39 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   /**
-   * Get warnings for the current segment
+   * Toggle the positioning tips panel
+   */
+  togglePositioningTips() {
+    this.showPositioningTips = !this.showPositioningTips;
+  }
+
+  /**
+   * Get warnings for the current segment, filtered by current formation
    */
   getCurrentSegmentWarnings(): ConsistencyWarning[] {
     if (!this.segment?.name) return [];
-    return this.consistencyWarnings.filter(warning => 
-      warning.currentSegment === this.segment.name
+    
+    const segmentWarnings = this.consistencyWarnings.filter(warning => 
+      warning.currentSegment === this.segment.name || 
+      warning.previousSegment === this.segment.name
     );
+    
+    // Filter warnings based on current formation index
+    return segmentWarnings.filter(warning => {
+      const isFirstFormation = this.currentFormationIndex === 0;
+      const isLastFormation = this.currentFormationIndex === this.formations.length - 1;
+      
+      if (isFirstFormation) {
+        // Only show warnings about the start of this segment when on first formation
+        return warning.currentSegment === this.segment.name;
+      } else if (isLastFormation) {
+        // Only show warnings about the end of this segment when on last formation
+        return warning.previousSegment === this.segment.name;
+      } else {
+        // Don't show any warnings for middle formations
+        return false;
+      }
+    });
   }
 
   getPerformerPath(performerId: string, prevMap?: { [id: string]: Performer }, nextMap?: { [id: string]: Performer }): string {
@@ -2499,20 +2534,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   getSkillColor(performer: Performer): string {
     if (!this.showColorBySkill || !this.selectedStyle) {
       // Return custom color if set, otherwise default color
-      return performer.customColor || '#0d3488';
+      return performer.customColor || '#00b4d8';
     }
 
     // Get the user from teamRoster to access their skill levels
     const user = this.teamRoster.find(m => m._id === performer.id);
     if (!user) {
-      return '#3b82f6'; // blue
+      return '#00b4d8'; // electric blue
     }
 
     // Get skill level for the selected style
     const styleName = this.selectedStyle.name.toLowerCase();
     const skillLevel = user.skillLevels?.[styleName];
     if (!skillLevel) {
-      return '#3b82f6'; // blue
+      return '#00b4d8'; // electric blue
     }
 
     // Return the color based on the skill level section
@@ -2934,6 +2969,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
       }, 0);
     }
+  }
+
+  flipStage() {
+    this.isStageFlipped = !this.isStageFlipped;
+    
+    // Flip all performers in all formations by mirroring their Y coordinates
+    this.formations.forEach(formation => {
+      formation.forEach(performer => {
+        // Mirror the Y coordinate across the middle horizontal line
+        performer.y = this.depth - performer.y;
+      });
+    });
+    
+    // Trigger auto-save to persist the changes
+    this.triggerAutoSave();
   }
 
   private cleanup3DScene() {
@@ -3993,7 +4043,128 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   isSelectedColor(performer: Performer, color: string): boolean {
-    return performer.customColor === color || (!performer.customColor && color === '#0d3488');
+    return performer.customColor === color || (!performer.customColor && color === '#00b4d8');
+  }
+
+  /**
+   * Find an available position for a new performer on the stage grid
+   * Returns a position that doesn't overlap with existing performers
+   */
+  private findAvailablePosition(): { x: number, y: number } {
+    // Get all grid positions
+    const gridPositionsX: number[] = [];
+    const gridPositionsY: number[] = [];
+
+    // Main verticals (8 sections, 9 lines)
+    for (let i = 0; i <= 8; i++) {
+      gridPositionsX.push((i / 8) * this.width);
+    }
+    // Subgrid verticals
+    for (let i = 0; i < 8; i++) {
+      const start = (i / 8) * this.width;
+      const end = ((i + 1) / 8) * this.width;
+      for (let d = 1; d <= this.divisions; d++) {
+        gridPositionsX.push(start + ((end - start) * d) / (this.divisions + 1));
+      }
+    }
+    // Main horizontals (4 sections, 5 lines)
+    for (let i = 0; i <= 4; i++) {
+      gridPositionsY.push((i / 4) * this.depth);
+    }
+    // Subgrid horizontals
+    for (let i = 0; i < 4; i++) {
+      const start = (i / 4) * this.depth;
+      const end = ((i + 1) / 4) * this.depth;
+      for (let d = 1; d <= this.divisions; d++) {
+        gridPositionsY.push(start + ((end - start) * d) / (this.divisions + 1));
+      }
+    }
+
+    // Sort for safety
+    gridPositionsX.sort((a, b) => a - b);
+    gridPositionsY.sort((a, b) => a - b);
+
+    // Define minimum distance between performers (in feet)
+    const minDistance = 2; // 2 feet minimum between performers
+    const centerX = this.width / 2;
+    const centerY = this.depth / 2;
+
+    // Create all grid positions and sort them by distance from center
+    const allGridPositions: { x: number, y: number, distance: number }[] = [];
+    for (const x of gridPositionsX) {
+      for (const y of gridPositionsY) {
+        const distance = Math.sqrt(
+          Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)
+        );
+        allGridPositions.push({ x, y, distance });
+      }
+    }
+    
+    // Sort by distance from center (closest first)
+    allGridPositions.sort((a, b) => a.distance - b.distance);
+
+    // Try each grid position, starting from the center
+    for (const position of allGridPositions) {
+      // Check if this position is far enough from all existing performers
+      const isAvailable = this.performers.every(performer => {
+        const distance = Math.sqrt(
+          Math.pow(performer.x - position.x, 2) + Math.pow(performer.y - position.y, 2)
+        );
+        return distance >= minDistance;
+      });
+
+      if (isAvailable) {
+        return { x: position.x, y: position.y };
+      }
+    }
+
+    // If no grid position is available, try positions with some offset from center
+    // Try positions in a more central spiral pattern around the center
+    const offsets = [
+      { x: 0, y: 0 },           // Center
+      { x: 1.5, y: 0 },         // Right
+      { x: -1.5, y: 0 },        // Left
+      { x: 0, y: 1.5 },         // Down
+      { x: 0, y: -1.5 },        // Up
+      { x: 1.5, y: 1.5 },       // Bottom-right
+      { x: -1.5, y: 1.5 },      // Bottom-left
+      { x: 1.5, y: -1.5 },      // Top-right
+      { x: -1.5, y: -1.5 },     // Top-left
+      { x: 3, y: 0 },           // Further right
+      { x: -3, y: 0 },          // Further left
+      { x: 0, y: 3 },           // Further down
+      { x: 0, y: -3 },          // Further up
+      { x: 2, y: 2 },           // Diagonal
+      { x: -2, y: 2 },          // Diagonal
+      { x: 2, y: -2 },          // Diagonal
+      { x: -2, y: -2 },         // Diagonal
+    ];
+
+    for (const offset of offsets) {
+      const x = centerX + offset.x;
+      const y = centerY + offset.y;
+      
+      // Check if position is within stage boundaries
+      if (x >= 0 && x <= this.width && y >= 0 && y <= this.depth) {
+        // Check if this position is far enough from all existing performers
+        const isAvailable = this.performers.every(performer => {
+          const distance = Math.sqrt(
+            Math.pow(performer.x - x, 2) + Math.pow(performer.y - y, 2)
+          );
+          return distance >= minDistance;
+        });
+
+        if (isAvailable) {
+          return { x, y };
+        }
+      }
+    }
+
+    // If all else fails, return a random position near the center (smaller range)
+    return {
+      x: centerX + (Math.random() - 0.5) * 3, // Random position within 1.5 feet of center
+      y: centerY + (Math.random() - 0.5) * 3
+    };
   }
 }
  

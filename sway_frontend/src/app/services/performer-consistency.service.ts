@@ -40,6 +40,8 @@ export class PerformerConsistencyService {
 
   /**
    * Analyzes performer positioning consistency across all segments for a team
+   * Only checks boundary formations: first formation vs previous segment's last formation,
+   * and last formation vs next segment's first formation
    */
   analyzePerformerConsistency(teamId: string): Observable<ConsistencyWarning[]> {
     return this.teamService.getTeamById(teamId).pipe(
@@ -64,45 +66,30 @@ export class PerformerConsistencyService {
 
             const warnings: ConsistencyWarning[] = [];
             
-            // Analyze each segment against the most recent previous segment for each performer
-            for (let i = 1; i < sortedSegments.length; i++) {
+            // Analyze each segment boundary only once
+            for (let i = 0; i < sortedSegments.length - 1; i++) {
               const currentSegment = sortedSegments[i];
-              const currentAnalysis = this.analyzeSegment(currentSegment, rosterMap);
+              const nextSegment = sortedSegments[i + 1];
               
-              // For each performer in the current segment, find their most recent previous appearance
-              currentAnalysis.performerPositions.forEach(currentPerformer => {
-                const previousSegment = this.findMostRecentPreviousSegment(
-                  currentPerformer.performerId, 
-                  sortedSegments, 
-                  i, 
-                  rosterMap
-                );
-                
-                if (previousSegment) {
-                  const previousAnalysis = this.analyzeSegment(previousSegment, rosterMap);
-                  const previousPerformer = previousAnalysis.performerPositions.find(
-                    p => p.performerId === currentPerformer.performerId
-                  );
-                  
-                  if (previousPerformer && previousPerformer.side !== currentPerformer.side) {
-                    warnings.push({
-                      performerId: currentPerformer.performerId,
-                      performerName: currentPerformer.performerName,
-                      previousSegment: previousSegment.name,
-                      previousSide: previousPerformer.side,
-                      currentSegment: currentSegment.name,
-                      currentSide: currentPerformer.side,
-                      message: this.generateWarningMessage(
-                        currentPerformer.performerName,
-                        previousSegment.name,
-                        previousPerformer.side,
-                        currentSegment.name,
-                        currentPerformer.side
-                      )
-                    });
-                  }
-                }
-              });
+              console.log(`\nProcessing boundary ${i}: ${currentSegment.name} ↔ ${nextSegment.name}`);
+              
+              // Check current segment's last formation vs next segment's first formation
+              console.log(`  Checking boundary: ${currentSegment.name} last formation vs ${nextSegment.name} first formation`);
+              const lastFormationAnalysis = this.analyzeFormation(
+                currentSegment.formations[currentSegment.formations.length - 1], 
+                currentSegment, 
+                rosterMap
+              );
+              const nextFirstFormationAnalysis = this.analyzeFormation(nextSegment.formations[0], nextSegment, rosterMap);
+              
+              this.compareFormations(
+                lastFormationAnalysis,
+                nextFirstFormationAnalysis,
+                currentSegment.name,
+                nextSegment.name,
+                'boundary',
+                warnings
+              );
             }
             
             return warnings;
@@ -113,30 +100,91 @@ export class PerformerConsistencyService {
   }
 
   /**
-   * Finds the most recent previous segment where a performer appears
+   * Analyzes a specific formation to extract performer positions and sides
    */
-  private findMostRecentPreviousSegment(
-    performerId: string, 
-    sortedSegments: any[], 
-    currentIndex: number, 
-    rosterMap: Map<string, any>
-  ): any | null {
-    // Look backwards from the current segment to find the most recent appearance
-    for (let i = currentIndex - 1; i >= 0; i--) {
-      const segment = sortedSegments[i];
-      const analysis = this.analyzeSegment(segment, rosterMap);
-      
-      // Check if this performer appears in this segment
-      const performerInSegment = analysis.performerPositions.find(
-        p => p.performerId === performerId
-      );
-      
-      if (performerInSegment) {
-        return segment;
-      }
+  private analyzeFormation(formation: any[], segment: any, rosterMap: Map<string, any>): PerformerPosition[] {
+    const performerPositions: PerformerPosition[] = [];
+    
+    if (formation && formation.length > 0) {
+      formation.forEach((performer: any) => {
+        if (performer.user) { // Only analyze real performers, not dummies
+          const side = this.determineSide(performer.x, segment.width);
+          performerPositions.push({
+            performerId: performer.user,
+            performerName: this.getPerformerName(performer, rosterMap),
+            x: performer.x,
+            y: performer.y,
+            side,
+            segmentName: segment.name
+          });
+        }
+      });
     }
     
-    return null; // No previous appearance found
+    return performerPositions;
+  }
+
+  /**
+   * Compares two formations and generates warnings for inconsistent positioning
+   */
+  private compareFormations(
+    formation1: PerformerPosition[],
+    formation2: PerformerPosition[],
+    segment1Name: string,
+    segment2Name: string,
+    position: 'start' | 'end' | 'boundary',
+    warnings: ConsistencyWarning[]
+  ) {
+    console.log(`Comparing formations: ${segment1Name} vs ${segment2Name} (${position})`);
+    console.log('Formation 1 performers:', formation1.map(p => `${p.performerName}: ${p.side}`));
+    console.log('Formation 2 performers:', formation2.map(p => `${p.performerName}: ${p.side}`));
+    
+    formation1.forEach(performer1 => {
+      const performer2 = formation2.find(p => p.performerId === performer1.performerId);
+      
+      if (performer2 && performer1.side !== performer2.side) {
+        console.log(`Found inconsistency for ${performer1.performerName}: ${performer1.side} vs ${performer2.side}`);
+        
+        // Since we're only checking each boundary once, we don't need complex deduplication
+        // Just create a simple key based on the segment pair and performer
+        const normalizedKey = `${performer1.performerId}-${segment1Name}-${segment2Name}`;
+        
+        console.log('Generated normalized key:', normalizedKey);
+        console.log('Current warnings count:', warnings.length);
+        
+        // Check if this exact positioning issue already exists
+        const existingWarning = warnings.find(w => {
+          const existingKey = `${w.performerId}-${w.previousSegment}-${w.currentSegment}`;
+          console.log('Checking existing warning key:', existingKey, 'vs normalized key:', normalizedKey);
+          return existingKey === normalizedKey;
+        });
+        
+        if (!existingWarning) {
+          // For boundary analysis, segment1 is always the previous segment and segment2 is the current segment
+          const warning = {
+            performerId: performer1.performerId,
+            performerName: performer1.performerName,
+            previousSegment: segment1Name,
+            previousSide: performer1.side,
+            currentSegment: segment2Name,
+            currentSide: performer2.side,
+            message: this.generateWarningMessage(
+              performer1.performerName,
+              segment1Name,
+              performer1.side,
+              segment2Name,
+              performer2.side,
+              position
+            )
+          };
+          
+          console.log('Adding warning:', warning.message);
+          warnings.push(warning);
+        } else {
+          console.log('Skipping duplicate warning for:', performer1.performerName);
+        }
+      }
+    });
   }
 
   /**
@@ -206,7 +254,8 @@ export class PerformerConsistencyService {
     previousSegment: string,
     previousSide: string,
     currentSegment: string,
-    currentSide: string
+    currentSide: string,
+    position: 'start' | 'end' | 'boundary'
   ): string {
     const sideNames: { [key: string]: string } = {
       left: 'left side',
@@ -214,11 +263,18 @@ export class PerformerConsistencyService {
       center: 'center'
     };
     
-    return `${performerName} ended on the ${sideNames[previousSide]} in ${previousSegment} but starts on the ${sideNames[currentSide]} in ${currentSegment}. Consider positioning them consistently for smoother transitions.`;
+    if (position === 'start') {
+      return `${performerName} was on the ${sideNames[previousSide]} at the end of ${previousSegment} but starts on the ${sideNames[currentSide]} at the beginning of ${currentSegment}. Consider positioning them consistently at segment boundaries for smoother transitions.`;
+    } else if (position === 'end') {
+      return `${performerName} ends on the ${sideNames[previousSide]} in ${previousSegment} but should end on the ${sideNames[currentSide]} to match the start of ${currentSegment}. Consider adjusting the final formation for smoother transitions.`;
+    } else {
+      return `${performerName} was on the ${sideNames[previousSide]} at the end of ${previousSegment} but starts on the ${sideNames[currentSide]} at the beginning of ${currentSegment}. Consider positioning them consistently at segment boundaries for smoother transitions.`;
+    }
   }
 
   /**
    * Analyzes a specific performer's positioning across all segments
+   * Only shows boundary formations: first and last formation of each segment
    */
   analyzePerformerAcrossSegments(performerId: string, teamId: string): Observable<PerformerPosition[]> {
     return this.teamService.getTeamById(teamId).pipe(
@@ -241,19 +297,38 @@ export class PerformerConsistencyService {
             
             sortedSegments.forEach(segment => {
               if (segment.formations && segment.formations.length > 0) {
-                const lastFormation = segment.formations[segment.formations.length - 1];
-                const performer = lastFormation.find((p: any) => p.user === performerId);
+                // Check first formation
+                const firstFormation = segment.formations[0];
+                const firstPerformer = firstFormation.find((p: any) => p.user === performerId);
                 
-                if (performer) {
-                  const side = this.determineSide(performer.x, segment.width);
+                if (firstPerformer) {
+                  const side = this.determineSide(firstPerformer.x, segment.width);
                   positions.push({
-                    performerId: performer.user,
-                    performerName: this.getPerformerName(performer, rosterMap),
-                    x: performer.x,
-                    y: performer.y,
+                    performerId: firstPerformer.user,
+                    performerName: this.getPerformerName(firstPerformer, rosterMap),
+                    x: firstPerformer.x,
+                    y: firstPerformer.y,
                     side,
-                    segmentName: segment.name
+                    segmentName: `${segment.name} (start)`
                   });
+                }
+                
+                // Check last formation (only if different from first)
+                if (segment.formations.length > 1) {
+                  const lastFormation = segment.formations[segment.formations.length - 1];
+                  const lastPerformer = lastFormation.find((p: any) => p.user === performerId);
+                  
+                  if (lastPerformer) {
+                    const side = this.determineSide(lastPerformer.x, segment.width);
+                    positions.push({
+                      performerId: lastPerformer.user,
+                      performerName: this.getPerformerName(lastPerformer, rosterMap),
+                      x: lastPerformer.x,
+                      y: lastPerformer.y,
+                      side,
+                      segmentName: `${segment.name} (end)`
+                    });
+                  }
                 }
               }
             });

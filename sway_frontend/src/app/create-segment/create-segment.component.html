@@ -52,6 +52,10 @@
         </span>
         {{ is3DView ? '2D View' : '3D View' }}
       </button>
+      <button class="roster-add-btn" (click)="flipStage()">
+        <span class="material-icons">flip</span>
+        Flip Stage
+      </button>
       <button *ngIf="isCaptain" class="edit-stage-btn" (click)="openEditModal()">
         <span class="material-icons">edit</span> Edit Stage
       </button>
@@ -59,21 +63,37 @@
   </div>
 
   <div class="main-content">
-    <!-- Consistency Warnings Panel -->
-    <div class="consistency-warnings-panel" *ngIf="showConsistencyWarnings && getCurrentSegmentWarnings().length > 0">
-      <div class="warnings-header">
-        <span class="material-icons warning-icon">info</span>
-        <span class="warnings-title">Performer Positioning Tips</span>
-        <button class="dismiss-warnings-btn" (click)="dismissConsistencyWarnings()">
-          <span class="material-icons">close</span>
-        </button>
+    <!-- Collapsible Positioning Tips Tab -->
+    <div class="positioning-tips-tab" [class.expanded]="showPositioningTips">
+      <!-- Tab Handle -->
+      <div class="tips-tab-handle" (click)="togglePositioningTips()">
+        <span class="tips-tab-label">Positioning Tips</span>
+        <div class="tips-badge" *ngIf="getCurrentSegmentWarnings().length > 0">
+          {{ getCurrentSegmentWarnings().length }}
+        </div>
       </div>
-      <div class="warnings-content">
-        <div class="warning-item" *ngFor="let warning of getCurrentSegmentWarnings()">
-          <div class="warning-message">{{ warning.message }}</div>
-          <div class="warning-details">
-            <span class="segment-info">{{ warning.previousSegment }} → {{ warning.currentSegment }}</span>
-            <span class="side-info">{{ warning.previousSide }} → {{ warning.currentSide }}</span>
+      
+      <!-- Tips Panel -->
+      <div class="tips-panel" 
+           [class.visible]="showPositioningTips"
+           [style.opacity]="showPositioningTips ? '1' : '0'"
+           [style.visibility]="showPositioningTips ? 'visible' : 'hidden'">
+        <div class="tips-header">
+          <span class="material-icons warning-icon">info</span>
+          <span class="tips-title">Performer Positioning Tips</span>
+        </div>
+        <div class="tips-content">
+          <div class="tips-empty" *ngIf="getCurrentSegmentWarnings().length === 0">
+            <span class="material-icons">check_circle</span>
+            <p>No positioning issues detected!</p>
+            <small>All performers are positioned consistently across their most recentsegments.</small>
+          </div>
+          <div class="warning-item" *ngFor="let warning of getCurrentSegmentWarnings()">
+            <div class="warning-message">{{ warning.message }}</div>
+            <div class="warning-details">
+              <span class="segment-info">{{ warning.previousSegment }} → {{ warning.currentSegment }}</span>
+              <span class="side-info">{{ warning.previousSide }} → {{ warning.currentSide }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -242,7 +262,7 @@
             <div class="formation-title" *ngIf="formations[playingFormationIndex]">
               F {{ playingFormationIndex + 1 }}
             </div>
-            <div class="stage-label">BACKSTAGE</div>
+            <div class="stage-label">{{ isStageFlipped ? 'FRONTSTAGE' : 'BACKSTAGE' }}</div>
           </div>
           <div class="stage-grid-outer"
                [style.width.px]="stageWidthPx"
