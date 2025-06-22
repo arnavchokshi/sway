@@ -28,6 +28,7 @@ export class HomeComponent implements OnInit {
   showContactModal = false;
   isAnimating = false;
   joinStep = 1;
+  showScrollToTop = false;
 
   // Join team form fields
   joinCode = '';
@@ -84,6 +85,23 @@ export class HomeComponent implements OnInit {
         }
       }, 500);
     }
+
+    // Add scroll listener for navigation effect
+    window.addEventListener('scroll', this.onScroll.bind(this));
+  }
+
+  onScroll() {
+    const nav = document.querySelector('.landing-nav') as HTMLElement;
+    if (nav) {
+      if (window.scrollY > 50) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
+    }
+    
+    // Show/hide scroll to top button
+    this.showScrollToTop = window.scrollY > 300;
   }
 
   onButtonClick() {
@@ -123,6 +141,18 @@ export class HomeComponent implements OnInit {
 
   closeFeaturesModal() {
     this.showFeaturesModal = false;
+  }
+
+  scrollToSection(sectionId: string) {
+    setTimeout(() => {
+      const element = document.getElementById(sectionId);
+      if (element) {
+        element.scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    }, 100);
   }
 
   showContact() {
@@ -251,5 +281,12 @@ export class HomeComponent implements OnInit {
 
   goToCreateUser() {
     this.router.navigate(['/create-user']);
+  }
+
+  scrollToTop() {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
   }
 }

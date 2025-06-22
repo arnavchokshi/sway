@@ -598,8 +598,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                   const user = this.teamRoster.find(m => String(m._id) === String(performerId)) || 
                               this.segmentRoster.find(m => String(m._id) === String(performerId));
                   
-                  console.log('🔍 DEBUG Found user:', user ? { id: user._id, name: user.name } : 'NOT FOUND');
-                  
+
                   if (user && user.skillLevels) {
                     const skillLevel = user?.skillLevels?.[this.selectedStyle?.name?.toLowerCase() || ''] || p.skillLevel || 1;
                     const mappedPerformer = {
@@ -714,11 +713,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // Method to refresh data before selecting a performer
   private refreshDataBeforeSelection(): Promise<void> {
     return new Promise((resolve, reject) => {
-      console.log('🔄 DEBUG refreshDataBeforeSelection: Starting...');
       
       // Check if refresh is disabled (fallback mechanism)
       if (this.refreshDisabled) {
-        console.log('🔄 DEBUG refreshDataBeforeSelection: Refresh disabled, skipping...');
         resolve(); // Resolve immediately if refresh is disabled
         return;
       }
@@ -727,7 +724,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       
       // Throttle refreshes to prevent overwhelming the system
       if (now - this.lastRefreshTime < this.REFRESH_THROTTLE_MS) {
-        console.log('🔄 DEBUG refreshDataBeforeSelection: Throttled, skipping...');
         resolve(); // Resolve immediately if throttled
         return;
       }
@@ -740,39 +736,31 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
       // Cancel any ongoing request
       if (this.currentRefreshRequest) {
-        console.log('🔄 DEBUG refreshDataBeforeSelection: Cancelling previous request');
         this.currentRefreshRequest.unsubscribe();
         this.currentRefreshRequest = null;
       }
 
       // Prevent multiple simultaneous calls
       if (this.isRefreshingData) {
-        console.log('🔄 DEBUG refreshDataBeforeSelection: Already refreshing, skipping...');
         resolve(); // Resolve immediately if already refreshing
         return;
       }
 
       const currentUser = this.authService.getCurrentUser();
-      console.log('🔄 DEBUG refreshDataBeforeSelection:');
-      console.log('  - currentUser:', currentUser);
-      console.log('  - currentUser.team._id:', currentUser?.team?._id);
       
       if (currentUser?.team?._id) {
         this.isRefreshingData = true;
         this.lastRefreshTime = now;
         
-        console.log('🔄 DEBUG refreshDataBeforeSelection: Setting timeout...');
         
         // Add a timeout to prevent hanging
         const requestTimeout = setTimeout(() => {
-          console.warn('⚠️ DEBUG refreshDataBeforeSelection: Request timed out after 10 seconds');
           this.isRefreshingData = false;
           this.currentRefreshRequest = null;
           // Disable refresh temporarily if it times out
           this.refreshDisabled = true;
           setTimeout(() => {
             this.refreshDisabled = false; // Re-enable after 30 seconds
-            console.log('🔄 DEBUG refreshDataBeforeSelection: Refresh re-enabled');
           }, 30000);
           resolve(); // Resolve anyway to prevent hanging
         }, 10000); // 10 second timeout
@@ -798,11 +786,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                     
                     const user = this.teamRoster.find(m => m._id === performer.id);
                     if (user && user.skillLevels) {
-                      console.log(`🔄 DEBUG Updating performer ${performer.id} with fresh user data:`, {
-                        oldHeight: performer.height,
-                        newHeight: user.height,
-                        userName: user.name
-                      });
                       return {
                         ...performer,
                         name: user.name,
@@ -818,7 +801,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                 
                 // Update the current performers array
                 this.performers = this.formations[this.currentFormationIndex];
-                console.log('✅ DEBUG Performers updated with fresh data');
+
                 
                 // Clear caches after updating formations
                 this.clearAllCaches();
@@ -847,7 +830,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                 this.refreshDisabled = true;
                 setTimeout(() => {
                   this.refreshDisabled = false; // Re-enable after 60 seconds
-                  console.log('🔄 DEBUG refreshDataBeforeSelection: Refresh re-enabled after rate limit');
                 }, 60000);
               } else if (err.status >= 500) {
                 console.warn('⚠️ Server error - MongoDB may be under load');
@@ -855,7 +837,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                 this.refreshDisabled = true;
                 setTimeout(() => {
                   this.refreshDisabled = false; // Re-enable after 30 seconds
-                  console.log('🔄 DEBUG refreshDataBeforeSelection: Refresh re-enabled after server error');
                 }, 30000);
               }
               
@@ -864,7 +845,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           });
         }, 100); // 100ms delay to throttle rapid clicks
       } else {
-        console.log('❌ DEBUG No team ID found, cannot refresh roster');
+
         resolve(); // Resolve immediately if no team ID
       }
     });
@@ -898,11 +879,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       const events = ['mousedown', 'mouseup', 'mousemove', 'click', 'pointerdown', 'pointerup', 'pointermove'];
       events.forEach(eventType => {
         sliderElement.addEventListener(eventType, (e) => {
-          console.log(`Slider ${eventType}:`, {
-            event: e,
-            sliderValue: (e.target as HTMLInputElement).value,
-            stageTransform: stageArea.style.transform
-          });
+         
         });
       });
     }
@@ -1368,34 +1345,56 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   async onPerformerClick(performer: Performer) {
     this.isPerformerSelectionLoading = true;
-    console.log('🎯 DEBUG onPerformerClick started for:', performer.name);
     
     try {
-      // Use the new unified method to set selected performer
-      this.setSelectedPerformer(performer);
+      // Check if multi-selection is enabled (Shift or Command key)
+      const isMultiSelection = this.isMultiSelectionEnabled();
+      console.log('Click detected:', {
+        performer: performer.name,
+        isMultiSelection,
+        isShiftPressed: this.isShiftPressed,
+        isCommandPressed: this.isCommandPressed,
+        currentSelection: Array.from(this.selectedPerformerIds)
+      });
       
-      // Add to selection set
-      this.selectedPerformerIds.add(performer.id);
+      if (isMultiSelection) {
+        // Multi-selection mode: add to selection (don't remove if already selected)
+        if (!this.selectedPerformerIds.has(performer.id)) {
+          // Add to selection only if not already selected
+          this.selectedPerformerIds.add(performer.id);
+          console.log('Added to selection:', performer.name);
+        } else {
+          console.log('Already in selection:', performer.name);
+        }
+      } else {
+        // Single selection mode: clear and select only this performer
+        this.selectedPerformerIds.clear();
+        this.selectedPerformerIds.add(performer.id);
+        console.log('Single selection:', performer.name);
+      }
+      
+      console.log('Final selection:', Array.from(this.selectedPerformerIds));
+      
+      // Set the selected performer ID for the side panel
+      this.setSelectedPerformer(performer);
       
       // Switch to performer details panel
       this.sidePanelMode = 'performer';
-      console.log('🎯 DEBUG onPerformerClick: Switched to performer panel');
       
       // Trigger auto-save
       this.triggerAutoSave();
-      console.log('🎯 DEBUG onPerformerClick: Triggered auto-save');
       
-      console.log('✅ DEBUG onPerformerClick completed successfully');
+      // Force change detection to update the UI
+      this.cdr.detectChanges();
+
       
     } catch (error) {
-      console.error('❌ DEBUG Error in onPerformerClick:', error);
-      console.error('❌ DEBUG Error stack:', (error as Error).stack);
+      console.error('Error in onPerformerClick:', error);
       // Try to recover gracefully
       this.selectedPerformerIds.clear();
       this.selectedPerformerId = null;
     } finally {
       this.isPerformerSelectionLoading = false;
-      console.log('🎯 DEBUG onPerformerClick: Loading state cleared');
     }
   }
 
@@ -1603,7 +1602,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         this.segment?.stylesInSegment || []
       ).subscribe({
         next: (response) => {
-          console.log('✅ DEBUG saveSegment: New segment created successfully');
           this.segment = response.segment;
           
           // Immediately update the segment with formations data
@@ -1635,12 +1633,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
               });
             },
             error: (err) => {
-              console.error('❌ DEBUG saveSegment: Error updating segment formations:', err);
             }
           });
         },
         error: (err) => {
-          console.error('❌ DEBUG saveSegment: Error creating new segment:', err);
+
         }
       });
       return;
@@ -2404,7 +2401,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.animatedPositions = {};
     this.selectedPerformersInitialPositions = {};
     
-    console.log('✅ DEBUG ngOnDestroy: Component cleanup completed');
   }
 
   getTimelineTotalDuration(): number {
@@ -3257,22 +3253,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Shift') {
       this.isShiftPressed = true;
-      console.log('Shift pressed, isShiftPressed:', this.isShiftPressed);
     }
     if (event.key === 'Meta' || event.metaKey) {
       this.isCommandPressed = true;
-      console.log('Command pressed, isCommandPressed:', this.isCommandPressed);
     }
   };
 
   handleKeyUp = (event: KeyboardEvent) => {
     if (event.key === 'Shift') {
       this.isShiftPressed = false;
-      console.log('Shift released, isShiftPressed:', this.isShiftPressed);
     }
-    if (event.key === 'Meta') {
+    if (event.key === 'Meta' || !event.metaKey) {
       this.isCommandPressed = false;
-      console.log('Command released, isCommandPressed:', this.isCommandPressed);
     }
   };
 

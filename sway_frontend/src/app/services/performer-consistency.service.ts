@@ -470,11 +470,11 @@ export class PerformerConsistencyService {
     };
     
     if (position === 'start') {
-      return `${performerName} was on the ${sideNames[previousSide]} at the end of ${previousSegment} but starts on the ${sideNames[currentSide]} at the beginning of ${currentSegment}. Consider positioning them consistently at segment boundaries for smoother transitions.`;
+      return `${performerName} was on the ${sideNames[previousSide]} at the end of ${previousSegment} but starts on the ${sideNames[currentSide]} at the beginning of ${currentSegment}.`;
     } else if (position === 'end') {
       return `${performerName} ends on the ${sideNames[previousSide]} in ${previousSegment} but should end on the ${sideNames[currentSide]} to match the start of ${currentSegment}. Consider adjusting the final formation for smoother transitions.`;
     } else {
-      return `${performerName} was on the ${sideNames[previousSide]} at the end of ${previousSegment} but starts on the ${sideNames[currentSide]} at the beginning of ${currentSegment}. Consider positioning them consistently at segment boundaries for smoother transitions.`;
+      return `${performerName} was on the ${sideNames[previousSide]} at the end of ${previousSegment} but starts on the ${sideNames[currentSide]} at the beginning of ${currentSegment}. `;
     }
   }
 

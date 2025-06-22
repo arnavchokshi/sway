@@ -2,45 +2,258 @@
   <nav class="landing-nav">
     <img src="assets/logoName.png" alt="Sway Logo" class="dashboard-logo">
     <div class="nav-links">
-      <a href="#" class="nav-link" (click)="showFeatures()">Features</a>
+      <a class="nav-link" (click)="scrollToSection('features')">Features</a>
       <a href="#" class="nav-link" (click)="showContact()">Contact</a>
       <button class="get-started-btn" (click)="goToLogin()">Log in</button>
     </div>
   </nav>
-  <div class="landing-center">
-    <div class="headline" data-aos="fade-up" data-aos-duration="1000">
-      <div class="animate-text">
-        <span class="word">Sync</span>
-        <span class="word">Your</span>
-        <span class="highlight word">Vision</span>
+  
+  <!-- Hero Section -->
+  <section class="hero-section" id="hero">
+    <div class="landing-center">
+      <div class="headline" data-aos="fade-up" data-aos-duration="1000">
+        <div class="animate-text">
+          <span class="word">Sync</span>
+          <span class="word">Your</span>
+          <span class="highlight word">Vision</span>
+        </div>
+        <div class="animate-text">
+          <span class="word">Share</span>
+          <span class="word">Your</span>
+          <span class="word">Stage</span>
+        </div>
       </div>
-      <div class="animate-text">
-        <span class="word">Share</span>
-        <span class="word">Your</span>
-        <span class="word">Stage</span>
+      <div class="subheadline" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
+        Seamlessly share formations with your dancers, making complex choreography instantly clear and rehearsals flow naturally.
+      </div>
+      <div class="cta-btn-wrapper" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="400">
+        <button 
+          class="cta-btn"
+          [class.splitting]="showSplit"
+          (click)="onButtonClick()"
+          (touchstart)="onButtonClick()"
+          (transitionend)="onAnimationComplete()">
+          Get started
+        </button>
+        <div 
+          class="split-btns"
+          [class.active]="showSplit">
+          <button class="split-btn" (click)="CreateUser()" (touchstart)="CreateUser()">Create Team</button>
+          <button class="split-btn" (click)="JoinTeam()" (touchstart)="JoinTeam()">Join a Team</button>
+        </div>
       </div>
     </div>
-    <div class="subheadline" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-      Seamlessly share formations with your dancers, making complex choreography instantly clear and rehearsals flow naturally.
-    </div>
-    <div class="cta-btn-wrapper" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="400">
-      <button 
-        class="cta-btn"
-        [class.splitting]="showSplit"
-        (click)="onButtonClick()"
-        (touchstart)="onButtonClick()"
-        (transitionend)="onAnimationComplete()">
-        Get started
-      </button>
-      <div 
-        class="split-btns"
-        [class.active]="showSplit">
-        <button class="split-btn" (click)="CreateUser()" (touchstart)="CreateUser()">Create Team</button>
-        <button class="split-btn" (click)="JoinTeam()" (touchstart)="JoinTeam()">Join a Team</button>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <div class="section-header" data-aos="fade-up">
+        <h2>Powerful Features for Seamless Choreography</h2>
+        <p>Everything you need to create, share, and perfect your formations</p>
+      </div>
+
+      <div class="features-grid">
+        <!-- Feature 1: Instant Sync -->
+        <div class="feature-card" data-aos="fade-up" data-aos-delay="100">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <h3>Instant Sync Between Captain & Members</h3>
+          <p>Captains create formations and members see them instantly. Real-time synchronization keeps everyone on the same page.</p>
+          
+          <div class="getting-started">
+            <h4>Getting Started:</h4>
+            <div class="user-flows">
+              <div class="flow-section">
+                <h5>For Captains</h5>
+                <div class="steps-container">
+                  <div class="step-item">
+                    <div class="step-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                      </svg>
+                    </div>
+                    <span>Create a team</span>
+                  </div>
+                  
+
+                  <div class="step-item">
+                    <div class="step-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="8.5" cy="7" r="4"/>
+                        <line x1="20" y1="8" x2="20" y2="14"/>
+                        <line x1="23" y1="11" x2="17" y2="11"/>
+                      </svg>
+                    </div>
+                    <span>Add members to roster</span>
+                  </div>
+                  
+                  <div class="step-item">
+                    <div class="step-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                        <polyline points="16,6 12,2 8,6"/>
+                        <line x1="12" y1="2" x2="12" y2="15"/>
+                      </svg>
+                    </div>
+                    <span>Share code with dancers</span>
+                  </div>
+                  
+                 
+                  
+                  <div class="step-item">
+                    <div class="step-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                        <polyline points="2 17 12 22 22 17"/>
+                        <polyline points="2 12 12 17 22 12"/>
+                      </svg>
+                    </div>
+                    <span>Create formations</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="flow-section">
+                <h5>For Members</h5>
+                <div class="steps-container">
+                  <div class="step-item">
+                    <div class="step-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 12l2 2 4-4"/>
+                        <path d="M21 12c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2z"/>
+                        <path d="M3 12c1 0 2-1 2-2s-1-2-2-2-2 1-2 2 1 2 2 2z"/>
+                        <path d="M12 3c0 1-1 2-2 2s-2-1-2-2 1-2 2-2 2 1 2 2z"/>
+                        <path d="M12 21c0-1 1-2 2-2s2 1 2 2-1 2-2 2-2-1-2-2z"/>
+                      </svg>
+                    </div>
+                    <span>Enter team code</span>
+                  </div>
+                  
+                  <div class="step-item">
+                    <div class="step-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="8.5" cy="7" r="4"/>
+                        <line x1="20" y1="8" x2="20" y2="14"/>
+                        <line x1="23" y1="11" x2="17" y2="11"/>
+                      </svg>
+                    </div>
+                    <span>Select from roster</span>
+                  </div>
+                  
+                  <div class="step-item">
+                    <div class="step-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    </div>
+                    <span>See all your formations</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feature 2: AI Tips -->
+        <div class="feature-card" data-aos="fade-up" data-aos-delay="200">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+          </div>
+          <h3>AI-Powered Formation Tips</h3>
+          <p>Get intelligent suggestions from our AI model built specifically for formations. Optimize height distribution, start/end positions, and more.</p>
+          
+          <div class="feature-images">
+            <img src="assets/AITips1.png" alt="AI Tips Example 1" class="feature-image">
+            <img src="assets/AITips2.png" alt="AI Tips Example 2" class="feature-image">
+          </div>
+        </div>
+
+        <!-- Feature 3: Skill-Based Formations -->
+        <div class="feature-card" data-aos="fade-up" data-aos-delay="300">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+              <path d="M9 14l2 2 4-4"/>
+            </svg>
+          </div>
+          <h3>Skill-Based Formation Building</h3>
+          <p>Build formations based on captains' input of member skills. Optimize placement for the best visual impact and performance quality.</p>
+          
+          <div class="feature-images">
+            <img src="assets/skillImage.png" alt="Skill-Based Formation Example" class="feature-image">
+          </div>
+        </div>
+
+        <!-- Feature 4: 3D Visualization -->
+        <div class="feature-card" data-aos="fade-up" data-aos-delay="400">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              <path d="M12 2v20"/>
+              <path d="M2 7h20"/>
+            </svg>
+          </div>
+          <h3>3D Height Visualization with Backdrop</h3>
+          <p>Visualize user heights in 3D view and add backdrop videos for immersive formation planning. See your choreography come to life.</p>
+          
+          <div class="feature-images">
+            <img src="assets/3dImage.png" alt="3D Visualization Example" class="feature-image">
+          </div>
+        </div>
       </div>
     </div>
-  </div>
+  </section>
+
+  <!-- Footer Section -->
+  <footer class="footer-section">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <img src="assets/logoName.png" alt="Sway Logo" class="footer-logo">
+          <p class="footer-tagline">Sync Your Vision, Share Your Stage</p>
+        </div>
+        
+        <div class="footer-links">
+          <div class="footer-column">
+            <h4>Support</h4>
+            <ul>
+              <li><a href="mailto:achokshi38@gatech.edu">Email Support</a></li>
+              <li><a href="https://linkedin.com/in/arnav-chokshi" target="_blank">LinkedIn</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      <div class="footer-bottom">
+        <div class="footer-divider"></div>
+        <div class="footer-legal">
+          <p>&copy; 2024 Sway. All rights reserved.</p>
+          <p>Built by a dancer for dances</p>
+        </div>
+      </div>
+    </div>
+  </footer>
 </div>
+
+<!-- Scroll to Top Button -->
+<button class="scroll-to-top" (click)="scrollToTop()" *ngIf="showScrollToTop">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M18 15l-6-6-6 6"/>
+  </svg>
+</button>
 
 <!-- Login Popup -->
 <div class="login-popup-overlay" *ngIf="showLoginPopup" (click)="closeLoginPopup()">
@@ -125,59 +338,43 @@
   </div>
 </div>
 
-<!-- Features Modal -->
-<div class="modal-overlay" *ngIf="showFeaturesModal" (click)="closeFeaturesModal()">
-  <div class="modal-content features-modal" (click)="$event.stopPropagation()">
-    <button class="close-modal-btn" (click)="closeFeaturesModal()">×</button>
-    <h2>Features</h2>
-    <div class="features-list">
-      <div class="feature-item">
-        <div class="feature-icon">🔄</div>
-        <div class="feature-content">
-          <h3>Easy Syncing with Members</h3>
-          <p>Seamlessly share formations with your team members for instant viewing and synchronization.</p>
-        </div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">📊</div>
-        <div class="feature-content">
-          <h3>Skill Level Visibility</h3>
-          <p>Build formations while seeing each member's skill level to optimize choreography placement.</p>
-        </div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">🎬</div>
-        <div class="feature-content">
-          <h3>3D Backdrop Video View</h3>
-          <p>Visualize your formations with backdrop videos in immersive 3D perspective.</p>
-        </div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">🔗</div>
-        <div class="feature-content">
-          <h3>Segment Merging</h3>
-          <p>Combine multiple segments together to build a complete, cohesive performance set.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- Contact Modal -->
 <div class="modal-overlay" *ngIf="showContactModal" (click)="closeContactModal()">
   <div class="modal-content contact-modal" (click)="$event.stopPropagation()">
     <button class="close-modal-btn" (click)="closeContactModal()">×</button>
-    <h2>Contact Me</h2>
+    
+    <div class="contact-header">
+      <h2>Get in Touch</h2>
+      <p class="contact-subtitle">Thanks for using Sway!</p>
+    </div>
+    
+    <div class="contact-message">
+      <p>I would love to hear your thoughts! Whether it's suggestions for new features, bug reports, or just general thoughts!</p>
+    </div>
+    
     <div class="contact-info">
       <div class="contact-item">
-          <a href="mailto:achokshi38@gatech.edu" class="contact-link">achokshi38&#64;gatech.edu</a>
+        <div class="contact-label">Email</div>
+        <a href="mailto:achokshi38@gatech.edu" class="contact-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+          achokshi38&#64;gatech.edu
+        </a>
       </div>
-          <a href="https://linkedin.com/in/arnav-chokshi" target="_blank" class="linkedin-btn">
-            <svg class="linkedin-logo" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-            </svg>
-            <span class="linkedin-handle">arnav-chokshi</span>
-          </a>
+      
+      <div class="contact-item">
+        <div class="contact-label">LinkedIn</div>
+        <a href="https://linkedin.com/in/arnav-chokshi" target="_blank" class="contact-link">
+          <svg class="linkedin-logo" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+          </svg>
+          arnav-chokshi
+        </a>
+      </div>
     </div>
+    
+   
   </div>
 </div>
