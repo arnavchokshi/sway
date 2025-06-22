@@ -119,7 +119,7 @@
       <ng-container *ngIf="sidePanelMode === 'performer'; else rosterPanel">
         <div class="performer-details" *ngIf="selectedPerformer; else noPerformerSelected">
           <div class="performer-header">
-            <input type="text" class="performer-name" [(ngModel)]="selectedPerformer.name" (blur)="updatePerformerName()">
+            <input type="text" class="performer-name" [ngModel]="selectedPerformer.name" (ngModelChange)="updatePerformerName()">
             <button class="remove-performer-btn" (click)="removePerformer()">
               <span class="material-icons">delete</span>
             </button>
@@ -149,8 +149,8 @@
               <div class="height-inputs">
                 <div class="height-input-group">
                   <input type="number" 
-                         [(ngModel)]="selectedPerformerFeet" 
-                         (change)="updatePerformerHeight()"
+                         [ngModel]="selectedPerformerFeet" 
+                         (ngModelChange)="selectedPerformerFeet = $event; updatePerformerHeight()"
                          min="3" 
                          max="7" 
                          step="1"
@@ -159,8 +159,8 @@
                 </div>
                 <div class="height-input-group">
                   <input type="number" 
-                         [(ngModel)]="selectedPerformerInches" 
-                         (change)="updatePerformerHeight()"
+                         [ngModel]="selectedPerformerInches" 
+                         (ngModelChange)="selectedPerformerInches = $event; updatePerformerHeight()"
                          min="0" 
                          max="11" 
                          step="1"
@@ -207,8 +207,8 @@
               <div class="color-swatches">
                 <button *ngFor="let color of customColorOptions"
                         class="color-swatch"
-                        [ngStyle]="{'background-color': color, 'border': isSelectedColor(selectedPerformer!, color) ? '3px solid #ffd700' : '2px solid #23263a'}"
-                        [class.selected]="isSelectedColor(selectedPerformer!, color)"
+                        [ngStyle]="{'background-color': color, 'border': selectedPerformer.customColor === color ? '3px solid #ffd700' : '2px solid #23263a'}"
+                        [class.selected]="selectedPerformer.customColor === color"
                         (click)="updatePerformerColor(selectedPerformer!.id, color)"
                         [attr.aria-label]="color"
                         [title]="color">
@@ -216,7 +216,7 @@
               </div>
               <div class="color-preview" 
                    *ngIf="selectedPerformer"
-                   [style.background-color]="getPerformerColor(selectedPerformer)">
+                   [style.background-color]="selectedPerformer.customColor || '#00b4d8'">
               </div>
             </div>
             <div class="color-info">

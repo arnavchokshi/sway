@@ -304,6 +304,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   private _lastColorCall: string | null = null;
 
+  // Add caching properties for performance optimization
+  private _selectedUserCache: any = null;
+  private _selectedUserSkillLevelsCache: { [styleKey: string]: number } = {};
+  private _segmentStylesCache: Style[] = [];
+  private _isUpdating3D = false;
+  private _3DUpdateFrameId: number | null = null;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -2218,9 +2225,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.initWaveform();
       this.waveformInitializedForUrl = this.signedMusicUrl;
     }
-    // Update 3D performers if in 3D view
-    if (this.is3DView) {
-      this.update3DPerformers();
+    
+    // Update 3D performers if in 3D view, but debounce to prevent excessive calls
+    if (this.is3DView && !this._isUpdating3D) {
+      this._isUpdating3D = true;
+      
+      // Cancel any pending 3D update
+      if (this._3DUpdateFrameId) {
+        cancelAnimationFrame(this._3DUpdateFrameId);
+      }
+      
+      // Debounce 3D updates to prevent excessive calls during change detection
+      this._3DUpdateFrameId = requestAnimationFrame(() => {
+        this.update3DPerformers();
+        this._isUpdating3D = false;
+        this._3DUpdateFrameId = null;
+      });
     }
   }
 
@@ -2985,14 +3005,24 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   get segmentStyles(): Style[] {
     if (!this.segment?.stylesInSegment) return [];
     
-    // Return styles with their actual colors from the team
-    return this.segment.stylesInSegment.map((name: string) => {
+    // Return cached styles if available and segment hasn't changed
+    if (this._segmentStylesCache.length > 0) {
+      return this._segmentStylesCache;
+    }
+    
+    // Build styles with their actual colors from the team
+    const styles = this.segment.stylesInSegment.map((name: string) => {
       const teamStyle = this.teamStyles.find(s => s.name.toLowerCase() === name.toLowerCase());
       return {
         name,
         color: teamStyle?.color || '#ffffff'
       };
     });
+    
+    // Cache the result
+    this._segmentStylesCache = styles;
+    
+    return styles;
   }
 
   toggleStyleSelection(style: Style) {
@@ -3153,8 +3183,23 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   getSelectedUserSkillLevel(styleKey: string): number {
     if (!this.selectedPerformerId) return 1;
-    const user = this.teamRoster.find(m => m._id === this.selectedPerformerId);
-    return user?.skillLevels?.[styleKey] || 1;
+    
+    // Use cached skill levels if available
+    if (this._selectedUserSkillLevelsCache[styleKey] !== undefined) {
+      return this._selectedUserSkillLevelsCache[styleKey];
+    }
+    
+    // Cache the selected user to avoid repeated find operations
+    if (!this._selectedUserCache || this._selectedUserCache._id !== this.selectedPerformerId) {
+      this._selectedUserCache = this.teamRoster.find(m => m._id === this.selectedPerformerId);
+    }
+    
+    const skillLevel = this._selectedUserCache?.skillLevels?.[styleKey] || 1;
+    
+    // Cache the result
+    this._selectedUserSkillLevelsCache[styleKey] = skillLevel;
+    
+    return skillLevel;
   }
 
   updatePerformerSkill(styleName: string, newValue: number) {
