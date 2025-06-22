@@ -863,54 +863,6 @@
             font-size: 1.1rem;
           }
         }
-
-        .performer-pairing-dropdown {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          width: 100%;
-          background: rgba(24, 24, 27, 0.95);
-          border: 1px solid rgba(59, 130, 246, 0.2);
-          border-radius: 8px;
-          margin-top: 0.5rem;
-          z-index: 1000;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-          animation: slideDownPanel 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-
-          .dropdown-content {
-            padding: 0.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-
-            .dropdown-item {
-              display: flex;
-              align-items: center;
-              gap: 0.7rem;
-              width: 100%;
-              padding: 0.75rem 0.7rem;
-              background: none;
-              border: none;
-              text-align: left;
-              cursor: pointer;
-              color: #e2e8f0;
-              border-radius: 6px;
-              font-size: 0.95rem;
-              font-weight: 500;
-              transition: background 0.18s, color 0.18s;
-
-              &:hover {
-                background: rgba(59, 130, 246, 0.1);
-                color: #fff;
-              }
-
-              .material-icons {
-                font-size: 1.1rem;
-                color: #3b82f6;
-              }
-            }
-          }
-        }
       }
     }
   }
@@ -2005,6 +1957,54 @@
 
       .material-icons {
         font-size: 1.1rem;
+      }
+    }
+
+    .performer-pairing-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      width: 100%;
+      background: rgba(24, 24, 27, 0.95);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 8px;
+      margin-top: 0.5rem;
+      z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      animation: slideDownPanel 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+
+      .dropdown-content {
+        padding: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+
+        .dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 0.7rem;
+          width: 100%;
+          padding: 0.75rem 0.7rem;
+          background: none;
+          border: none;
+          text-align: left;
+          cursor: pointer;
+          color: #e2e8f0;
+          border-radius: 6px;
+          font-size: 0.95rem;
+          font-weight: 500;
+          transition: background 0.18s, color 0.18s;
+
+          &:hover {
+            background: rgba(59, 130, 246, 0.1);
+            color: #fff;
+          }
+
+          .material-icons {
+            font-size: 1.1rem;
+            color: #3b82f6;
+          }
+        }
       }
     }
   }

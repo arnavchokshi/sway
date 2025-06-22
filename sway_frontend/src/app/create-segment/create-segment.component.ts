@@ -1219,6 +1219,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.selectedPerformerIds.add(performer.id);
     this.selectedPerformerId = performer.id;
 
+    // Show previous position for the dragged performer
+    this.selectedPerformerForPreviousPosition = performer.id;
+
     this.draggingId = performer.id;
     const rect = this.stageRef.nativeElement.getBoundingClientRect();
     this.dragOffset = {
@@ -1364,83 +1367,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   };
 
   async onPerformerClick(performer: Performer) {
-
-    // Safety check: ensure performer is valid
-    if (!performer || !performer.id) {
-      console.error('❌ DEBUG onPerformerClick: Invalid performer data:', performer);
-      return;
-    }
-    
-    // Prevent click if we just finished dragging
-    if (this.justDragged) {
-      console.log('🔄 DEBUG onPerformerClick: Just dragged, skipping click...');
-      return;
-    }
-    
-    const now = Date.now();
-    
-    // Debounce rapid clicks
-    if (now - this.lastClickTime < this.CLICK_DEBOUNCE_MS) {
-      console.log('🔄 DEBUG onPerformerClick: Debounced, skipping...');
-      return;
-    }
-    
-    // Prevent multiple simultaneous clicks
-    if (this.isPerformerSelectionLoading) {
-      console.log('🔄 DEBUG onPerformerClick: Already loading, skipping...');
-      return;
-    }
-    
-    this.lastClickTime = now;
+    this.isPerformerSelectionLoading = true;
+    console.log('🎯 DEBUG onPerformerClick started for:', performer.name);
     
     try {
-      console.log('🎯 DEBUG onPerformerClick: Starting performer selection...');
-      this.isPerformerSelectionLoading = true;
+      // Use the new unified method to set selected performer
+      this.setSelectedPerformer(performer);
       
-      // Set this performer as the one to show previous position for
-      this.selectedPerformerForPreviousPosition = performer.id;
-      
-      if (this.isMultiSelectionEnabled()) {
-        console.log('🎯 DEBUG onPerformerClick: Multi-selection mode');
-        // Toggle selection for this performer
-        if (this.selectedPerformerIds.has(performer.id)) {
-          this.selectedPerformerIds.delete(performer.id);
-          console.log('🎯 DEBUG onPerformerClick: Removed from selection');
-        } else {
-          this.selectedPerformerIds.add(performer.id);
-          console.log('🎯 DEBUG onPerformerClick: Added to selection');
-        }
-        
-        // Update the selected performer ID to the last one selected
-        this.selectedPerformerId = performer.id;
-      } else {
-        console.log('🎯 DEBUG onPerformerClick: Single-selection mode');
-        // Single selection mode
-        this.selectedPerformerIds.clear();
-        this.selectedPerformerIds.add(performer.id);
-        this.selectedPerformerId = performer.id;
-      }
-      
-      // Update feet and inches when selecting a performer
-      if (this.selectedPerformerId) {
-        try {
-          console.log('🎯 DEBUG onPerformerClick: Updating height data...');
-          // Get the most up-to-date user data from team roster
-          const currentUser = this.teamRoster && this.teamRoster.length > 0 ? 
-            this.teamRoster.find(m => m._id === this.selectedPerformerId) : null;
-          const heightToUse = currentUser?.height || performer.height;
-
-          const heightData = this.getHeightInFeetAndInches(heightToUse);
-          this.selectedPerformerFeet = heightData.feet;
-          this.selectedPerformerInches = heightData.inches;
-          console.log('🎯 DEBUG onPerformerClick: Height updated:', heightData);
-        } catch (heightError) {
-          console.error('❌ DEBUG Error updating height data:', heightError);
-          // Use default values if height calculation fails
-          this.selectedPerformerFeet = 5;
-          this.selectedPerformerInches = 6;
-        }
-      }
+      // Add to selection set
+      this.selectedPerformerIds.add(performer.id);
       
       // Switch to performer details panel
       this.sidePanelMode = 'performer';
@@ -2680,9 +2615,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   async selectPerformer(performer: Performer) {
-    // Clear user cache when selection changes
-    this.clearSelectedUserCache();
-    
     // Rest of the existing method...
     const currentTime = Date.now();
     const timeSinceLastClick = currentTime - this.lastClickTime;
@@ -2712,14 +2644,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
       } else {
         this.selectedPerformerIds.add(performer.id);
-        this.selectedPerformerId = performer.id;
+        // Use the new unified method to set selected performer
+        this.setSelectedPerformer(performer);
         this.sidePanelMode = 'performer';
       }
     } else {
       // Single selection mode
       this.selectedPerformerIds.clear();
       this.selectedPerformerIds.add(performer.id);
-      this.selectedPerformerId = performer.id;
+      // Use the new unified method to set selected performer
+      this.setSelectedPerformer(performer);
       this.sidePanelMode = 'performer';
     }
     
@@ -3259,7 +3193,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (user) {
       const heightInInches = this.getHeightInInches(this.selectedPerformerFeet, this.selectedPerformerInches);
       this.teamService.updateUser(user._id, { height: heightInInches }).subscribe({
-        next: (res) => console.log('Height updated:', res),
+        next: (res) => {
+          this.refreshTeamRoster(); // Refresh roster after update
+          console.log('Height updated:', res);
+        },
         error: (err) => console.error('Height update failed:', err)
       });
     }
@@ -4725,6 +4662,36 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private clearAllCaches() {
     this.clearSelectedUserCache();
     this.clearSegmentStylesCache();
+  }
+
+  // New method to properly set selected performer and update all related state
+  private setSelectedPerformer(performer: Performer) {
+    // Set the selected performer ID
+    this.selectedPerformerId = performer.id;
+    
+    // Clear skill cache when selection changes
+    this.clearSelectedUserCache();
+    
+    // Update height fields
+    try {
+      console.log('🎯 DEBUG setSelectedPerformer: Updating height data...');
+      // Get the most up-to-date user data from team roster
+      const currentUser = this.teamRoster && this.teamRoster.length > 0 ? 
+        this.teamRoster.find(m => m._id === performer.id) : null;
+      const heightToUse = currentUser?.height || performer.height;
+
+      const heightData = this.getHeightInFeetAndInches(heightToUse);
+      this.selectedPerformerFeet = heightData.feet;
+      this.selectedPerformerInches = heightData.inches;
+      console.log('🎯 DEBUG setSelectedPerformer: Height updated:', heightData);
+    } catch (heightError) {
+      console.error('❌ DEBUG Error updating height data:', heightError);
+      // Use default values if height calculation fails
+      this.selectedPerformerFeet = 5;
+      this.selectedPerformerInches = 6;
+    }
+    
+    console.log('✅ DEBUG setSelectedPerformer completed for:', performer.name);
   }
 }
  
