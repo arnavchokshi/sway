@@ -470,7 +470,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.teamService.getTeamById(teamId).subscribe({
       next: async (res) => {
         this.teamRoster = res.team.members || [];
-        console.log('🔍 DEBUG Team roster loaded:', this.teamRoster.map(m => ({ id: m._id, name: m.name })));
         
         // For new segments, just set up the basic roster and segment roster
         if (!this.segment) {
@@ -613,11 +612,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                       isDummy: !!user.isDummy,
                       customColor: p.customColor // Include custom color if present
                     };
-                    console.log('✅ DEBUG Mapped performer successfully:', mappedPerformer.name);
+
                     return mappedPerformer;
                   } else {
                     // Fallback if user not found in roster
-                    console.log('⚠️ DEBUG User not found in roster, using fallback for ID:', performerId);
+
                     return {
                       id: performerId,
                       name: 'Unknown',
@@ -780,21 +779,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         
         // Add a small delay to throttle rapid requests
         this.refreshTimeout = setTimeout(() => {
-          console.log('🔄 DEBUG refreshDataBeforeSelection: Timeout fired, making HTTP request...');
+
           
           // Quick refresh of team roster to ensure we have latest data
           this.currentRefreshRequest = this.teamService.getTeamById(currentUser.team._id).subscribe({
             next: (res) => {
-              console.log('🔄 DEBUG refreshDataBeforeSelection: HTTP request successful');
+          
               clearTimeout(requestTimeout); // Clear the timeout since we got a response
               try {
                 this.teamRoster = res.team.members || [];
-                console.log('✅ DEBUG Team roster refreshed:');
-                console.log('  - teamRoster length:', this.teamRoster.length);
-                console.log('  - teamRoster members:', this.teamRoster.map(m => ({ id: m._id, name: m.name, height: m.height })));
-                
-                // Update performers with fresh user data
-                console.log('🔄 DEBUG refreshDataBeforeSelection: Updating formations...');
+
+
                 this.formations = this.formations.map(formation =>
                   formation.map(performer => {
                     if (performer.isDummy) {
@@ -828,13 +823,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                 // Clear caches after updating formations
                 this.clearAllCaches();
                 
-                console.log('🔄 DEBUG refreshDataBeforeSelection: Resolving promise...');
+
                 resolve(); // Resolve the promise successfully
               } catch (error) {
-                console.error('❌ DEBUG Error processing refreshed data:', error);
+               
                 reject(error); // Reject the promise on error
               } finally {
-                console.log('🔄 DEBUG refreshDataBeforeSelection: Cleaning up...');
+               
                 this.isRefreshingData = false;
                 this.currentRefreshRequest = null;
               }
@@ -1363,12 +1358,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   };
 
   async onPerformerClick(performer: Performer) {
-    console.log('🎯 DEBUG onPerformerClick called for:', performer.name, performer.id);
-    console.log('🎯 DEBUG onPerformerClick: segment stylesInSegment:', this.segment?.stylesInSegment);
-    console.log('🎯 DEBUG onPerformerClick: teamStyles length:', this.teamStyles?.length);
-    console.log('🎯 DEBUG onPerformerClick: selectedStyle:', this.selectedStyle);
-    console.log('🎯 DEBUG onPerformerClick: showColorBySkill:', this.showColorBySkill);
-    
+
     // Safety check: ensure performer is valid
     if (!performer || !performer.id) {
       console.error('❌ DEBUG onPerformerClick: Invalid performer data:', performer);
@@ -4525,19 +4515,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Get the effective color for a performer (custom color takes precedence over skill color)
   getPerformerColor(performer: Performer): string {
-    console.log('🎨 DEBUG getPerformerColor called for performer:', performer.name, performer.id);
-    console.log('🎨 DEBUG getPerformerColor: performer.customColor:', performer.customColor);
-    
+
     // Custom color takes precedence over skill-based color
     if (performer.customColor) {
-      console.log('🎨 DEBUG getPerformerColor: Using custom color:', performer.customColor);
+
       return performer.customColor;
     }
     
-    console.log('🎨 DEBUG getPerformerColor: No custom color, calling getSkillColor');
+
     // Fall back to skill-based color or default
     const skillColor = this.getSkillColor(performer);
-    console.log('🎨 DEBUG getPerformerColor: getSkillColor returned:', skillColor);
+
     return skillColor;
   }
 
