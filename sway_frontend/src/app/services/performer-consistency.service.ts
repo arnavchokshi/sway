@@ -208,7 +208,7 @@ export class PerformerConsistencyService {
                     performer2Id: performer2.user,
                     performer2Name: user2.name,
                     heightDifference,
-                    message: `${user1.name} and ${user2.name} have a significant height gap (${heightDifference.toFixed(0)} inches). Consider moving them for a more symmetrical formation.`
+                    message: `Your mirrors ${user1.name} and ${user2.name} have a significant height gap (${heightDifference.toFixed(0)} inches). Consider moving them for a more symmetrical formation.`
                   };
                   warnings.push(warning);
                 }
