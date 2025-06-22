@@ -394,6 +394,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.isCaptain = currentUser?.captain || false;
     this.currentUserId = currentUser?._id || '';
     
+    // Always load team roster first, regardless of whether it's a new or existing segment
+    if (currentUser?.team?._id) {
+      this.loadTeamRosterAndMapFormations(currentUser.team._id);
+    }
+    
     if (segmentId) {
       this.segmentService.getSegmentById(segmentId).subscribe({
         next: (res) => {
@@ -406,11 +411,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           this.divisions = this.segment.divisions;
           this.segmentName = this.segment.name || 'New Segment';
           this.calculateStage();
-
-          // Load roster first
-          if (currentUser?.team?._id) {
-            this.loadTeamRosterAndMapFormations(currentUser.team._id);
-          }
         },
         error: (err) => {
           console.error('Failed to load segment:', err);
@@ -429,6 +429,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.teamService.getTeamById(currentUser.team._id).subscribe({
         next: (res) => {
           this.teamStyles = res.team.styles || [];
+          // Clear segment styles cache when team styles change
+          this.clearSegmentStylesCache();
         },
         error: (err) => {
           console.error('Failed to load team styles:', err);
@@ -468,6 +470,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.teamService.getTeamById(teamId).subscribe({
       next: async (res) => {
         this.teamRoster = res.team.members || [];
+        console.log('🔍 DEBUG Team roster loaded:', this.teamRoster.map(m => ({ id: m._id, name: m.name })));
+        
+        // For new segments, just set up the basic roster and segment roster
+        if (!this.segment) {
+          this.segmentRoster = [...this.teamRoster];
+          // Clear caches for new segments
+          this.clearAllCaches();
+          return;
+        }
+        
         // After loading, find the highest dummy number to set the counter
         let maxDummyNum = 0;
         if (this.segment && this.segment.formations) {
@@ -574,11 +586,25 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                   console.log('Reconstructed dummy performer:', JSON.stringify(dummyPerformer, null, 2));
                   return dummyPerformer;
                 } else {
-                  const user = this.teamRoster.find(m => String(m._id) === String(p.user)) || this.segmentRoster.find(m => String(m._id) === String(p.user));
+                  // Handle real performers - check both user field and id field
+                  const performerId = p.user || p.id || p._id;
+                  console.log('🔍 DEBUG Mapping performer:', { 
+                    original: p, 
+                    performerId, 
+                    hasUser: !!p.user, 
+                    hasId: !!p.id, 
+                    has_id: !!p._id 
+                  });
+                  
+                  const user = this.teamRoster.find(m => String(m._id) === String(performerId)) || 
+                              this.segmentRoster.find(m => String(m._id) === String(performerId));
+                  
+                  console.log('🔍 DEBUG Found user:', user ? { id: user._id, name: user.name } : 'NOT FOUND');
+                  
                   if (user && user.skillLevels) {
                     const skillLevel = user?.skillLevels?.[this.selectedStyle?.name?.toLowerCase() || ''] || p.skillLevel || 1;
                     const mappedPerformer = {
-                      id: p.user,
+                      id: performerId,
                       name: user.name,
                       x: p.x,
                       y: p.y,
@@ -587,11 +613,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                       isDummy: !!user.isDummy,
                       customColor: p.customColor // Include custom color if present
                     };
+                    console.log('✅ DEBUG Mapped performer successfully:', mappedPerformer.name);
                     return mappedPerformer;
                   } else {
                     // Fallback if user not found in roster
+                    console.log('⚠️ DEBUG User not found in roster, using fallback for ID:', performerId);
                     return {
-                      id: p.user,
+                      id: performerId,
                       name: 'Unknown',
                       x: p.x,
                       y: p.y,
@@ -620,6 +648,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         } else {
           this.segmentRoster = [];
         }
+        
+        // Clear caches AFTER segment data is properly mapped
+        this.clearAllCaches();
       },
       error: (err) => {
         console.error('Failed to load team roster:', err);
@@ -662,6 +693,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
               this.segment.roster.includes(member._id)
             );
           }
+          
+          // Clear caches after updating formations
+          this.clearAllCaches();
         },
         error: (err) => {
           console.error('Failed to refresh team roster:', err);
@@ -790,6 +824,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                 // Update the current performers array
                 this.performers = this.formations[this.currentFormationIndex];
                 console.log('✅ DEBUG Performers updated with fresh data');
+                
+                // Clear caches after updating formations
+                this.clearAllCaches();
+                
                 console.log('🔄 DEBUG refreshDataBeforeSelection: Resolving promise...');
                 resolve(); // Resolve the promise successfully
               } catch (error) {
@@ -1074,6 +1112,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (!this.segmentRoster.some(m => m._id === dancer._id)) {
       this.segmentRoster = [...this.segmentRoster, dancer];
     }
+    
+    // Force immediate save for new segments to ensure they're created in MongoDB
+    this.forceSaveForNewSegment();
+    
+    // Also trigger regular auto-save for existing segments
     this.triggerAutoSave();
 
     // Check for positioning guidance for this specific performer
@@ -1137,6 +1180,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           }
         ]);
         this.dummyCounter++;
+        
+        // Force immediate save for new segments to ensure they're created in MongoDB
+        this.forceSaveForNewSegment();
+        
+        // Also trigger regular auto-save for existing segments
         this.triggerAutoSave();
       },
       error: (err: any) => {
@@ -1608,17 +1656,88 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     console.log('💾 DEBUG saveSegment called');
     console.log('💾 DEBUG saveSegment: segment stylesInSegment:', this.segment?.stylesInSegment);
     
-    if (!this.segment || !this.segment._id) {
-      console.log('💾 DEBUG saveSegment: No segment or segment ID, skipping save');
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?.team?._id) {
+      console.log('💾 DEBUG saveSegment: No current user or team, skipping save');
       return;
     }
 
+    // If no segment exists, create a new one
+    if (!this.segment || !this.segment._id) {
+      console.log('💾 DEBUG saveSegment: Creating new segment');
+      
+      this.segmentService.createSegment(
+        currentUser.team._id,
+        this.segmentName,
+        this.depth,
+        this.width,
+        this.divisions,
+        this.segment?.stylesInSegment || []
+      ).subscribe({
+        next: (response) => {
+          console.log('✅ DEBUG saveSegment: New segment created successfully');
+          this.segment = response.segment;
+          
+          // Immediately update the segment with formations data
+          const transformedFormations = this.formations.map(formation => 
+            formation.map(performer => ({
+              x: performer.x,
+              y: performer.y,
+              user: performer.isDummy ? null : performer.id, // Convert 'id' to 'user' for backend schema
+              customColor: performer.customColor
+            }))
+          );
+          
+          console.log('💾 DEBUG Transformed formations for new segment:', transformedFormations);
+          
+          const updateData = {
+            formations: transformedFormations,
+            formationDurations: this.formationDurations,
+            animationDurations: this.animationDurations
+          };
+          
+          this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
+            next: () => {
+              console.log('✅ DEBUG saveSegment: Segment formations updated successfully');
+              this.lastSaveTime = new Date();
+              
+              // Update the URL to include the new segment ID
+              this.router.navigate([], {
+                relativeTo: this.route,
+                queryParams: { id: this.segment._id },
+                queryParamsHandling: 'merge'
+              });
+            },
+            error: (err) => {
+              console.error('❌ DEBUG saveSegment: Error updating segment formations:', err);
+            }
+          });
+        },
+        error: (err) => {
+          console.error('❌ DEBUG saveSegment: Error creating new segment:', err);
+        }
+      });
+      return;
+    }
+
+    // Update existing segment
+    const transformedFormations = this.formations.map(formation => 
+      formation.map(performer => ({
+        x: performer.x,
+        y: performer.y,
+        user: performer.isDummy ? null : performer.id, // Convert 'id' to 'user' for backend schema
+        customColor: performer.customColor
+      }))
+    );
+    
+    console.log('💾 DEBUG Transformed formations for saving:', transformedFormations);
+    
     const updateData = {
       name: this.segmentName,
       width: this.width,
       depth: this.depth,
       divisions: this.divisions,
-      formations: this.formations,
+      formations: transformedFormations,
       formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
       stylesInSegment: this.segment.stylesInSegment || []
@@ -2248,6 +2367,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Stop all playback
     this.stopFormationPlayback();
     
+    // Clean up caches
+    this.clearAllCaches();
+    
     // Clean up WaveSurfer
     if (this.waveSurfer) {
       this.waveSurfer.destroy();
@@ -2572,104 +2694,60 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   async selectPerformer(performer: Performer) {
-    console.log('🎯 DEBUG selectPerformer called for:', performer.name, performer.id);
-    console.log('🎯 DEBUG selectPerformer: segment stylesInSegment:', this.segment?.stylesInSegment);
-    console.log('🎯 DEBUG selectPerformer: teamStyles length:', this.teamStyles?.length);
-    console.log('🎯 DEBUG selectPerformer: selectedStyle:', this.selectedStyle);
-    console.log('🎯 DEBUG selectPerformer: showColorBySkill:', this.showColorBySkill);
+    // Clear user cache when selection changes
+    this.clearSelectedUserCache();
     
-    // Safety check: ensure performer is valid
-    if (!performer || !performer.id) {
-      console.error('❌ DEBUG selectPerformer: Invalid performer data:', performer);
-      return;
-    }
+    // Rest of the existing method...
+    const currentTime = Date.now();
+    const timeSinceLastClick = currentTime - this.lastClickTime;
     
-    const now = Date.now();
-    
-    // Debounce rapid clicks
-    if (now - this.lastClickTime < this.CLICK_DEBOUNCE_MS) {
-      console.log('🔄 DEBUG selectPerformer: Debounced, skipping...');
-      return;
-    }
-    
-    // Prevent multiple simultaneous clicks
-    if (this.isPerformerSelectionLoading) {
-      console.log('🔄 DEBUG selectPerformer: Already loading, skipping...');
-      return;
-    }
-    
-    this.lastClickTime = now;
-    
-    try {
-      console.log('🎯 DEBUG selectPerformer: Starting performer selection...');
-      this.isPerformerSelectionLoading = true;
-      
-      // Set this performer as the one to show previous position for
+    // If it's a rapid click (within debounce time), treat as double-click
+    if (timeSinceLastClick < this.CLICK_DEBOUNCE_MS && !this.justDragged) {
+      // Double-click behavior - show previous position
       this.selectedPerformerForPreviousPosition = performer.id;
-      console.log('🎯 DEBUG selectPerformer: Set selectedPerformerForPreviousPosition');
-      
-      if (this.isMultiSelectionEnabled()) {
-        console.log('🎯 DEBUG selectPerformer: Multi-selection mode');
-        // Toggle selection for this performer
-        if (this.selectedPerformerIds.has(performer.id)) {
-          this.selectedPerformerIds.delete(performer.id);
-          console.log('🎯 DEBUG selectPerformer: Removed from selection');
+      this.lastClickTime = 0; // Reset to prevent triple-click
+      return;
+    }
+    
+    this.lastClickTime = currentTime;
+    this.justDragged = false;
+    
+    // Check if multi-selection is enabled
+    if (this.isMultiSelectionEnabled()) {
+      // Multi-selection mode
+      if (this.selectedPerformerIds.has(performer.id)) {
+        this.selectedPerformerIds.delete(performer.id);
+        if (this.selectedPerformerIds.size === 0) {
+          this.selectedPerformerId = null;
+          this.sidePanelMode = 'roster';
         } else {
-          this.selectedPerformerIds.add(performer.id);
-          console.log('🎯 DEBUG selectPerformer: Added to selection');
+          // Keep the first selected performer as the main selection
+          this.selectedPerformerId = Array.from(this.selectedPerformerIds)[0];
         }
-        
-        // Update the selected performer ID to the last one selected
-        this.selectedPerformerId = performer.id;
       } else {
-        console.log('🎯 DEBUG selectPerformer: Single-selection mode');
-        // Single selection mode
-        this.selectedPerformerIds.clear();
         this.selectedPerformerIds.add(performer.id);
         this.selectedPerformerId = performer.id;
+        this.sidePanelMode = 'performer';
       }
-      
-      // Update feet and inches when selecting a performer
-      if (this.selectedPerformerId) {
-        try {
-          console.log('🎯 DEBUG selectPerformer: Updating height data...');
-          // Get the most up-to-date user data from team roster
-          const currentUser = this.teamRoster && this.teamRoster.length > 0 ? 
-            this.teamRoster.find(m => m._id === this.selectedPerformerId) : null;
-          const heightToUse = currentUser?.height || performer.height;
-
-          const heightData = this.getHeightInFeetAndInches(heightToUse);
-          this.selectedPerformerFeet = heightData.feet;
-          this.selectedPerformerInches = heightData.inches;
-          console.log('🎯 DEBUG selectPerformer: Height updated:', heightData);
-        } catch (heightError) {
-          console.error('❌ DEBUG Error updating height data:', heightError);
-          // Use default values if height calculation fails
-          this.selectedPerformerFeet = 5;
-          this.selectedPerformerInches = 6;
-        }
-      }
-      
-      // Switch to performer details panel
-      this.sidePanelMode = 'performer';
-      console.log('🎯 DEBUG selectPerformer: Switched to performer panel');
-      
-      // Trigger auto-save
-      this.triggerAutoSave();
-      console.log('🎯 DEBUG selectPerformer: Triggered auto-save');
-      
-      console.log('✅ DEBUG selectPerformer completed successfully');
-      
-    } catch (error) {
-      console.error('❌ DEBUG Error in selectPerformer:', error);
-      console.error('❌ DEBUG Error stack:', (error as Error).stack);
-      // Try to recover gracefully
+    } else {
+      // Single selection mode
       this.selectedPerformerIds.clear();
-      this.selectedPerformerId = null;
-    } finally {
-      this.isPerformerSelectionLoading = false;
-      console.log('🎯 DEBUG selectPerformer: Loading state cleared');
+      this.selectedPerformerIds.add(performer.id);
+      this.selectedPerformerId = performer.id;
+      this.sidePanelMode = 'performer';
     }
+    
+    // Store initial positions for all selected performers
+    this.selectedPerformersInitialPositions = {};
+    this.selectedPerformerIds.forEach(id => {
+      const selectedPerformer = this.performers.find(p => p.id === id);
+      if (selectedPerformer) {
+        this.selectedPerformersInitialPositions[id] = { x: selectedPerformer.x, y: selectedPerformer.y };
+      }
+    });
+    
+    // Trigger auto-save
+    this.triggerAutoSave();
   }
 
   removePerformer() {
@@ -3069,6 +3147,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     console.log('💾 DEBUG triggerAutoSave: saveSubject.next() called');
   }
 
+  // Add method to force immediate save for new segments
+  private forceSaveForNewSegment() {
+    if (!this.segment || !this.segment._id) {
+      console.log('💾 DEBUG forceSaveForNewSegment: Forcing immediate save for new segment');
+      this.saveSegment(); // Call save directly without debouncing
+    }
+  }
+
   toggleAddPerformerDropdown() {
     this.showAddPerformerDropdown = !this.showAddPerformerDropdown;
     if (this.showAddPerformerDropdown) {
@@ -3225,6 +3311,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     } else {
       console.warn('[SkillSlider] No user found in teamRoster for selectedPerformerId:', this.selectedPerformerId);
     }
+    
+    // Clear skill level cache for this style
+    delete this._selectedUserSkillLevelsCache[styleKey];
+    
     this.triggerAutoSave();
   }
 
@@ -4623,6 +4713,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private resetKeyStates() {
     this.isShiftPressed = false;
     this.isCommandPressed = false;
+  }
+
+  // Add cache clearing methods
+  private clearSelectedUserCache() {
+    this._selectedUserCache = null;
+    this._selectedUserSkillLevelsCache = {};
+  }
+
+  private clearSegmentStylesCache() {
+    this._segmentStylesCache = [];
+  }
+
+  private clearAllCaches() {
+    this.clearSelectedUserCache();
+    this.clearSegmentStylesCache();
   }
 }
  
