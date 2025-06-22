@@ -290,7 +290,19 @@ app.delete('/api/segment/:id', async (req: Request, res: Response) => {
   try {
     const segment = await Segment.findById(req.params.id);
     if (!segment) return res.status(404).json({ error: 'Segment not found' });
-    
+
+    // --- NEW: Delete all dummy users in the segment's roster ---
+    if (segment.roster && segment.roster.length > 0) {
+      // Find all users in the roster who are dummies
+      const dummyUsers = await User.find({ _id: { $in: segment.roster }, isDummy: true });
+      const dummyIds = dummyUsers.map(u => u._id);
+      if (dummyIds.length > 0) {
+        await User.deleteMany({ _id: { $in: dummyIds } });
+        console.log('Deleted dummy users:', dummyIds);
+      }
+    }
+    // --- END NEW ---
+
     // If segment has a musicUrl, delete the audio file from S3
     if (segment.musicUrl) {
       const key = segment.musicUrl.split('.com/')[1];
@@ -303,11 +315,10 @@ app.delete('/api/segment/:id', async (req: Request, res: Response) => {
           console.log('Audio deleted from S3:', key);
         } catch (err) {
           console.error('Failed to delete audio from S3:', err);
-          // Even if S3 deletion fails, we'll continue to delete the segment
         }
       }
     }
-    
+
     // Now delete the segment from the database
     await Segment.findByIdAndDelete(req.params.id);
     res.json({ message: 'Segment deleted', segment });
@@ -570,17 +581,27 @@ app.post('/api/dummy-users', async (req: Request, res: Response) => {
 
 app.delete('/api/dummy-users/:id', async (req: Request, res: Response) => {
   try {
+    console.log('🗑️ DEBUG Backend: Attempting to delete dummy user with ID:', req.params.id);
+    
     const user = await User.findById(req.params.id);
+    console.log('🗑️ DEBUG Backend: Found user:', user ? { _id: user._id, name: user.name, isDummy: user.isDummy } : 'NOT FOUND');
+    
     if (!user) {
+      console.log('❌ DEBUG Backend: User not found');
       return res.status(404).json({ error: 'User not found' });
     }
     if (!user.isDummy) {
+      console.log('❌ DEBUG Backend: User is not a dummy user');
       return res.status(400).json({ error: 'Cannot delete non-dummy user' });
     }
+    
+    console.log('✅ DEBUG Backend: Deleting dummy user:', user._id);
     await User.findByIdAndDelete(req.params.id);
+    console.log('✅ DEBUG Backend: Dummy user deleted successfully');
+    
     res.json({ message: 'Dummy user deleted' });
   } catch (error: any) {
-    console.error('Error deleting dummy user:', error);
+    console.error('❌ DEBUG Backend: Error deleting dummy user:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete dummy user' });
   }
 });

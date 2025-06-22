@@ -1144,14 +1144,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   addDummyPerformer() {
 
     const dummyName = `Dumb ${this.dummyCounter}`;
+
     this.teamService.addDummyUser(dummyName).subscribe({
       next: (res: any) => {
 
         const newUser = res?.user;
+        
         if (!newUser || !newUser._id) {
           alert('Failed to create dummy user.');
           return;
         }
+        
+
         // Only add to segment roster if not already present
         if (!this.segmentRoster.some(m => m._id === newUser._id)) {
           this.segmentRoster.push(newUser);
@@ -1174,6 +1178,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             height: 5.5
           }
         ]);
+        
         this.dummyCounter++;
         
         // Force immediate save for new segments to ensure they're created in MongoDB
@@ -1183,6 +1188,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         this.triggerAutoSave();
       },
       error: (err: any) => {
+        console.error('❌ DEBUG addDummyPerformer: Error creating dummy user:', err);
         alert('Failed to add dummy performer.');
       }
     });
@@ -1643,18 +1649,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   saveSegment() {
-    console.log('💾 DEBUG saveSegment called');
-    console.log('💾 DEBUG saveSegment: segment stylesInSegment:', this.segment?.stylesInSegment);
+
     
     const currentUser = this.authService.getCurrentUser();
     if (!currentUser?.team?._id) {
-      console.log('💾 DEBUG saveSegment: No current user or team, skipping save');
       return;
     }
 
     // If no segment exists, create a new one
     if (!this.segment || !this.segment._id) {
-      console.log('💾 DEBUG saveSegment: Creating new segment');
       
       this.segmentService.createSegment(
         currentUser.team._id,
@@ -1678,17 +1681,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             }))
           );
           
-          console.log('💾 DEBUG Transformed formations for new segment:', transformedFormations);
-          
           const updateData = {
             formations: transformedFormations,
             formationDurations: this.formationDurations,
-            animationDurations: this.animationDurations
+            animationDurations: this.animationDurations,
+            roster: this.segmentRoster.map(user => user._id) // Add roster with all user IDs including dummies
           };
           
           this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
             next: () => {
-              console.log('✅ DEBUG saveSegment: Segment formations updated successfully');
               this.lastSaveTime = new Date();
               
               // Update the URL to include the new segment ID
@@ -1720,8 +1721,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }))
     );
     
-    console.log('💾 DEBUG Transformed formations for saving:', transformedFormations);
-    
     const updateData = {
       name: this.segmentName,
       width: this.width,
@@ -1730,14 +1729,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       formations: transformedFormations,
       formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
-      stylesInSegment: this.segment.stylesInSegment || []
+      stylesInSegment: this.segment.stylesInSegment || [],
+      roster: this.segmentRoster.map(user => user._id) // Add roster with all user IDs including dummies
     };
 
-    console.log('💾 DEBUG saveSegment: About to call segmentService.updateSegment');
-    
     this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
       next: () => {
-        console.log('✅ DEBUG saveSegment: Segment saved successfully');
         this.lastSaveTime = new Date();
         
         // TEMPORARILY DISABLED: Check for consistency warnings after saving
@@ -1749,8 +1746,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         console.error('❌ DEBUG saveSegment: Error saving segment:', err);
       }
     });
-    
-    console.log('💾 DEBUG saveSegment: updateSegment subscription created');
+
   }
 
   /**
@@ -3131,16 +3127,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Add new method for triggering auto-save
   private triggerAutoSave() {
-    console.log('💾 DEBUG triggerAutoSave called');
-    console.log('💾 DEBUG triggerAutoSave: segment stylesInSegment:', this.segment?.stylesInSegment);
     this.saveSubject.next();
-    console.log('💾 DEBUG triggerAutoSave: saveSubject.next() called');
   }
 
   // Add method to force immediate save for new segments
   private forceSaveForNewSegment() {
     if (!this.segment || !this.segment._id) {
-      console.log('💾 DEBUG forceSaveForNewSegment: Forcing immediate save for new segment');
       this.saveSegment(); // Call save directly without debouncing
     }
   }
@@ -3205,12 +3197,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   convertToUser(user: any) {
     if (!this.selectedPerformer || !this.selectedPerformer.isDummy) return;
 
+    // Store the dummy user ID for deletion and replacement
+    const dummyUserId = this.selectedPerformer.id;
+    const dummyX = this.selectedPerformer.x;
+    const dummyY = this.selectedPerformer.y;
+
     // Create a new user performer
     const userPerformer: Performer = {
       id: user._id,
-        name: user.name,
-      x: this.selectedPerformer.x,
-      y: this.selectedPerformer.y,
+      name: user.name,
+      x: dummyX,
+      y: dummyY,
       skillLevels: user?.skillLevels || {},
       height: user?.height || 5.5,
       isDummy: false
@@ -3218,16 +3215,28 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
     // Replace the performer in all formations
     this.formations = this.formations.map(formation =>
-      formation.map(p => p.id === this.selectedPerformer?.id ? userPerformer : p)
+      formation.map(p => p.id === dummyUserId ? userPerformer : p)
     );
 
     // Update selection
-    this.selectedPerformerIds.delete(this.selectedPerformer.id);
+    this.selectedPerformerIds.delete(dummyUserId);
     this.selectedPerformerIds.add(userPerformer.id);
     this.selectedPerformerId = userPerformer.id;
 
     // Close the dropdown
     this.showPerformerPairingDropdown = false;
+
+    // Delete the dummy user from the database
+    this.teamService.deleteDummyUser(dummyUserId).subscribe({
+      next: (response) => {
+        console.log('✅ Dummy user deleted from backend after conversion:', response);
+      },
+      error: (err) => {
+        console.error('❌ Failed to delete dummy user from backend after conversion:', err);
+        console.error('  - Error details:', err);
+        console.error('  - Dummy user ID that failed:', dummyUserId);
+      }
+    });
 
     this.triggerAutoSave();
   }
