@@ -560,13 +560,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                     // Fallback if template not found
                     return {
                       id: p.dummyTemplateId,
-                      name: `Dumb ${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
+                      name: `${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
                       x: p.x,
                       y: p.y,
                       skillLevels: {},
                       height: p.height || 5.5,
                       isDummy: true,
-                      dummyName: `Dumb ${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
+                      dummyName: `${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
                       customColor: p.customColor
                     };
                   }
@@ -889,26 +889,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   calculateStageWithDOMSize() {
-    // Update mobile flag on every resize so sizing logic in calculateStage works correctly
-    this.isMobile = window.innerWidth <= 500;
-    // Get available space (subtracting for header and bottom panel)
-    const availableWidth = window.innerWidth * 0.98; // 98vw
-    const availableHeight = window.innerHeight - 200; // leave space for header/bottom panel
-
-    // Calculate aspect ratio (width:depth in feet)
-    const aspect = this.width / this.depth;
-
-    // Calculate the largest size that fits while maintaining aspect ratio
-    let stageWidthPx = availableWidth;
-    let stageHeightPx = stageWidthPx / aspect;
-    if (stageHeightPx > availableHeight) {
-      stageHeightPx = availableHeight;
-      stageWidthPx = stageHeightPx * aspect;
-    }
-
-    this.stageWidthPx = stageWidthPx;
-    this.stageHeightPx = stageHeightPx;
-
+    // Use fixed dimensions instead of responsive sizing
+    this.stageWidthPx = 800;  // Fixed width
+    this.stageHeightPx = 600; // Fixed height
+    
     this.calculateStage();
   }
 
@@ -930,8 +914,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     
     // Create 5 horizontal lines to create 4 rows (0, 1/4, 2/4, 3/4, 4/4)
+    const lineThickness = 4; // match your .main-horizontal height
     for (let i = 0; i <= 4; i++) {
-      this.mainHorizontals.push((i / 4) * this.stageHeightPx);
+      let y = (i / 4) * this.stageHeightPx;
+      if (i === 4) y = this.stageHeightPx - lineThickness; // last line at bottom border
+      this.mainHorizontals.push(y);
     }
     
     // Subgrid lines for all 8 vertical and 4 horizontal sections
@@ -984,6 +971,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.waveSurfer.seekTo(t / this.waveSurfer.getDuration());
       this.isPlaying = this.waveSurfer.isPlaying();
     }
+    // Always update performer tips when changing formation
+    this.checkFormationPositioningTips();
+  }
+
+  jumpToFormation(index: number) {
+    this.goToFormation(index);
+    // No need to call checkFormationPositioningTips here, as goToFormation already does
   }
 
   async prevFormation() {
@@ -998,10 +992,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       await this.animateFormationTransition(this.currentFormationIndex, this.currentFormationIndex + 1);
       this.goToFormation(this.currentFormationIndex + 1);
     }
-  }
-
-  jumpToFormation(index: number) {
-    this.goToFormation(index);
   }
 
   addFormation() {
@@ -1115,7 +1105,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   addDummyPerformer() {
     if (!this.segment?._id) {
       // For new segments, create a temporary dummy template
-      const dummyName = `Dumb ${this.dummyCounter}`;
+      const dummyName = `${this.dummyCounter}`;
       const dummyTemplateId = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
       // Find an available position for the new dummy performer
@@ -1146,7 +1136,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       return;
     }
 
-    const dummyName = `Dumb ${this.dummyCounter}`;
+    const dummyName = `${this.dummyCounter}`;
 
     this.teamService.addDummyTemplate(this.segment._id, dummyName).subscribe({
       next: (res: any) => {
@@ -1258,15 +1248,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Calculate the distance moved
     const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX;
     const clientY = 'touches' in event ? event.touches[0].clientY : event.clientY;
-    const dx = clientX - this.dragStartX;
-    const dy = clientY - this.dragStartY;
+    let dx = clientX - this.dragStartX;
+    let dy = clientY - this.dragStartY;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     // If we haven't moved past the threshold yet, don't start dragging
     if (distance < this.DRAG_THRESHOLD) return;
 
-    let x = (clientX - this.stageRef.nativeElement.getBoundingClientRect().left - this.dragOffset.x) / this.pixelsPerFoot;
-    let y = (clientY - this.stageRef.nativeElement.getBoundingClientRect().top - this.dragOffset.y) / this.pixelsPerFoot;
+    // Scale movement by zoom
+    const zoom = this.currentZoom || 1;
+    dx = dx / zoom;
+    dy = dy / zoom;
+
+    let x = (this.dragStartX + dx - this.stageRef.nativeElement.getBoundingClientRect().left - this.dragOffset.x) / this.pixelsPerFoot;
+    let y = (this.dragStartY + dy - this.stageRef.nativeElement.getBoundingClientRect().top - this.dragOffset.y) / this.pixelsPerFoot;
 
     // Calculate all possible grid positions (main + subgrid)
     const gridPositionsX: number[] = [];
@@ -1633,7 +1628,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   getPerformerStyle(performer: Performer) {
-    const performerSize = 30; // px
+    // Make performer size proportional to the stage size
+    const baseSize = Math.min(this.stageWidthPx, this.stageHeightPx);
+    const performerSize = baseSize * 0.04; // 4% of the smaller dimension
     // Use animated positions if animating
     let x = performer.x;
     let y = performer.y;
@@ -1653,6 +1650,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const baseStyle = {
       left: `${left}px`,
       top: `${top}px`,
+      width: `${performerSize}px`,
+      height: `${performerSize}px`,
       zIndex: this.draggingId === performer.id ? 1000 : (isSelected ? 100 : (isHovered ? 50 : 10))
     };
 
@@ -3338,7 +3337,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   convertToDummy() {
     if (!this.selectedPerformer) return;
 
-    const dummyName = `Dumb ${this.dummyCounter}`;
+    const dummyName = `${this.dummyCounter}`;
     const dummyId = `dummy-${this.dummyCounter}`;
 
     // Create a new dummy performer with the same properties

@@ -339,7 +339,8 @@
     overflow-y: visible;
     background: transparent !important;
     margin-bottom: 0;
-    max-width: calc(100% - 200px); // Add max-width to respect divider
+    width: 100% !important;
+    max-width: none !important;
   }
 
   .formation-timeline-bar {
@@ -349,9 +350,7 @@
     min-height: 40px;
     height: auto;
     background: rgba(35, 35, 38, 0.85);
-    border-right: 2px solid rgba(246, 218, 59, 0.942);
-    border-bottom: 2px solid rgba(246, 218, 59, 0.942);
-
+    /* Removed border-right and border-bottom to eliminate border lines */
     padding: 0.2rem 0.2rem 0.2rem 0.2rem;
     box-shadow: 0 2px 8px rgba(59,130,246,0.08);
   }
@@ -902,7 +901,7 @@
   transform-origin: center center;
   will-change: transform;
   transition: transform 0.2s ease-out;
-  padding: 20px;
+  padding: 20px 20px -200px 20px;
   max-width: 100%;
   box-sizing: border-box;
 }
@@ -918,8 +917,10 @@
   overflow: visible;
   backdrop-filter: blur(18px);
   border: 2.5px solid rgba(59,130,246,0.18);
-  max-width: 100%;
-  box-sizing: border-box;
+  /* width and height removed so they are set by [style.width.px] and [style.height.px] */
+  max-width: none;
+  max-height: none;
+  box-sizing: content-box;
 }
 
 .stage-border {
@@ -1067,7 +1068,7 @@
 }
 
 .vertical-number {
-  bottom: -2rem;
+  bottom: 0;
   left: 50%;
 }
 
@@ -1561,11 +1562,7 @@
 
 /* Responsive Design */
 @media (max-width: 1200px) {
-  .stage-grid-outer {
-    width: 100% !important;
-    max-width: 100%;
-    min-height: 200px;
-  }
+  // Removed stage-grid-outer responsive sizing to keep fixed dimensions
 }
 
 @media (max-width: 700px) {
@@ -1600,10 +1597,7 @@
     max-width: 100vw;
     overflow: hidden;
   }
-  .stage-grid-outer {
-    max-width: 100%;
-    overflow: hidden;
-  }
+  // Removed stage-grid-outer responsive sizing to keep fixed dimensions
 }
 
 @media (max-width: 480px) {
@@ -1627,13 +1621,7 @@
     overflow: hidden;
   }
 
-  .stage-grid-outer {
-    width: 100% !important;
-    max-width: 100%;
-
-    margin: 0 auto;
-    overflow: hidden;
-  }
+  // Removed stage-grid-outer responsive sizing to keep fixed dimensions
   
   .timeline-audio-stack {
     width: 100%;
@@ -1677,22 +1665,21 @@
     overflow-x: hidden;
   }
   
-  .stage-grid-outer {
-    overflow-x: hidden;
-  }
+  // Removed stage-grid-outer responsive sizing to keep fixed dimensions
 }
 
 @media (max-width: 480px) {
   .main-content,
   .content-area,
-  .stage-container {
-    display: block !important;
-    height: auto !important;
+  .stage-container,
+  .stage-area {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
     min-height: 0 !important;
-    height: 40vh !important;
-    max-height: 40vh !important;
+    height: auto !important;
+    max-height: none !important;
     overflow: visible !important;
-    flex: unset !important;
   }
   .stage-header-center {
     width: 100vw !important;
@@ -1701,26 +1688,7 @@
     margin: 0 !important;
     padding: 1.2rem 0 0.4rem 0 !important;
   }
-  .stage-area,
-  .stage-grid-outer {
-    width: 98vw !important;
-    max-width: 98vw !important;
-    aspect-ratio: 2 / 1 !important;
-    /* Removed max-height and height: auto to prevent clipping */
-    min-width: 0 !important;
-    min-height: 0 !important;
-    height: 252px !important;
-    max-height: 100vh !important;
-    margin: 0 auto !important;
-    box-sizing: border-box;
-    display: block;
-    background: none;
-  }
-
-  .stage-grid-outer,
-  .stage-area {
-    height: 100% !important;
-  }
+  // Removed stage-area and stage-grid-outer responsive sizing to keep fixed dimensions
   .performer {
     width: 15px !important;
     height: 15px !important;
@@ -3281,6 +3249,133 @@
   }
   50% {
     background-position: 100% 50%;
+  }
+}
+
+/* iPhone-specific styles to ensure bottom panel is at the bottom of the screen */
+@media (max-width: 480px) {
+  .segment-page-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  .main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 60px); /* Subtract top panel height */
+    overflow: hidden;
+  }
+  
+  .content-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  
+  .stage-container {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  
+  .bottom-panel {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    z-index: 1000 !important;
+    margin-top: 0 !important;
+    background: rgba(67, 59, 1, 0.95) !important;
+    backdrop-filter: blur(12px) !important;
+    border-top: 2px solid rgba(59, 130, 246, 0.3) !important;
+    /* Support for iPhone safe areas */
+    padding-bottom: env(safe-area-inset-bottom, 0) !important;
+    
+    &.has-audio {
+      min-height: 140px !important;
+    }
+    
+    .bottom-panel-main {
+      padding: 0.8rem 1rem !important;
+      gap: 1rem !important;
+      height: 100% !important;
+    }
+    
+    .timeline-audio-stack {
+      max-width: calc(100% - 120px) !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+    
+    .formation-timeline-bar {
+      min-height: 50px !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+    
+    .audio-player-bar {
+      min-height: 60px !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+    
+    .bottom-panel-actions {
+      padding: 0.5rem 0.8rem !important;
+      gap: 0.5rem !important;
+      
+      .timeline-zoom-controls {
+        min-width: 140px !important;
+        max-width: 160px !important;
+        padding: 0.3rem 0.5rem !important;
+      }
+    }
+  }
+  
+  .content-area {
+    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0)) !important; /* Add padding to prevent content from being hidden behind fixed bottom panel */
+  }
+}
+
+@media (max-width: 480px) {
+  .stage-container,
+  .stage-area {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .performer {
+    width: 25px !important;
+    height: 25px !important;
+    font-size: 12px !important;
+  }
+  .floating-controls {
+    position: fixed !important;
+    left: 20% !important;
+    z-index: 1100 !important;
+    width: auto !important;
+    bottom: 10% !important;
+  }
+  .floating-controls.has-audio {
+    bottom: 20% !important;
+    left: 25% !important;
+  }
+  .bottom-panel {
+    background: rgba(12, 12, 42, 0.556) !important;
   }
 }
 

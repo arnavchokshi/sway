@@ -64,7 +64,7 @@
 
   <div class="main-content">
     <!-- Collapsible Positioning Tips Tab -->
-    <div class="positioning-tips-tab" [class.expanded]="showPositioningTips">
+    <div class="positioning-tips-tab" *ngIf="isCaptain" [class.expanded]="showPositioningTips">
       <!-- Tab Handle -->
       <div class="tips-tab-handle" (click)="togglePositioningTips()">
         <span class="tips-tab-label">Positioning Tips</span>
@@ -331,10 +331,10 @@
                  [class.selected]="selectedPerformerIds.has(performer.id)"
                  [class.hovered]="isPerformerHovered(performer)"
                  [class.loading]="isPerformerSelectionLoading"
-                 (mousedown)="onDragStart($event, performer)"
-                 (click)="onPerformerClick(performer)"
-                 (mouseenter)="onPerformerMouseEnter(performer)"
-                 (mouseleave)="onPerformerMouseLeave()"
+                 (mousedown)="isCaptain && onDragStart($event, performer)"
+                 (click)="isCaptain && onPerformerClick(performer)"
+                 (mouseenter)="isCaptain && onPerformerMouseEnter(performer)"
+                 (mouseleave)="isCaptain && onPerformerMouseLeave()"
                  [attr.data-id]="performer.id">
               {{performer.name}}
               <div *ngIf="isPerformerSelectionLoading" class="loading-spinner"></div>
@@ -356,7 +356,7 @@
                  title="Stage vertical position (↑ Up Arrow / ↓ Down Arrow)">
         </div>
       </div>
-      <div class="floating-controls">
+      <div class="floating-controls" [class.has-audio]="signedMusicUrl">
         <button class="unified-play-btn" *ngIf="signedMusicUrl" (click)="toggleUnifiedPlay()" (touchstart)="initializeMobileAudioContext()">
           <span class="material-icons">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
         </button>
