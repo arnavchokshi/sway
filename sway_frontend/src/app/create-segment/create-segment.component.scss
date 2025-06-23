@@ -3379,3 +3379,36 @@
   }
 }
 
+.copy-btn,
+.paste-btn {
+  background: rgba(59, 130, 246, 0.9);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: white;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.copy-btn:hover,
+.paste-btn:hover {
+  background: rgba(59, 130, 246, 1);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.copy-btn:active,
+.paste-btn:active {
+  transform: scale(0.95);
+}
+
+.copy-btn .material-icons,
+.paste-btn .material-icons {
+  font-size: 18px;
+}
+

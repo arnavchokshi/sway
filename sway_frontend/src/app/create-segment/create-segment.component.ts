@@ -323,6 +323,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private _isUpdating3D = false;
   private _3DUpdateFrameId: number | null = null;
 
+  // Add these properties for copy/paste functionality
+  copiedPerformers: { id: string; name: string; x: number; y: number; skillLevels: any; height?: number; isDummy?: boolean; customColor?: string }[] = [];
+  hasCopiedPerformers = false;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -1628,9 +1632,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   getPerformerStyle(performer: Performer) {
-    // Make performer size proportional to the stage size
-    const baseSize = Math.min(this.stageWidthPx, this.stageHeightPx);
-    const performerSize = baseSize * 0.04; // 4% of the smaller dimension
+    // Use fixed performer size
+    const performerSize = 25; // px
     // Use animated positions if animating
     let x = performer.x;
     let y = performer.y;
@@ -3481,39 +3484,51 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   handleKeyDown = (event: KeyboardEvent) => {
+    // Handle shift key for multi-selection
     if (event.key === 'Shift') {
       this.isShiftPressed = true;
     }
-    if (event.key === 'Meta' || event.metaKey) {
+    
+    // Handle command key for multi-selection on Mac
+    if (event.key === 'Meta' || event.key === 'Command') {
       this.isCommandPressed = true;
     }
     
-    // Add arrow key navigation for formations
-    if (event.key === 'ArrowLeft') {
+    // Handle arrow keys for formation navigation
+    if (event.key === 'ArrowLeft' && !this.inTransition) {
       event.preventDefault();
       this.prevFormation();
-    }
-    if (event.key === 'ArrowRight') {
+    } else if (event.key === 'ArrowRight' && !this.inTransition) {
       event.preventDefault();
       this.onNextFormationClick();
     }
     
-    // Add up/down arrow key navigation for stage vertical offset
-    if (event.key === 'ArrowUp') {
+    // Handle copy/paste shortcuts
+    if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
       event.preventDefault();
-      // Move stage up (decrease offset, but since slider is inverted, we increase the value)
-      const newOffset = Math.max(-300, Math.min(100, this.stageVerticalOffset + 20));
-      this.stageVerticalOffset = newOffset;
-      this.updateStageTransform();
-    }
-    if (event.key === 'ArrowDown') {
+      this.copySelectedPerformers();
+    } else if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
       event.preventDefault();
-      // Move stage down (increase offset, but since slider is inverted, we decrease the value)
-      const newOffset = Math.max(-300, Math.min(100, this.stageVerticalOffset - 20));
-      this.stageVerticalOffset = newOffset;
-      this.updateStageTransform();
+      this.pastePerformers();
     }
-  };
+    
+    // Handle delete key for removing performers
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      if (this.selectedPerformerIds.size > 0) {
+        event.preventDefault();
+        // Remove selected performers from current formation
+        const currentFormation = this.formations[this.currentFormationIndex];
+        this.selectedPerformerIds.forEach(performerId => {
+          const index = currentFormation.findIndex(p => p.id === performerId);
+          if (index !== -1) {
+            currentFormation.splice(index, 1);
+          }
+        });
+        this.selectedPerformerIds.clear();
+        this.triggerAutoSave();
+      }
+    }
+  }
 
   handleKeyUp = (event: KeyboardEvent) => {
     if (event.key === 'Shift') {
@@ -4954,6 +4969,83 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     
     console.log('✅ DEBUG setSelectedPerformer completed for:', performer.name);
+  }
+
+  /**
+   * Copy selected performers' positions and properties
+   */
+  copySelectedPerformers() {
+    if (this.selectedPerformerIds.size === 0) return;
+    
+    this.copiedPerformers = [];
+    const currentFormation = this.formations[this.currentFormationIndex];
+    
+    this.selectedPerformerIds.forEach(performerId => {
+      const performer = currentFormation.find(p => p.id === performerId);
+      if (performer) {
+        this.copiedPerformers.push({
+          id: performer.id,
+          name: performer.name,
+          x: performer.x,
+          y: performer.y,
+          skillLevels: { ...performer.skillLevels },
+          height: performer.height,
+          isDummy: performer.isDummy,
+          customColor: performer.customColor
+        });
+      }
+    });
+    
+    this.hasCopiedPerformers = this.copiedPerformers.length > 0;
+    console.log(`Copied ${this.copiedPerformers.length} performers`);
+  }
+
+  /**
+   * Paste copied performers' positions to the current formation
+   */
+  pastePerformers() {
+    if (!this.hasCopiedPerformers || this.copiedPerformers.length === 0) return;
+    
+    const currentFormation = this.formations[this.currentFormationIndex];
+    
+    this.copiedPerformers.forEach(copiedPerformer => {
+      // Find the performer in the current formation
+      const existingPerformer = currentFormation.find(p => p.id === copiedPerformer.id);
+      
+      if (existingPerformer) {
+        // Update position and properties
+        existingPerformer.x = copiedPerformer.x;
+        existingPerformer.y = copiedPerformer.y;
+        existingPerformer.skillLevels = { ...copiedPerformer.skillLevels };
+        existingPerformer.height = copiedPerformer.height;
+        existingPerformer.customColor = copiedPerformer.customColor;
+      } else {
+        // If performer doesn't exist in this formation, add them
+        currentFormation.push({
+          id: copiedPerformer.id,
+          name: copiedPerformer.name,
+          x: copiedPerformer.x,
+          y: copiedPerformer.y,
+          skillLevels: { ...copiedPerformer.skillLevels },
+          height: copiedPerformer.height,
+          isDummy: copiedPerformer.isDummy,
+          customColor: copiedPerformer.customColor
+        });
+      }
+    });
+    
+    // Clear selection and trigger auto-save
+    this.selectedPerformerIds.clear();
+    this.triggerAutoSave();
+    
+    console.log(`Pasted ${this.copiedPerformers.length} performers to formation ${this.currentFormationIndex + 1}`);
+  }
+
+  /**
+   * Check if paste is available (has copied performers)
+   */
+  canPaste(): boolean {
+    return this.hasCopiedPerformers && this.copiedPerformers.length > 0;
   }
 }
  
