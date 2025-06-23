@@ -52,7 +52,7 @@
       <h2>Create New Segment</h2>
       <form (ngSubmit)="submitSegmentModal()">
         <label>
-          Name
+          Segment Name
           <input type="text" [(ngModel)]="newSegmentName" name="name" required />
         </label>
         <label>
@@ -65,7 +65,8 @@
         </label>
         <div class="styles-section-modal">
           <div style="font-weight: 500; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; position: relative;">
-            Styles
+            <span style="font-size: 1.1em; font-weight: 600;">Styles</span>
+            <span style="font-size: 0.9em; color: #b3b3c6; font-weight: 400;">(Add these to view by skill)</span>
             <button type="button" class="add-style-btn" (click)="showAddStyleInput = true" *ngIf="isCaptain && !showAddStyleInput" style="margin-left: auto; background: none; border: none; color: #6366f1; font-size: 1.5em; cursor: pointer;">+</button>
           </div>
           <div class="styles-list-modal" *ngIf="teamStyles.length > 0 || showAddStyleInput">

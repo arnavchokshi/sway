@@ -191,6 +191,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private readonly CLICK_DEBOUNCE_MS = 300; // Minimum 300ms between clicks
   private justDragged = false; // Track if we just finished dragging
 
+  // Rectangular selection properties
+  private isSelecting = false;
+  private selectionStartX = 0;
+  private selectionStartY = 0;
+  private selectionEndX = 0;
+  private selectionEndY = 0;
+  private readonly SELECTION_THRESHOLD = 3; // pixels - minimum distance to start selection
+  private stageMouseMoveListener: (() => void) | null = null;
+  private stageMouseUpListener: (() => void) | null = null;
+  private multiSelectionEnabledByRectangle = false; // Track if multi-selection was enabled by rectangle
+  private justFinishedSelection = false; // Track if we just finished a rectangular selection
+
   sidePanelMode: 'roster' | 'performer' | '3d' = 'roster';
 
   async setSidePanelMode(mode: 'roster' | 'performer' | '3d') {
@@ -479,27 +491,28 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           return;
         }
         
-        // After loading, find the highest dummy number to set the counter
+        // --- Handle dummy templates from segment ---
+        const dummyTemplates = this.segment?.dummyTemplates || [];
+        const dummyTemplateMap = new Map<string, any>();
+        dummyTemplates.forEach((template: any) => {
+          dummyTemplateMap.set(template.id, template);
+        });
+
+        // Update dummy counter based on existing dummy templates
         let maxDummyNum = 0;
-        if (this.segment && this.segment.formations) {
-          this.segment.formations.forEach((formation: any[]) => {
-            formation.forEach((p: { isDummy?: boolean; dummyName?: string; name?: string }) => {
-              if (p.isDummy) {
-                const name = p.dummyName || p.name || '';
-                const match = name.match(/(\d+)$/);
-                if (match) {
-                  const num = parseInt(match[1], 10);
-                  if (num > maxDummyNum) {
-                    maxDummyNum = num;
-                  }
-                }
-              }
-            });
-          });
-        }
+        dummyTemplates.forEach((template: any) => {
+          const name = template.name || '';
+          const match = name.match(/(\d+)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num >= maxDummyNum) {
+              maxDummyNum = num;
+            }
+          }
+        });
         this.dummyCounter = maxDummyNum + 1;
 
-        // --- Fetch missing users for segmentRoster (dummies) ---
+        // --- Fetch missing users for segmentRoster (only real users, not dummies) ---
         const teamIds = new Set(this.teamRoster.map(m => m._id));
         const segmentUserIds = (this.segment?.roster || []);
         const missingIds = segmentUserIds.filter((id: string) => !teamIds.has(id));
@@ -524,80 +537,50 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         ];
 
         if (this.segment) {
-          const nameToIdMap = new Map<string, string>(); // key: dummyName, value: canonical dummyId
-          // Pass 1: Scan all formations to build a consistent map of dummy names to IDs.
-          if (this.segment.formations) {
-            this.segment.formations.forEach((formation: any[]) => {
-              formation.forEach(p => {
-                if ((p.isDummy || p.user === null) && p.id) {
-                  const name = p.dummyName || p.name;
-                  if (name && !nameToIdMap.has(name)) {
-                    nameToIdMap.set(name, p.id);
-                  }
-                }
-              });
-            });
-            // Second sub-pass: fill in for dummies that didn't have an ID.
-            this.segment.formations.forEach((formation: any[]) => {
-              formation.forEach(p => {
-                if (p.isDummy || p.user === null) {
-                  const name = p.dummyName || p.name;
-                  if (name && !nameToIdMap.has(name)) {
-                    nameToIdMap.set(name, `dummy-${this.dummyCounter++}`);
-                  }
-                }
-              });
-            });
-          }
-
-          // Pass 2: Map formations using the consistent ID map.
+          // Pass 2: Map formations using dummy templates and real users
           if (this.segment.formations && this.segment.formations.length > 0) {
             this.formations = this.segment.formations.map((formation: any[]) => 
               formation.map((p: any) => {
-                // Check if this is a dummy performer by looking for isDummy flag or null user
-                if (p.isDummy || p.user === null) {
-                  const originalName = p.dummyName || p.name;
-                  const canonicalId = nameToIdMap.get(originalName);
-                  if (!canonicalId) {
-                    const id = p.id || `dummy-${this.dummyCounter++}`;
-                    const name = `Dumb ${id.split('-')[1]}`;
+                // Check if this is a dummy performer by looking for dummyTemplateId
+                if (p.dummyTemplateId) {
+                  const dummyTemplate = dummyTemplateMap.get(p.dummyTemplateId);
+                  if (dummyTemplate) {
                     return {
-                      id: id, name: name, x: p.x, y: p.y, skillLevels: {},
-                      height: p.height || 5.5, isDummy: true, dummyName: name,
-                      customColor: p.customColor // Include custom color if present
+                      id: dummyTemplate.id,
+                      name: dummyTemplate.name,
+                      x: p.x,
+                      y: p.y,
+                      skillLevels: dummyTemplate.skillLevels || {},
+                      height: dummyTemplate.height || 5.5,
+                      isDummy: true,
+                      dummyName: dummyTemplate.name,
+                      customColor: p.customColor || dummyTemplate.customColor
+                    };
+                  } else {
+                    // Fallback if template not found
+                    return {
+                      id: p.dummyTemplateId,
+                      name: `Dumb ${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
+                      x: p.x,
+                      y: p.y,
+                      skillLevels: {},
+                      height: p.height || 5.5,
+                      isDummy: true,
+                      dummyName: `Dumb ${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
+                      customColor: p.customColor
                     };
                   }
-                  const nameNumberMatch = originalName ? String(originalName).match(/(\d+)$/) : null;
-                  const idNumber = canonicalId.split('-')[1];
-                  const nameNumber = nameNumberMatch ? nameNumberMatch[1] : idNumber;
-                  const canonicalName = `Dumb ${nameNumber}`;
-                  const dummyPerformer = {
-                    id: canonicalId,
-                    name: canonicalName,
-                    x: p.x,
-                    y: p.y,
-                    skillLevels: {},
-                    height: p.height || 5.5,
-                    isDummy: true,
-                    dummyName: canonicalName,
-                    customColor: p.customColor // Include custom color if present
-                  };
-                  console.log('Reconstructed dummy performer:', JSON.stringify(dummyPerformer, null, 2));
-                  return dummyPerformer;
-                } else {
-                  // Handle real performers - check both user field and id field
-                  const performerId = p.user || p.id || p._id;
+                } else if (p.user) {
+                  // Handle real performers
+                  const performerId = p.user;
                   console.log('🔍 DEBUG Mapping performer:', { 
                     original: p, 
                     performerId, 
-                    hasUser: !!p.user, 
-                    hasId: !!p.id, 
-                    has_id: !!p._id 
+                    hasUser: !!p.user
                   });
                   
                   const user = this.teamRoster.find(m => String(m._id) === String(performerId)) || 
                               this.segmentRoster.find(m => String(m._id) === String(performerId));
-                  
 
                   if (user && user.skillLevels) {
                     const skillLevel = user?.skillLevels?.[this.selectedStyle?.name?.toLowerCase() || ''] || p.skillLevel || 1;
@@ -615,7 +598,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                     return mappedPerformer;
                   } else {
                     // Fallback if user not found in roster
-
                     return {
                       id: performerId,
                       name: 'Unknown',
@@ -627,6 +609,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                       customColor: p.customColor // Include custom color if present
                     };
                   }
+                } else {
+                  // Fallback for any other case (shouldn't happen with proper data)
+                  return {
+                    id: p.id || `unknown-${Date.now()}`,
+                    name: p.name || 'Unknown',
+                    x: p.x,
+                    y: p.y,
+                    skillLevels: {},
+                    height: p.height || 66,
+                    isDummy: false,
+                    customColor: p.customColor
+                  };
                 }
               })
             );
@@ -1119,23 +1113,48 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   addDummyPerformer() {
+    if (!this.segment?._id) {
+      // For new segments, create a temporary dummy template
+      const dummyName = `Dumb ${this.dummyCounter}`;
+      const dummyTemplateId = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Find an available position for the new dummy performer
+      const position = this.findAvailablePosition();
+      
+      // Add dummy to all formations
+      this.formations = this.formations.map(formation => [
+        ...formation,
+        {
+          id: dummyTemplateId,
+          name: dummyName,
+          x: position.x,
+          y: position.y,
+          isDummy: true,
+          dummyName: dummyName,
+          skillLevels: {},
+          height: 5.5
+        }
+      ]);
+      
+      this.dummyCounter++;
+      
+      // Force immediate save for new segments to ensure they're created in MongoDB
+      this.forceSaveForNewSegment();
+      
+      // Also trigger regular auto-save for existing segments
+      this.triggerAutoSave();
+      return;
+    }
 
     const dummyName = `Dumb ${this.dummyCounter}`;
 
-    this.teamService.addDummyUser(dummyName).subscribe({
+    this.teamService.addDummyTemplate(this.segment._id, dummyName).subscribe({
       next: (res: any) => {
-
-        const newUser = res?.user;
+        const dummyTemplate = res?.dummyTemplate;
         
-        if (!newUser || !newUser._id) {
-          alert('Failed to create dummy user.');
+        if (!dummyTemplate || !dummyTemplate.id) {
+          alert('Failed to create dummy template.');
           return;
-        }
-        
-
-        // Only add to segment roster if not already present
-        if (!this.segmentRoster.some(m => m._id === newUser._id)) {
-          this.segmentRoster.push(newUser);
         }
         
         // Find an available position for the new dummy performer
@@ -1145,7 +1164,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         this.formations = this.formations.map(formation => [
           ...formation,
           {
-            id: newUser._id,
+            id: dummyTemplate.id,
             name: dummyName,
             x: position.x,
             y: position.y,
@@ -1158,14 +1177,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         
         this.dummyCounter++;
         
-        // Force immediate save for new segments to ensure they're created in MongoDB
-        this.forceSaveForNewSegment();
-        
-        // Also trigger regular auto-save for existing segments
+        // Trigger auto-save for existing segments
         this.triggerAutoSave();
       },
       error: (err: any) => {
-        console.error('❌ DEBUG addDummyPerformer: Error creating dummy user:', err);
+        console.error('❌ DEBUG addDummyPerformer: Error creating dummy template:', err);
         alert('Failed to add dummy performer.');
       }
     });
@@ -1187,13 +1203,28 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.dragStartX = 'touches' in event ? event.touches[0].clientX : event.clientX;
     this.dragStartY = 'touches' in event ? event.touches[0].clientY : event.clientY;
 
-    // If we're not holding shift or command, clear other selections
-    if (!this.isMultiSelectionEnabled()) {
+    // Check if this performer is already selected
+    const isPerformerSelected = this.selectedPerformerIds.has(performer.id);
+    const isMultiSelection = this.isMultiSelectionEnabled();
+
+    // If performer is not selected and we're not in multi-selection mode, clear selection and select only this performer
+    if (!isPerformerSelected && !isMultiSelection) {
       this.selectedPerformerIds.clear();
+      this.multiSelectionEnabledByRectangle = false; // Clear rectangle-based multi-selection
     }
     
-    // Add this performer to selection
-    this.selectedPerformerIds.add(performer.id);
+    // If performer is not selected and we ARE in multi-selection mode (rectangle-based), 
+    // clear the multi-selection and select only this performer
+    if (!isPerformerSelected && this.multiSelectionEnabledByRectangle) {
+      this.selectedPerformerIds.clear();
+      this.multiSelectionEnabledByRectangle = false;
+    }
+    
+    // Add this performer to selection if not already selected
+    if (!isPerformerSelected) {
+      this.selectedPerformerIds.add(performer.id);
+    }
+    
     this.selectedPerformerId = performer.id;
 
     // Show previous position for the dragged performer
@@ -1343,21 +1374,179 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }, 500); // Small delay to ensure the movement is properly saved
   };
 
+  // --- Rectangular Selection Logic ---
+  onStageMouseDown(event: MouseEvent) {
+    // Only handle if clicking on the stage area itself, not on performers
+    if (event.target !== this.stageRef.nativeElement && 
+        !(event.target as HTMLElement).closest('.stage-grid-outer')) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Find the stage-grid-outer element to calculate coordinates relative to it
+    const stageGridElement = this.stageRef.nativeElement.querySelector('.stage-grid-outer') as HTMLElement;
+    if (!stageGridElement) return;
+
+    const rect = stageGridElement.getBoundingClientRect();
+    this.selectionStartX = event.clientX - rect.left;
+    this.selectionStartY = event.clientY - rect.top;
+    this.selectionEndX = this.selectionStartX;
+    this.selectionEndY = this.selectionStartY;
+    this.isSelecting = false; // Will be set to true if we move enough
+
+    // Add event listeners for selection and store references
+    this.stageMouseMoveListener = this.renderer.listen('document', 'mousemove', this.onStageMouseMove);
+    this.stageMouseUpListener = this.renderer.listen('document', 'mouseup', this.onStageMouseUp);
+  }
+
+  onStageMouseMove = (event: MouseEvent) => {
+    if (!this.stageRef) return;
+
+    // Find the stage-grid-outer element to calculate coordinates relative to it
+    const stageGridElement = this.stageRef.nativeElement.querySelector('.stage-grid-outer') as HTMLElement;
+    if (!stageGridElement) return;
+
+    const rect = stageGridElement.getBoundingClientRect();
+    const currentX = event.clientX - rect.left;
+    const currentY = event.clientY - rect.top;
+
+    // Calculate distance moved
+    const dx = currentX - this.selectionStartX;
+    const dy = currentY - this.selectionStartY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Start selection if we've moved past the threshold
+    if (!this.isSelecting && distance > this.SELECTION_THRESHOLD) {
+      this.isSelecting = true;
+      
+      // Clear current selection if not holding shift/command
+      if (!this.isMultiSelectionEnabled()) {
+        this.selectedPerformerIds.clear();
+        this.multiSelectionEnabledByRectangle = false; // Clear rectangle-based multi-selection
+      }
+    }
+
+    if (this.isSelecting) {
+      this.selectionEndX = currentX;
+      this.selectionEndY = currentY;
+      // Do NOT call updateSelection here; only update the rectangle's visual size
+    }
+  };
+
+  onStageMouseUp = (event: MouseEvent) => {
+    if (this.isSelecting) {
+      // Only update selection on release
+      this.updateSelection();
+      this.isSelecting = false; // This will hide the rectangle
+      
+      // If no performers were selected, clear rectangle-based multi-selection
+      if (this.selectedPerformerIds.size === 0) {
+        this.multiSelectionEnabledByRectangle = false;
+      }
+      
+      // Set flag to prevent stage click from clearing selections
+      this.justFinishedSelection = true;
+      setTimeout(() => {
+        this.justFinishedSelection = false;
+      }, 100); // Clear flag after 100ms
+      
+      // Prevent the stage click from firing when finishing a rectangular selection
+      event.stopPropagation();
+      event.preventDefault();
+    }
+
+    // Remove event listeners
+    if (this.stageMouseMoveListener) {
+      this.stageMouseMoveListener();
+      this.stageMouseMoveListener = null;
+    }
+    if (this.stageMouseUpListener) {
+      this.stageMouseUpListener();
+      this.stageMouseUpListener = null;
+    }
+  };
+
+  private updateSelection() {
+    if (!this.stageRef || !this.isSelecting) return;
+
+    // Calculate selection rectangle
+    const left = Math.min(this.selectionStartX, this.selectionEndX);
+    const right = Math.max(this.selectionStartX, this.selectionEndX);
+    const top = Math.min(this.selectionStartY, this.selectionEndY);
+    const bottom = Math.max(this.selectionStartY, this.selectionEndY);
+
+    // Check each performer to see if they're in the selection rectangle
+    let performersInSelection = 0;
+    this.performers.forEach(performer => {
+      const performerX = performer.x * this.pixelsPerFoot;
+      const performerY = performer.y * this.pixelsPerFoot;
+
+      // Check if performer is within the selection rectangle
+      if (performerX >= left && performerX <= right && 
+          performerY >= top && performerY <= bottom) {
+        this.selectedPerformerIds.add(performer.id);
+        performersInSelection++;
+      }
+    });
+
+    // If we selected multiple performers, enable rectangle-based multi-selection
+    if (performersInSelection > 1) {
+      this.multiSelectionEnabledByRectangle = true;
+    }
+
+    // Update the selected performer for details panel
+    if (this.selectedPerformerIds.size > 0) {
+      const firstSelectedId = Array.from(this.selectedPerformerIds)[0];
+      this.selectedPerformerId = firstSelectedId;
+    }
+  }
+
+  getSelectionStyle(): any {
+    if (!this.isSelecting) return { display: 'none' };
+
+    const left = Math.min(this.selectionStartX, this.selectionEndX);
+    const top = Math.min(this.selectionStartY, this.selectionEndY);
+    const width = Math.abs(this.selectionEndX - this.selectionStartX);
+    const height = Math.abs(this.selectionEndY - this.selectionStartY);
+
+    return {
+      position: 'absolute',
+      left: left + 'px',
+      top: top + 'px',
+      width: width + 'px',
+      height: height + 'px',
+      display: 'block'
+    };
+  }
+
   async onPerformerClick(performer: Performer) {
     this.isPerformerSelectionLoading = true;
     
     try {
       // Check if multi-selection is enabled (Shift or Command key)
       const isMultiSelection = this.isMultiSelectionEnabled();
+      const isPerformerSelected = this.selectedPerformerIds.has(performer.id);
+      
       console.log('Click detected:', {
         performer: performer.name,
         isMultiSelection,
+        isPerformerSelected,
         isShiftPressed: this.isShiftPressed,
         isCommandPressed: this.isCommandPressed,
+        multiSelectionEnabledByRectangle: this.multiSelectionEnabledByRectangle,
         currentSelection: Array.from(this.selectedPerformerIds)
       });
       
-      if (isMultiSelection) {
+      // If performer is not selected and we have rectangle-based multi-selection,
+      // clear the multi-selection and select only this performer
+      if (!isPerformerSelected && this.multiSelectionEnabledByRectangle) {
+        this.selectedPerformerIds.clear();
+        this.multiSelectionEnabledByRectangle = false;
+        this.selectedPerformerIds.add(performer.id);
+        console.log('Cleared rectangle multi-selection, selected only:', performer.name);
+      } else if (isMultiSelection) {
         // Multi-selection mode: add to selection (don't remove if already selected)
         if (!this.selectedPerformerIds.has(performer.id)) {
           // Add to selection only if not already selected
@@ -1369,6 +1558,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       } else {
         // Single selection mode: clear and select only this performer
         this.selectedPerformerIds.clear();
+        this.multiSelectionEnabledByRectangle = false; // Clear rectangle-based multi-selection
         this.selectedPerformerIds.add(performer.id);
         console.log('Single selection:', performer.name);
       }
@@ -1393,6 +1583,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       // Try to recover gracefully
       this.selectedPerformerIds.clear();
       this.selectedPerformerId = null;
+      this.multiSelectionEnabledByRectangle = false;
     } finally {
       this.isPerformerSelectionLoading = false;
     }
@@ -1583,8 +1774,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   saveSegment() {
-
-    
     const currentUser = this.authService.getCurrentUser();
     if (!currentUser?.team?._id) {
       return;
@@ -1592,7 +1781,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
     // If no segment exists, create a new one
     if (!this.segment || !this.segment._id) {
-      
       this.segmentService.createSegment(
         currentUser.team._id,
         this.segmentName,
@@ -1604,12 +1792,32 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         next: (response) => {
           this.segment = response.segment;
           
-          // Immediately update the segment with formations data
+          // Extract dummy templates from formations
+          const dummyTemplates: any[] = [];
+          const dummyTemplateIds = new Set<string>();
+          
+          this.formations.forEach(formation => {
+            formation.forEach(performer => {
+              if (performer.isDummy && !dummyTemplateIds.has(performer.id)) {
+                dummyTemplateIds.add(performer.id);
+                dummyTemplates.push({
+                  id: performer.id,
+                  name: performer.name,
+                  skillLevels: performer.skillLevels || {},
+                  height: performer.height || 5.5,
+                  customColor: performer.customColor
+                });
+              }
+            });
+          });
+          
+          // Transform formations to use dummyTemplateId for dummies
           const transformedFormations = this.formations.map(formation => 
             formation.map(performer => ({
               x: performer.x,
               y: performer.y,
-              user: performer.isDummy ? null : performer.id, // Convert 'id' to 'user' for backend schema
+              user: performer.isDummy ? undefined : performer.id,
+              dummyTemplateId: performer.isDummy ? performer.id : undefined,
               customColor: performer.customColor
             }))
           );
@@ -1618,7 +1826,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             formations: transformedFormations,
             formationDurations: this.formationDurations,
             animationDurations: this.animationDurations,
-            roster: this.segmentRoster.map(user => user._id) // Add roster with all user IDs including dummies
+            roster: this.segmentRoster.map(user => user._id),
+            dummyTemplates: dummyTemplates
           };
           
           this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
@@ -1633,22 +1842,43 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
               });
             },
             error: (err) => {
+              console.error('Error updating new segment:', err);
             }
           });
         },
         error: (err) => {
-
+          console.error('Error creating segment:', err);
         }
       });
       return;
     }
 
-    // Update existing segment
+    // Extract dummy templates from formations
+    const dummyTemplates: any[] = [];
+    const dummyTemplateIds = new Set<string>();
+    
+    this.formations.forEach(formation => {
+      formation.forEach(performer => {
+        if (performer.isDummy && !dummyTemplateIds.has(performer.id)) {
+          dummyTemplateIds.add(performer.id);
+          dummyTemplates.push({
+            id: performer.id,
+            name: performer.name,
+            skillLevels: performer.skillLevels || {},
+            height: performer.height || 5.5,
+            customColor: performer.customColor
+          });
+        }
+      });
+    });
+
+    // Transform formations to use dummyTemplateId for dummies
     const transformedFormations = this.formations.map(formation => 
       formation.map(performer => ({
         x: performer.x,
         y: performer.y,
-        user: performer.isDummy ? null : performer.id, // Convert 'id' to 'user' for backend schema
+        user: performer.isDummy ? undefined : performer.id,
+        dummyTemplateId: performer.isDummy ? performer.id : undefined,
         customColor: performer.customColor
       }))
     );
@@ -1662,7 +1892,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
       stylesInSegment: this.segment.stylesInSegment || [],
-      roster: this.segmentRoster.map(user => user._id) // Add roster with all user IDs including dummies
+      roster: this.segmentRoster.map(user => user._id),
+      dummyTemplates: dummyTemplates
     };
 
     this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
@@ -1678,7 +1909,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         console.error('❌ DEBUG saveSegment: Error saving segment:', err);
       }
     });
-
   }
 
   /**
@@ -2401,6 +2631,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.animatedPositions = {};
     this.selectedPerformersInitialPositions = {};
     
+    // Clean up stage selection event listeners
+    if (this.stageMouseMoveListener) {
+      this.stageMouseMoveListener();
+      this.stageMouseMoveListener = null;
+    }
+    if (this.stageMouseUpListener) {
+      this.stageMouseUpListener();
+      this.stageMouseUpListener = null;
+    }
   }
 
   getTimelineTotalDuration(): number {
@@ -2670,24 +2909,30 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (!this.selectedPerformer) return;
     const performerId = this.selectedPerformer.id;
     const isDummy = this.selectedPerformer.isDummy;
+    
     // Remove from all formations
     this.formations = this.formations.map(formation => 
       formation.filter(p => p.id !== performerId)
     );
+    
     // Remove from segment roster if present
     this.segmentRoster = this.segmentRoster.filter(m => m._id !== performerId);
-    // If dummy, delete from backend
-    if (isDummy) {
-      this.teamService.deleteDummyUser(performerId).subscribe({
-        next: () => console.log('Dummy user deleted from backend'),
-        error: (err) => console.error('Failed to delete dummy user from backend', err)
+    
+    // If dummy and segment exists, delete dummy template from backend
+    if (isDummy && this.segment?._id) {
+      this.teamService.deleteDummyTemplate(this.segment._id, performerId).subscribe({
+        next: () => console.log('Dummy template deleted from backend'),
+        error: (err) => console.error('Failed to delete dummy template from backend', err)
       });
     }
+    
     // Clear selection
     this.selectedPerformerIds.delete(performerId);
     this.selectedPerformerId = null;
+    
     // Switch back to roster panel
     this.sidePanelMode = 'roster';
+    
     // Trigger auto-save
     this.triggerAutoSave();
   }
@@ -3127,23 +3372,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   convertToUser(user: any) {
     if (!this.selectedPerformer || !this.selectedPerformer.isDummy) return;
 
-    // Store the dummy user ID for deletion and replacement
     const dummyUserId = this.selectedPerformer.id;
-    const dummyX = this.selectedPerformer.x;
-    const dummyY = this.selectedPerformer.y;
-
-    // Create a new user performer
     const userPerformer: Performer = {
       id: user._id,
       name: user.name,
-      x: dummyX,
-      y: dummyY,
-      skillLevels: user?.skillLevels || {},
-      height: user?.height || 5.5,
+      x: this.selectedPerformer.x,
+      y: this.selectedPerformer.y,
+      skillLevels: { ...(user.skillLevels || {}) },
+      height: user.height || 5.5,
       isDummy: false
     };
 
-    // Replace the performer in all formations
+    // Replace dummy performer with real user in all formations
     this.formations = this.formations.map(formation =>
       formation.map(p => p.id === dummyUserId ? userPerformer : p)
     );
@@ -3156,17 +3396,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Close the dropdown
     this.showPerformerPairingDropdown = false;
 
-    // Delete the dummy user from the database
-    this.teamService.deleteDummyUser(dummyUserId).subscribe({
-      next: (response) => {
-        console.log('✅ Dummy user deleted from backend after conversion:', response);
-      },
-      error: (err) => {
-        console.error('❌ Failed to delete dummy user from backend after conversion:', err);
-        console.error('  - Error details:', err);
-        console.error('  - Dummy user ID that failed:', dummyUserId);
-      }
-    });
+    // Note: Dummy templates are now handled automatically by the backend
+    // No need to manually delete dummy users
 
     this.triggerAutoSave();
   }
@@ -3257,14 +3488,45 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (event.key === 'Meta' || event.metaKey) {
       this.isCommandPressed = true;
     }
+    
+    // Add arrow key navigation for formations
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      this.prevFormation();
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      this.onNextFormationClick();
+    }
+    
+    // Add up/down arrow key navigation for stage vertical offset
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      // Move stage up (decrease offset, but since slider is inverted, we increase the value)
+      const newOffset = Math.max(-300, Math.min(100, this.stageVerticalOffset + 20));
+      this.stageVerticalOffset = newOffset;
+      this.updateStageTransform();
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      // Move stage down (increase offset, but since slider is inverted, we decrease the value)
+      const newOffset = Math.max(-300, Math.min(100, this.stageVerticalOffset - 20));
+      this.stageVerticalOffset = newOffset;
+      this.updateStageTransform();
+    }
   };
 
   handleKeyUp = (event: KeyboardEvent) => {
     if (event.key === 'Shift') {
       this.isShiftPressed = false;
-    }
-    if (event.key === 'Meta' || !event.metaKey) {
+    } else if (event.key === 'Meta' || event.key === 'Control') {
       this.isCommandPressed = false;
+    }
+    
+    // If we're no longer in multi-selection mode and rectangle-based multi-selection is enabled,
+    // clear the rectangle-based multi-selection
+    if (!this.isMultiSelectionEnabled() && this.multiSelectionEnabledByRectangle) {
+      this.multiSelectionEnabledByRectangle = false;
     }
   };
 
@@ -3285,15 +3547,30 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onStageClick(event: MouseEvent) {
-    // Only deselect if clicking directly on the stage (not on a performer)
-    if (event.target === this.stageRef.nativeElement) {
-      this.selectedPerformerIds.clear();
-      this.selectedPerformerId = null;
-      // Clear the previous position display when clicking on stage
-      this.selectedPerformerForPreviousPosition = null;
-      this.triggerAutoSave();
-      // Switch to roster mode when deselecting
-      this.sidePanelMode = 'roster';
+    // Don't clear selections if we just finished a rectangular selection
+    if (this.justFinishedSelection) {
+      return;
+    }
+    
+    // Check if the click is within the stage area but not on a performer
+    const target = event.target as HTMLElement;
+    const stageElement = this.stageRef.nativeElement;
+    
+    // Check if the click is within the stage area
+    if (stageElement.contains(target)) {
+      // Check if the click is NOT on a performer (performer elements have the 'performer' class)
+      const isPerformerClick = target.closest('.performer') !== null;
+      
+      if (!isPerformerClick) {
+        this.selectedPerformerIds.clear();
+        this.selectedPerformerId = null;
+        this.multiSelectionEnabledByRectangle = false; // Always clear rectangle-based multi-selection
+        // Clear the previous position display when clicking on stage
+        this.selectedPerformerForPreviousPosition = null;
+        this.triggerAutoSave();
+        // Switch to roster mode when deselecting
+        this.sidePanelMode = 'roster';
+      }
     }
   }
 
@@ -4393,15 +4670,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // Add logic to delete all dummies when deleting a segment
   deleteSegment() {
     if (!this.segment?._id) return;
-    // Delete all dummy users in the segment roster
-    const dummyIds = (this.segmentRoster || []).filter(m => m.isDummy && m._id).map(m => m._id);
-    dummyIds.forEach(id => {
-      this.teamService.deleteDummyUser(id).subscribe({
-        next: () => console.log('Dummy user deleted from backend'),
-        error: (err) => console.error('Failed to delete dummy user from backend', err)
-      });
-    });
-    // Now delete the segment (assume you have a segmentService.deleteSegment method)
+    
+    // Delete the segment directly - dummy templates will be cleaned up automatically by the backend
     this.segmentService.deleteSegment(this.segment._id).subscribe({
       next: () => {
         console.log('Segment deleted');
@@ -4632,13 +4902,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Helper method to check if multi-selection should be enabled
   private isMultiSelectionEnabled(): boolean {
-    return this.isShiftPressed || this.isCommandPressed;
+    return this.isShiftPressed || this.isCommandPressed || this.multiSelectionEnabledByRectangle;
   }
 
   // Reset key states when window loses focus
   private resetKeyStates() {
     this.isShiftPressed = false;
     this.isCommandPressed = false;
+    this.multiSelectionEnabledByRectangle = false; // Clear rectangle-based multi-selection
   }
 
   // Add cache clearing methods

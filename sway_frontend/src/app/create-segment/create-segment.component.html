@@ -266,7 +266,9 @@
     </div>
     <div class="content-area">
       <div class="stage-container">
-        <div #stageRef class="stage-area" *ngIf="!is3DView" (click)="onStageClick($event)" 
+        <div #stageRef class="stage-area" *ngIf="!is3DView" 
+             (click)="onStageClick($event)"
+             (mousedown)="onStageMouseDown($event)"
              [style.height.px]="stageGridHeightPx"
              [style.transform]="getStageTransform()">
           <div class="stage-header-center">
@@ -281,6 +283,9 @@
                [ngStyle]="getStageStyle()">
             <!-- Spotlight overlay - only show for non-captains -->
             <div class="spotlight-overlay" *ngIf="!isCaptain" [ngStyle]="getSpotlightStyle()"></div>
+            
+            <!-- Selection rectangle -->
+            <div class="selection-rectangle" [ngStyle]="getSelectionStyle()"></div>
             
             <!-- SVG for movement lines -->
             <svg class="movement-lines" [style.width.px]="stageWidthPx" [style.height.px]="stageHeightPx">
@@ -347,17 +352,18 @@
                  [value]="stageVerticalOffset" 
                  (pointerdown)="onSliderPointerDown($event)"
                  (pointerup)="onSliderPointerUp($event)"
-                 (pointermove)="onSliderPointerMove($event)">
+                 (pointermove)="onSliderPointerMove($event)"
+                 title="Stage vertical position (↑ Up Arrow / ↓ Down Arrow)">
         </div>
       </div>
       <div class="floating-controls">
         <button class="unified-play-btn" *ngIf="signedMusicUrl" (click)="toggleUnifiedPlay()" (touchstart)="initializeMobileAudioContext()">
           <span class="material-icons">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
         </button>
-        <button class="unified-arrow-btn" (click)="prevFormation()">
+        <button class="unified-arrow-btn" (click)="prevFormation()" title="Previous formation (← Left Arrow)">
           <span class="material-icons">chevron_left</span>
         </button>
-        <button class="unified-arrow-btn" (click)="onNextFormationClick()">
+        <button class="unified-arrow-btn" (click)="onNextFormationClick()" title="Next formation (→ Right Arrow)">
           <span class="material-icons">chevron_right</span>
         </button>
         <button *ngIf="selectedPerformerIds.size === 2" 

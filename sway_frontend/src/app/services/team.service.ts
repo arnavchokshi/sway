@@ -54,16 +54,21 @@ export class TeamService {
     return this.http.post(`${this.apiUrl}/teams/${teamId}/members`, member);
   }
 
-  addDummyUser(name: string) {
-    return this.http.post<{ user: any }>(`${this.apiUrl}/dummy-users`, { name });
+  addDummyTemplate(segmentId: string, name: string, skillLevels?: any, height?: number, customColor?: string) {
+    return this.http.post<{ dummyTemplate: any }>(`${this.apiUrl}/segments/${segmentId}/dummy-templates`, { 
+      name, 
+      skillLevels, 
+      height, 
+      customColor 
+    });
+  }
+
+  deleteDummyTemplate(segmentId: string, templateId: string) {
+    return this.http.delete(`${this.apiUrl}/segments/${segmentId}/dummy-templates/${templateId}`);
   }
 
   getUserById(userId: string) {
     return this.http.get<any>(`${this.apiUrl}/users/${userId}`);
-  }
-
-  deleteDummyUser(userId: string) {
-    return this.http.delete(`${this.apiUrl}/dummy-users/${userId}`);
   }
 
   getSegmentById(segmentId: string) {

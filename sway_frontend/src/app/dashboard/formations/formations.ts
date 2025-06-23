@@ -145,48 +145,11 @@ export class FormationsComponent implements OnInit {
 
   deleteSegment(segmentId: string) {
     if (!confirm('Are you sure you want to delete this segment?')) return;
-    // 1. Fetch the segment to get the roster
-    this.teamService.getSegmentById(segmentId).subscribe({
-      next: (segmentRes) => {
-        const segment = segmentRes.segment || segmentRes;
-        const roster: string[] = segment.roster || [];
-        if (!roster.length) {
-          // No roster, just delete the segment
-          this.segmentService.deleteSegment(segmentId).subscribe({
-            next: () => this.loadSegments(),
-            error: (err) => alert('Failed to delete segment!')
-          });
-          return;
-        }
-        // 2. For each user in the roster, fetch and check if dummy
-        Promise.all(
-          roster.map(userId =>
-            this.teamService.getUserById(userId).toPromise()
-              .then(userRes => {
-                const user = userRes.user || userRes;
-                if (user && user.isDummy && user._id) {
-                  // Delete dummy user
-                  return this.teamService.deleteDummyUser(user._id).toPromise().catch(() => null);
-                }
-                return null;
-              })
-              .catch(() => null)
-          )
-        ).then(() => {
-          // 3. After all dummy deletions, delete the segment
-          this.segmentService.deleteSegment(segmentId).subscribe({
-            next: () => this.loadSegments(),
-            error: (err) => alert('Failed to delete segment!')
-          });
-        });
-      },
-      error: () => {
-        // If segment fetch fails, still try to delete the segment
-        this.segmentService.deleteSegment(segmentId).subscribe({
-          next: () => this.loadSegments(),
-          error: (err) => alert('Failed to delete segment!')
-        });
-      }
+    
+    // Delete the segment directly - dummy templates will be cleaned up automatically by the backend
+    this.segmentService.deleteSegment(segmentId).subscribe({
+      next: () => this.loadSegments(),
+      error: (err) => alert('Failed to delete segment!')
     });
   }
 

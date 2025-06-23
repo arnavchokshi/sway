@@ -291,18 +291,6 @@ app.delete('/api/segment/:id', async (req: Request, res: Response) => {
     const segment = await Segment.findById(req.params.id);
     if (!segment) return res.status(404).json({ error: 'Segment not found' });
 
-    // --- NEW: Delete all dummy users in the segment's roster ---
-    if (segment.roster && segment.roster.length > 0) {
-      // Find all users in the roster who are dummies
-      const dummyUsers = await User.find({ _id: { $in: segment.roster }, isDummy: true });
-      const dummyIds = dummyUsers.map(u => u._id);
-      if (dummyIds.length > 0) {
-        await User.deleteMany({ _id: { $in: dummyIds } });
-        console.log('Deleted dummy users:', dummyIds);
-      }
-    }
-    // --- END NEW ---
-
     // If segment has a musicUrl, delete the audio file from S3
     if (segment.musicUrl) {
       const key = segment.musicUrl.split('.com/')[1];
@@ -319,7 +307,7 @@ app.delete('/api/segment/:id', async (req: Request, res: Response) => {
       }
     }
 
-    // Now delete the segment from the database
+    // Now delete the segment from the database (dummy templates are handled automatically)
     await Segment.findByIdAndDelete(req.params.id);
     res.json({ message: 'Segment deleted', segment });
   } catch (error: any) {
@@ -564,45 +552,62 @@ app.delete('/api/teams/:teamId/styles/:styleIndex', async (req: Request, res: Re
   }
 });
 
-app.post('/api/dummy-users', async (req: Request, res: Response) => {
+// Remove the old dummy user endpoints and replace with dummy template management
+app.post('/api/segments/:segmentId/dummy-templates', async (req: Request, res: Response) => {
   try {
-    const { name } = req.body;
-    const user = new User({
+    const { segmentId } = req.params;
+    const { name, skillLevels, height, customColor } = req.body;
+    
+    const segment = await Segment.findById(segmentId);
+    if (!segment) {
+      return res.status(404).json({ error: 'Segment not found' });
+    }
+
+    // Generate unique dummy template ID
+    const dummyTemplateId = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    const dummyTemplate = {
+      id: dummyTemplateId,
       name,
-      isDummy: true
-    });
-    await user.save();
-    res.status(201).json({ user });
+      skillLevels: skillLevels || {},
+      height: height || 5.5,
+      customColor
+    };
+
+    // Add dummy template to segment
+    segment.dummyTemplates.push(dummyTemplate);
+    await segment.save();
+
+    res.status(201).json({ dummyTemplate });
   } catch (error: any) {
-    console.error('Error creating dummy user:', error);
-    res.status(500).json({ error: (error instanceof Error ? error.message : 'Failed to create dummy user') });
+    console.error('Error creating dummy template:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create dummy template' });
   }
 });
 
-app.delete('/api/dummy-users/:id', async (req: Request, res: Response) => {
+app.delete('/api/segments/:segmentId/dummy-templates/:templateId', async (req: Request, res: Response) => {
   try {
-    console.log('🗑️ DEBUG Backend: Attempting to delete dummy user with ID:', req.params.id);
+    const { segmentId, templateId } = req.params;
     
-    const user = await User.findById(req.params.id);
-    console.log('🗑️ DEBUG Backend: Found user:', user ? { _id: user._id, name: user.name, isDummy: user.isDummy } : 'NOT FOUND');
-    
-    if (!user) {
-      console.log('❌ DEBUG Backend: User not found');
-      return res.status(404).json({ error: 'User not found' });
+    const segment = await Segment.findById(segmentId);
+    if (!segment) {
+      return res.status(404).json({ error: 'Segment not found' });
     }
-    if (!user.isDummy) {
-      console.log('❌ DEBUG Backend: User is not a dummy user');
-      return res.status(400).json({ error: 'Cannot delete non-dummy user' });
-    }
+
+    // Remove dummy template from segment
+    segment.dummyTemplates = segment.dummyTemplates.filter(template => template.id !== templateId);
     
-    console.log('✅ DEBUG Backend: Deleting dummy user:', user._id);
-    await User.findByIdAndDelete(req.params.id);
-    console.log('✅ DEBUG Backend: Dummy user deleted successfully');
+    // Remove references to this dummy template from all formations
+    segment.formations = segment.formations.map(formation =>
+      formation.filter(position => position.dummyTemplateId !== templateId)
+    );
     
-    res.json({ message: 'Dummy user deleted' });
+    await segment.save();
+    
+    res.json({ message: 'Dummy template deleted' });
   } catch (error: any) {
-    console.error('❌ DEBUG Backend: Error deleting dummy user:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete dummy user' });
+    console.error('Error deleting dummy template:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete dummy template' });
   }
 });
 
