@@ -327,6 +327,23 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   copiedPerformers: { id: string; name: string; x: number; y: number; skillLevels: any; height?: number; isDummy?: boolean; customColor?: string }[] = [];
   hasCopiedPerformers = false;
 
+  // Add property for new performer name input
+  newPerformerName: string = '';
+
+  // Selection rectangle properties for multiple performers
+  selectionRectangle: { left: number; top: number; width: number; height: number } | null = null;
+
+  // Rotation properties
+  private isRotating = false;
+  private rotationSliderStartX = 0;
+  private rotationSliderStartValue = 0;
+  public currentRotationDegrees = 0;
+  private rotationCenter = { x: 0, y: 0 };
+  private selectedPerformersInitialRotationPositions: { [id: string]: { x: number, y: number } } = {};
+
+  // Add property to track if we're currently adding a dummy performer
+  private isAddingDummyPerformer = false;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -1083,6 +1100,76 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.checkPerformerPositioningGuidance(dancer._id);
   }
 
+  addNewPerformerToRoster() {
+    const trimmedName = this.newPerformerName?.trim();
+    if (!trimmedName) {
+      return;
+    }
+
+    // Check if performer with this name already exists
+    const existingPerformer = this.performers.find(p => p.name.toLowerCase() === trimmedName.toLowerCase());
+    if (existingPerformer) {
+      alert('A performer with this name already exists.');
+      return;
+    }
+
+    // Get current user's team ID
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?.team?._id) {
+      alert('Unable to get team information.');
+      return;
+    }
+
+    // Create new user in the backend
+    this.teamService.addTeamMember(currentUser.team._id, trimmedName).subscribe({
+      next: (response: any) => {
+        if (response && response.user) {
+          const newUser = response.user;
+          
+          // Find an available position for the new performer
+          const position = this.findAvailablePosition();
+          
+          // Add the new performer to all formations
+          this.formations = this.formations.map(formation => [
+            ...formation,
+            {
+              id: newUser._id,
+              name: newUser.name,
+              x: position.x,
+              y: position.y,
+              skillLevels: { ...(newUser.skillLevels || {}) },
+              height: newUser.height || 5.5,
+              isDummy: false
+            }
+          ]);
+
+          // Update segment roster if not already included
+          if (!this.segmentRoster.some(m => m._id === newUser._id)) {
+            this.segmentRoster = [...this.segmentRoster, newUser];
+          }
+
+          // Refresh team roster to include the new member
+          this.refreshTeamRoster();
+
+          // Clear the input field
+          this.newPerformerName = '';
+          
+          // Force immediate save for new segments to ensure they're created in MongoDB
+          this.forceSaveForNewSegment();
+          
+          // Also trigger regular auto-save for existing segments
+          this.triggerAutoSave();
+        } else {
+          alert('Failed to create new user.');
+        }
+      },
+      error: (error: any) => {
+        console.error('Error creating new user:', error);
+        alert('Failed to create new user. Please try again.');
+      }
+    });
+  }
+
   /**
    * Check for positioning guidance for a specific performer
    */
@@ -1107,10 +1194,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   addDummyPerformer() {
+    // Prevent rapid clicking
+    if (this.isAddingDummyPerformer) {
+      return;
+    }
+    
+    this.isAddingDummyPerformer = true;
+
     if (!this.segment?._id) {
       // For new segments, create a temporary dummy template
       const dummyName = `${this.dummyCounter}`;
       const dummyTemplateId = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Increment counter BEFORE creating the dummy to ensure unique names
+      this.dummyCounter++;
       
       // Find an available position for the new dummy performer
       const position = this.findAvailablePosition();
@@ -1130,17 +1227,23 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
       ]);
       
-      this.dummyCounter++;
-      
       // Force immediate save for new segments to ensure they're created in MongoDB
       this.forceSaveForNewSegment();
       
       // Also trigger regular auto-save for existing segments
       this.triggerAutoSave();
+      
+      // Reset flag after a short delay to allow for UI updates
+      setTimeout(() => {
+        this.isAddingDummyPerformer = false;
+      }, 100);
       return;
     }
 
     const dummyName = `${this.dummyCounter}`;
+    
+    // Increment counter BEFORE creating the dummy to ensure unique names
+    this.dummyCounter++;
 
     this.teamService.addDummyTemplate(this.segment._id, dummyName).subscribe({
       next: (res: any) => {
@@ -1148,6 +1251,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         
         if (!dummyTemplate || !dummyTemplate.id) {
           alert('Failed to create dummy template.');
+          this.isAddingDummyPerformer = false;
           return;
         }
         
@@ -1169,14 +1273,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           }
         ]);
         
-        this.dummyCounter++;
-        
         // Trigger auto-save for existing segments
         this.triggerAutoSave();
+        
+        // Reset flag after a short delay to allow for UI updates
+        setTimeout(() => {
+          this.isAddingDummyPerformer = false;
+        }, 100);
       },
       error: (err: any) => {
         console.error('❌ DEBUG addDummyPerformer: Error creating dummy template:', err);
         alert('Failed to add dummy performer.');
+        this.isAddingDummyPerformer = false;
       }
     });
   }
@@ -1208,8 +1316,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     
     // If performer is not selected and we ARE in multi-selection mode (rectangle-based), 
-    // clear the multi-selection and select only this performer
-    if (!isPerformerSelected && this.multiSelectionEnabledByRectangle) {
+    // but we're NOT in multi-selection mode (no shift/command), clear the multi-selection and select only this performer
+    if (!isPerformerSelected && this.multiSelectionEnabledByRectangle && !isMultiSelection) {
       this.selectedPerformerIds.clear();
       this.multiSelectionEnabledByRectangle = false;
     }
@@ -1342,6 +1450,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       });
     }
 
+    // Update selection rectangle in real-time during drag
+    this.calculateSelectionRectangle();
+
     this.triggerAutoSave();
   };
 
@@ -1364,6 +1475,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
 
     this.draggingId = null;
+    
+    // Update selection rectangle after dragging performers
+    this.calculateSelectionRectangle();
+    
     this.triggerAutoSave();
 
     // Check for consistency warnings after moving performers
@@ -1500,6 +1615,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       const firstSelectedId = Array.from(this.selectedPerformerIds)[0];
       this.selectedPerformerId = firstSelectedId;
     }
+    
+    // Calculate selection rectangle for multiple performers
+    this.calculateSelectionRectangle();
   }
 
   getSelectionStyle(): any {
@@ -1518,6 +1636,194 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       height: height + 'px',
       display: 'block'
     };
+  }
+
+  /**
+   * Calculate the bounding rectangle for selected performers
+   * The rectangle should form from the furthest away performers
+   */
+  calculateSelectionRectangle(): void {
+    if (this.selectedPerformerIds.size < 2) {
+      this.selectionRectangle = null;
+      return;
+    }
+
+    const selectedPerformers = this.performers.filter(p => this.selectedPerformerIds.has(p.id));
+    if (selectedPerformers.length < 2) {
+      this.selectionRectangle = null;
+      return;
+    }
+
+    // Convert performer positions to pixel coordinates
+    const performerPositions = selectedPerformers.map(performer => {
+      const performerSize = 25; // px - same as in getPerformerStyle
+      const x = (performer.x / this.width) * this.stageWidthPx;
+      const y = (performer.y / this.depth) * this.stageHeightPx;
+      return { x, y, size: performerSize };
+    });
+
+    // Find the bounding box
+    const minX = Math.min(...performerPositions.map(p => p.x - p.size / 2));
+    const maxX = Math.max(...performerPositions.map(p => p.x + p.size / 2));
+    const minY = Math.min(...performerPositions.map(p => p.y - p.size / 2));
+    const maxY = Math.max(...performerPositions.map(p => p.y + p.size / 2));
+
+    // Add some padding around the performers
+    const padding = 10;
+    
+    this.selectionRectangle = {
+      left: minX - padding,
+      top: minY - padding,
+      width: maxX - minX + (padding * 2),
+      height: maxY - minY + (padding * 2)
+    };
+  }
+
+  /**
+   * Get the style for the selection rectangle
+   */
+  getSelectionRectangleStyle(): any {
+    if (!this.selectionRectangle || this.selectedPerformerIds.size < 2) {
+      return { display: 'none' };
+    }
+
+    return {
+      position: 'absolute',
+      left: this.selectionRectangle.left + 'px',
+      top: this.selectionRectangle.top + 'px',
+      width: this.selectionRectangle.width + 'px',
+      height: this.selectionRectangle.height + 'px',
+      border: '2px dashed #ffd700',
+      borderRadius: '4px',
+      pointerEvents: 'none',
+      zIndex: 90
+    };
+  }
+
+  /**
+   * Get the style for the rotation handle
+   */
+  getRotationHandleStyle(): any {
+    if (!this.selectionRectangle || this.selectedPerformerIds.size < 2) {
+      return { display: 'none' };
+    }
+
+    return {
+      position: 'absolute',
+      left: (this.selectionRectangle.left + this.selectionRectangle.width / 2 - 50) + 'px',
+      top: (this.selectionRectangle.top - 45) + 'px',
+      width: '100px',
+      height: '30px',
+      zIndex: 91
+    };
+  }
+
+  /**
+   * Get the position of the rotation slider thumb (0-100%)
+   */
+  getRotationSliderPosition(): number {
+    // Convert rotation degrees (-180 to +180) to percentage (0 to 100)
+    return ((this.currentRotationDegrees + 180) / 360) * 100;
+  }
+
+  /**
+   * Start rotation of selected performers using slider
+   */
+  onRotationStart(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (this.selectedPerformerIds.size < 2 || !this.selectionRectangle) return;
+    
+    this.isRotating = true;
+    this.rotationSliderStartX = event.clientX;
+    this.rotationSliderStartValue = this.currentRotationDegrees;
+    
+    // Calculate center of selection rectangle in stage coordinates
+    const centerX = this.selectionRectangle.left + this.selectionRectangle.width / 2;
+    const centerY = this.selectionRectangle.top + this.selectionRectangle.height / 2;
+    
+    // Convert to stage coordinates (feet)
+    this.rotationCenter = {
+      x: (centerX / this.stageWidthPx) * this.width,
+      y: (centerY / this.stageHeightPx) * this.depth
+    };
+    
+    // Store initial positions of selected performers
+    this.selectedPerformersInitialRotationPositions = {};
+    this.performers.forEach(performer => {
+      if (this.selectedPerformerIds.has(performer.id)) {
+        this.selectedPerformersInitialRotationPositions[performer.id] = {
+          x: performer.x,
+          y: performer.y
+        };
+      }
+    });
+    
+    // Add event listeners
+    document.addEventListener('mousemove', this.onRotationMove);
+    document.addEventListener('mouseup', this.onRotationEnd);
+  }
+
+  onRotationMove = (event: MouseEvent) => {
+    if (!this.isRotating || !this.selectionRectangle) return;
+    
+    // Calculate rotation based on horizontal mouse movement
+    const deltaX = event.clientX - this.rotationSliderStartX;
+    const rotationSensitivity = 0.5; // degrees per pixel - makes it less sensitive
+    const newRotationDegrees = this.rotationSliderStartValue + (deltaX * rotationSensitivity);
+    
+    // Limit rotation to reasonable bounds (-180 to +180 degrees)
+    this.currentRotationDegrees = Math.max(-180, Math.min(180, newRotationDegrees));
+    
+    // Convert degrees to radians
+    const rotationRadians = (this.currentRotationDegrees * Math.PI) / 180;
+    
+    // Rotate all selected performers around the center
+    this.performers = this.performers.map(performer => {
+      if (this.selectedPerformerIds.has(performer.id)) {
+        const initialPos = this.selectedPerformersInitialRotationPositions[performer.id];
+        if (initialPos) {
+          // Calculate relative position from center
+          const relativeX = initialPos.x - this.rotationCenter.x;
+          const relativeY = initialPos.y - this.rotationCenter.y;
+          
+          // Apply rotation
+          const rotatedX = relativeX * Math.cos(rotationRadians) - relativeY * Math.sin(rotationRadians);
+          const rotatedY = relativeX * Math.sin(rotationRadians) + relativeY * Math.cos(rotationRadians);
+          
+          // Calculate new position
+          let newX = this.rotationCenter.x + rotatedX;
+          let newY = this.rotationCenter.y + rotatedY;
+          
+          // Clamp to stage boundaries
+          newX = Math.max(0, Math.min(this.width, newX));
+          newY = Math.max(0, Math.min(this.depth, newY));
+          
+          return { ...performer, x: newX, y: newY };
+        }
+      }
+      return performer;
+    });
+    
+    // Update selection rectangle
+    this.calculateSelectionRectangle();
+    
+    // Trigger auto-save
+    this.triggerAutoSave();
+  }
+
+  onRotationEnd = () => {
+    if (!this.isRotating) return;
+    
+    this.isRotating = false;
+    
+    // Remove event listeners
+    document.removeEventListener('mousemove', this.onRotationMove);
+    document.removeEventListener('mouseup', this.onRotationEnd);
+    
+    // Clear initial positions
+    this.selectedPerformersInitialRotationPositions = {};
   }
 
   async onPerformerClick(performer: Performer) {
@@ -1539,8 +1845,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       });
       
       // If performer is not selected and we have rectangle-based multi-selection,
-      // clear the multi-selection and select only this performer
-      if (!isPerformerSelected && this.multiSelectionEnabledByRectangle) {
+      // but we're NOT in multi-selection mode (no shift/command), clear the multi-selection and select only this performer
+      if (!isPerformerSelected && this.multiSelectionEnabledByRectangle && !isMultiSelection) {
         this.selectedPerformerIds.clear();
         this.multiSelectionEnabledByRectangle = false;
         this.selectedPerformerIds.add(performer.id);
@@ -1569,6 +1875,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       
       // Switch to performer details panel
       this.sidePanelMode = 'performer';
+      
+      // Calculate selection rectangle for multiple performers
+      this.calculateSelectionRectangle();
       
       // Trigger auto-save
       this.triggerAutoSave();
@@ -2903,6 +3212,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }
     });
     
+    // Calculate selection rectangle for multiple performers
+    this.calculateSelectionRectangle();
+    
     // Trigger auto-save
     this.triggerAutoSave();
   }
@@ -2934,6 +3246,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Switch back to roster panel
     this.sidePanelMode = 'roster';
+    
+    // Calculate selection rectangle (will clear it since performer was removed)
+    this.calculateSelectionRectangle();
     
     // Trigger auto-save
     this.triggerAutoSave();
@@ -3581,6 +3896,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         this.multiSelectionEnabledByRectangle = false; // Always clear rectangle-based multi-selection
         // Clear the previous position display when clicking on stage
         this.selectedPerformerForPreviousPosition = null;
+        
+        // Calculate selection rectangle (will clear it since no performers are selected)
+        this.calculateSelectionRectangle();
+        
         this.triggerAutoSave();
         // Switch to roster mode when deselecting
         this.sidePanelMode = 'roster';

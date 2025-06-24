@@ -232,7 +232,7 @@
       <ng-template #rosterPanel>
         <div class="roster-top-panel">
           <div class="roster-header">
-            <h3>Performers</h3>
+            <h3>Performers in Segment</h3>
           </div>
           <!-- Performers List -->
           <div class="performers-list">
@@ -245,7 +245,7 @@
           </div>
           <!-- Add Performer Row -->
           <div class="add-performer-row-link" (click)="toggleAddPerformerDropdown()">
-            Add Performer <span class="plus-sign">+</span>
+            Available Team Memmbers <span class="plus-sign">+</span>
           </div>
           <hr class="add-performer-divider" />
           <div *ngIf="showAddPerformerDropdown" class="add-performer-dropdown">
@@ -254,11 +254,31 @@
                 <span class="material-icons">person_add</span>
                 Add Dummy Performer
               </button>
-              <button class="dropdown-item" *ngFor="let member of sortedTeamRoster" 
+              <button class="dropdown-item" *ngFor="let member of availableUsers" 
                       (click)="addPerformerFromRoster(member)">
                 <span class="material-icons">person</span>
                 {{ member.name }}
               </button>
+              
+              <!-- Add New User to Roster Section -->
+              <div class="add-new-user-section">
+                <div class="add-new-user-input-group">
+                  <input 
+                    type="text" 
+                    class="add-new-user-input" 
+                    placeholder="name"
+                    [(ngModel)]="newPerformerName"
+                    (keydown.enter)="addNewPerformerToRoster()"
+                    maxlength="50">
+                  <button 
+                    class="add-to-roster-btn" 
+                    (click)="addNewPerformerToRoster()"
+                    [disabled]="!newPerformerName.trim()">
+                    <span class="material-icons">person_add</span>
+                    Add to team
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -286,6 +306,22 @@
             
             <!-- Selection rectangle -->
             <div class="selection-rectangle" [ngStyle]="getSelectionStyle()"></div>
+            
+            <!-- Selection rectangle for multiple performers -->
+            <div class="performer-selection-rectangle" [ngStyle]="getSelectionRectangleStyle()"></div>
+            
+            <!-- Rotation handle for multiple performers -->
+            <div class="rotation-handle" 
+                 *ngIf="selectedPerformerIds.size >= 2"
+                 [ngStyle]="getRotationHandleStyle()"
+                 (mousedown)="onRotationStart($event)"
+                 title="Drag left/right to rotate selected performers">
+              <div class="rotation-slider-track">
+                <div class="rotation-slider-thumb" [style.left.%]="getRotationSliderPosition()">
+                  <span class="material-icons">rotate_right</span>
+                </div>
+              </div>
+            </div>
             
             <!-- SVG for movement lines -->
             <svg class="movement-lines" [style.width.px]="stageWidthPx" [style.height.px]="stageHeightPx">

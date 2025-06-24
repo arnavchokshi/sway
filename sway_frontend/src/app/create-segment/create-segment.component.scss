@@ -709,6 +709,77 @@
         padding: 0.5rem 0;
       }
     }
+
+    .add-new-user-section {
+      flex: 0 0 auto;
+      padding-top: 1rem;
+      position: relative;
+      z-index: 1;
+
+      .add-new-user-input-group {
+        display: flex;
+        flex-direction: row;
+        gap: 0.75rem;
+        max-width: 100%;
+
+        .add-new-user-input {
+          background: rgba(24, 24, 27, 0.2);
+          border: 1px solid rgba(59, 130, 246, 0.2);
+          border-radius: 6px;
+          color: #fff;
+          font-size: 0.95rem;
+          padding: 0.75rem;
+          transition: all 0.2s ease;
+          flex: 1;
+          min-width: 0;
+          box-sizing: border-box;
+
+          &::placeholder {
+            color: #94a3b8;
+            opacity: 0.7;
+          }
+
+          &:focus {
+            outline: none;
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+          }
+        }
+
+        .add-to-roster-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1rem;
+          background: rgba(59, 130, 246, 0.1);
+          color: #3b82f6;
+          border: 1px solid rgba(59, 130, 246, 0.2);
+          border-radius: 6px;
+          font-size: 0.9rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+          flex-shrink: 0;
+
+          &:hover:not(:disabled) {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: rgba(59, 130, 246, 0.3);
+          }
+
+          &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            color: #94a3b8;
+          }
+
+          .material-icons {
+            font-size: 1rem;
+          }
+        }
+      }
+    }
   }
 
   .roster-details-panel {
@@ -3410,5 +3481,92 @@
 .copy-btn .material-icons,
 .paste-btn .material-icons {
   font-size: 18px;
+}
+
+/* Performer Selection Rectangle Styles */
+.performer-selection-rectangle {
+  position: absolute;
+  pointer-events: none;
+  z-index: 90;
+  border-radius: 4px;
+  background: transparent; /* Remove background highlight */
+  border: 2px dashed #ffd700;
+  box-shadow: none; /* Remove box shadow */
+  transition: all 0.2s ease-in-out;
+}
+
+/* Performer border flow animation */
+@keyframes performerBorderFlow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Rotation Handle Styles */
+.rotation-handle {
+  position: absolute;
+  width: 100px;
+  height: 30px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  transition: all 0.2s ease;
+  z-index: 91;
+  padding: 0;
+
+  &:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  &:active {
+    cursor: grabbing;
+    transform: none;
+  }
+
+  .rotation-slider-track {
+    width: 80px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    position: relative;
+    margin-bottom: 0;
+
+    .rotation-slider-thumb {
+      position: absolute;
+      width: 15px;
+      height: 15px;
+      background: #ffd700;
+      border: 2px solid #1a1a1a;
+      border-radius: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      transition: all 0.1s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      &:hover {
+        transform: translate(-50%, -50%) scale(1.2);
+      }
+
+      .material-icons {
+        color: #1a1a1a;
+        font-size: 8px;
+        font-weight: bold;
+      }
+    }
+  }
 }
 
