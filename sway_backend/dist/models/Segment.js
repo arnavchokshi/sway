@@ -35,16 +35,27 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Segment = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
+const DummyTemplateSchema = new mongoose_1.Schema({
+    id: { type: String, required: true },
+    name: { type: String, required: true },
+    skillLevels: { type: Map, of: Number, default: new Map() },
+    height: { type: Number },
+    customColor: { type: String }
+});
 const PositionSchema = new mongoose_1.Schema({
     x: { type: Number, required: true },
     y: { type: Number, required: true },
-    user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: false }
+    user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: false },
+    dummyTemplateId: { type: String, required: false },
+    customColor: { type: String, required: false }
 });
 const SegmentSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
     team: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Team', required: true },
+    segmentSet: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Set', required: false },
     roster: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
     formations: [[PositionSchema]],
+    dummyTemplates: [DummyTemplateSchema], // Add dummy templates array
     depth: { type: Number, default: 24 },
     width: { type: Number, default: 32 },
     divisions: { type: Number, default: 3 },
@@ -54,6 +65,8 @@ const SegmentSchema = new mongoose_1.Schema({
     videoUrl: { type: String },
     segmentOrder: { type: Number, default: 0 },
     stylesInSegment: [{ type: String }],
-    propSpace: { type: Number, default: 2 }
+    propSpace: { type: Number, default: 2 },
+    isPublic: { type: Boolean, default: true },
+    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true }
 });
 exports.Segment = mongoose_1.default.model('Segment', SegmentSchema);

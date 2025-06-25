@@ -3,6 +3,28 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
+export interface ISegment {
+  _id: string;
+  name: string;
+  team: string;
+  segmentSet?: string;
+  roster: string[];
+  formations: any[][];
+  dummyTemplates: any[];
+  depth: number;
+  width: number;
+  divisions: number;
+  animationDurations: number[];
+  formationDurations: number[];
+  musicUrl: string;
+  videoUrl?: string;
+  segmentOrder: number;
+  stylesInSegment: string[];
+  propSpace: number;
+  isPublic: boolean;
+  createdBy: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -11,20 +33,35 @@ export class SegmentService {
 
   constructor(private http: HttpClient) {}
 
-  createSegment(teamId: string, name: string, depth: number, width: number, divisions: number, stylesInSegment: any[]): Observable<any> {
-    return this.http.post(this.apiUrl, { teamId, name, depth, width, divisions, stylesInSegment });
+  createSegment(teamId: string, name: string, depth: number, width: number, divisions: number, stylesInSegment: any[], isPublic: boolean = true, setId?: string): Observable<any> {
+    return this.http.post(this.apiUrl, { teamId, name, depth, width, divisions, stylesInSegment, isPublic, setId });
   }
 
   getSegmentsForTeam(teamId: string) {
-    return this.http.get<{ segments: any[] }>(`${environment.apiUrl}/segments/${teamId}`);
+    return this.http.get<{ segments: ISegment[] }>(`${environment.apiUrl}/segments/${teamId}`);
+  }
+
+  // Get segments that are visible to the current user based on their role and privacy settings
+  getVisibleSegmentsForTeam(teamId: string): Observable<{ segments: ISegment[] }> {
+    return this.http.get<{ segments: ISegment[] }>(`${environment.apiUrl}/segments/${teamId}/visible`);
+  }
+
+  // Get segments for a specific set (privacy-aware)
+  getSegmentsForSet(setId: string): Observable<{ segments: ISegment[] }> {
+    return this.http.get<{ segments: ISegment[] }>(`${environment.apiUrl}/segments/set/${setId}`);
   }
 
   getSegmentById(segmentId: string) {
-    return this.http.get<{ segment: any }>(`${environment.apiUrl}/segment/${segmentId}`);
+    return this.http.get<{ segment: ISegment }>(`${environment.apiUrl}/segment/${segmentId}`);
   }
 
-  updateSegment(segmentId: string, update: any) {
+  updateSegment(segmentId: string, update: Partial<ISegment>) {
     return this.http.patch(`${environment.apiUrl}/segment/${segmentId}`, update);
+  }
+
+  // Update segment privacy
+  updateSegmentPrivacy(segmentId: string, isPublic: boolean): Observable<any> {
+    return this.http.patch(`${environment.apiUrl}/segment/${segmentId}/privacy`, { isPublic });
   }
 
   deleteSegment(segmentId: string) {

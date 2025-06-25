@@ -1,0 +1,64 @@
+<div class="control-bar">
+  <!-- Left Section: Navigation Controls -->
+  <div class="control-bar-left">
+    <button class="control-btn nav-btn" (click)="onPrevFormation()" title="Previous Formation">
+      <span class="material-icons">chevron_left</span>
+    </button>
+    <button class="control-btn play-pause-btn" (click)="onPlayPause()" title="Play/Pause">
+      <span class="material-icons">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
+    </button>
+    <button class="control-btn nav-btn" (click)="onNextFormation()" title="Next Formation">
+      <span class="material-icons">chevron_right</span>
+    </button>
+    
+    <!-- Undo/Redo Controls -->
+    <div class="undo-redo-controls" *ngIf="isCaptain">
+      <button class="control-btn undo-btn" (click)="onUndo()" title="Undo" [disabled]="!canUndo">
+        <span class="material-icons">undo</span>
+      </button>
+      <button class="control-btn redo-btn" (click)="onRedo()" title="Redo" [disabled]="!canRedo">
+        <span class="material-icons">redo</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Center Section: Time Display -->
+  <div class="control-bar-center">
+    <div class="time-display">
+      {{ formatTime(playbackTime) }} / {{ formatTime(totalSegmentDuration) }}
+    </div>
+  </div>
+
+  <!-- Right Section: Zoom and Action Controls -->
+  <div class="control-bar-right">
+    <!-- Zoom Controls -->
+    <div class="zoom-controls" *ngIf="isCaptain">
+      <span class="material-icons zoom-icon">zoom_out</span>
+      <input type="range" 
+             [min]="minTimelineZoom" 
+             [max]="maxTimelineZoom" 
+             [step]="timelineZoomStep"
+             [value]="timelineZoom"
+             (input)="onZoomChange($event)"
+             class="zoom-slider">
+      <span class="material-icons zoom-icon">zoom_in</span>
+      <span class="zoom-percentage">{{ getTimelineZoomPercentage() }}%</span>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-controls" *ngIf="isCaptain">
+      <button class="control-btn action-btn duplicate-btn" 
+              (click)="onDuplicateFormation()" 
+              title="Duplicate Formation"
+              [disabled]="totalFormations === 0">
+        <span class="material-icons">content_copy</span>
+      </button>
+      <button class="control-btn action-btn delete-btn" 
+              (click)="onDeleteFormation()" 
+              title="Delete Formation"
+              [disabled]="totalFormations <= 1">
+        <span class="material-icons">delete</span>
+      </button>
+    </div>
+  </div>
+</div> 

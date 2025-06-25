@@ -95,4 +95,35 @@
       </form>
     </div>
   </div>
+
+  <!-- Mobile Warning Modal -->
+  <div class="modal-backdrop" *ngIf="showMobileWarningModal">
+    <div class="modal frosted-glass-modal mobile-warning-modal">
+      <div class="mobile-warning-header">
+        <span class="material-icons warning-icon">warning</span>
+        <h2>Sorry Cap</h2>
+      </div>
+      <div class="mobile-warning-content">
+        <p class="main-message">
+          For the best editing experience use  laptop
+        </p>
+        <p class="sub-message">
+          The segment editor has complex functionality that works better on larger screens with keyboard and mouse support.
+        </p>
+        <div class="mobile-info-box">
+          <span class="material-icons info-icon">info</span>
+          <span>You can view segment as member though</span>
+        </div>
+      </div>
+      <div class="modal-actions mobile-actions">
+        <button type="button" (click)="closeMobileWarningModal()" class="primary-btn">
+          <span class="material-icons">laptop</span>
+          Use Desktop Instead
+        </button>
+        <button type="button" (click)="viewAsMemeber()" class="secondary-btn">
+          View as Member
+        </button>
+      </div>
+    </div>
+  </div>
 </div> 

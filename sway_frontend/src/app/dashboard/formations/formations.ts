@@ -30,6 +30,11 @@ export class FormationsComponent implements OnInit {
   newStyleName = '';
   isAddingStyle = false;
 
+  // Mobile detection and modal
+  isMobile = false;
+  showMobileWarningModal = false;
+  pendingSegmentId: string | null = null;
+
   constructor(
     private segmentService: SegmentService,
     private authService: AuthService,
@@ -38,6 +43,9 @@ export class FormationsComponent implements OnInit {
   ) {}
 
   ngOnInit() {
+    // Detect mobile devices
+    this.isMobile = /iPhone|iPod|Android.*Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    
     const currentUser = this.authService.getCurrentUser();
     this.isCaptain = currentUser?.captain || false;
     this.loadSegments();
@@ -140,6 +148,13 @@ export class FormationsComponent implements OnInit {
   }
 
   goToSegment(segmentId: string) {
+    // Check if captain is on mobile and show warning
+    if (this.isCaptain && this.isMobile) {
+      this.pendingSegmentId = segmentId;
+      this.showMobileWarningModal = true;
+      return;
+    }
+    
     this.router.navigate(['/create-segment'], { queryParams: { id: segmentId } });
   }
 
@@ -282,5 +297,20 @@ export class FormationsComponent implements OnInit {
         alert('Failed to delete style.');
       }
     });
+  }
+
+  // New methods for mobile warning modal
+  closeMobileWarningModal() {
+    this.showMobileWarningModal = false;
+    this.pendingSegmentId = null;
+  }
+
+  viewAsMemeber() {
+    // Navigate to segment with viewAsMemember parameter to force member view
+    if (this.pendingSegmentId) {
+      this.showMobileWarningModal = false;
+      this.router.navigate(['/create-segment'], { queryParams: { id: this.pendingSegmentId, viewAsMemeber: 'true' } });
+      this.pendingSegmentId = null;
+    }
   }
 } 

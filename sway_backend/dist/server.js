@@ -31,6 +31,7 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const User_1 = require("./models/User");
 const Team_1 = require("./models/Team");
 const Segment_1 = require("./models/Segment");
+const Set_1 = require("./models/Set");
 const aws_sdk_1 = __importDefault(require("aws-sdk"));
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3000;
@@ -311,11 +312,10 @@ app.delete('/api/segment/:id', (req, res) => __awaiter(void 0, void 0, void 0, f
                 }
                 catch (err) {
                     console.error('Failed to delete audio from S3:', err);
-                    // Even if S3 deletion fails, we'll continue to delete the segment
                 }
             }
         }
-        // Now delete the segment from the database
+        // Now delete the segment from the database (dummy templates are handled automatically)
         yield Segment_1.Segment.findByIdAndDelete(req.params.id);
         res.json({ message: 'Segment deleted', segment });
     }
@@ -523,36 +523,51 @@ app.delete('/api/teams/:teamId/styles/:styleIndex', (req, res) => __awaiter(void
         res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete style' });
     }
 }));
-app.post('/api/dummy-users', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+// Remove the old dummy user endpoints and replace with dummy template management
+app.post('/api/segments/:segmentId/dummy-templates', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { name } = req.body;
-        const user = new User_1.User({
+        const { segmentId } = req.params;
+        const { name, skillLevels, height, customColor } = req.body;
+        const segment = yield Segment_1.Segment.findById(segmentId);
+        if (!segment) {
+            return res.status(404).json({ error: 'Segment not found' });
+        }
+        // Generate unique dummy template ID
+        const dummyTemplateId = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const dummyTemplate = {
+            id: dummyTemplateId,
             name,
-            isDummy: true
-        });
-        yield user.save();
-        res.status(201).json({ user });
+            skillLevels: skillLevels || {},
+            height: height || 5.5,
+            customColor
+        };
+        // Add dummy template to segment
+        segment.dummyTemplates.push(dummyTemplate);
+        yield segment.save();
+        res.status(201).json({ dummyTemplate });
     }
     catch (error) {
-        console.error('Error creating dummy user:', error);
-        res.status(500).json({ error: (error instanceof Error ? error.message : 'Failed to create dummy user') });
+        console.error('Error creating dummy template:', error);
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create dummy template' });
     }
 }));
-app.delete('/api/dummy-users/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.delete('/api/segments/:segmentId/dummy-templates/:templateId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const user = yield User_1.User.findById(req.params.id);
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+        const { segmentId, templateId } = req.params;
+        const segment = yield Segment_1.Segment.findById(segmentId);
+        if (!segment) {
+            return res.status(404).json({ error: 'Segment not found' });
         }
-        if (!user.isDummy) {
-            return res.status(400).json({ error: 'Cannot delete non-dummy user' });
-        }
-        yield User_1.User.findByIdAndDelete(req.params.id);
-        res.json({ message: 'Dummy user deleted' });
+        // Remove dummy template from segment
+        segment.dummyTemplates = segment.dummyTemplates.filter(template => template.id !== templateId);
+        // Remove references to this dummy template from all formations
+        segment.formations = segment.formations.map(formation => formation.filter(position => position.dummyTemplateId !== templateId));
+        yield segment.save();
+        res.json({ message: 'Dummy template deleted' });
     }
     catch (error) {
-        console.error('Error deleting dummy user:', error);
-        res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete dummy user' });
+        console.error('Error deleting dummy template:', error);
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete dummy template' });
     }
 }));
 app.delete('/api/teams/:teamId/members/:memberId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -569,6 +584,114 @@ app.delete('/api/teams/:teamId/members/:memberId', (req, res) => __awaiter(void 
     }
     catch (error) {
         res.status(500).json({ error: error.message || 'Failed to remove member' });
+    }
+}));
+// Sets API endpoints
+app.post('/api/sets', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { teamId, name } = req.body;
+        // Find the team to verify it exists
+        const team = yield Team_1.Team.findById(teamId);
+        if (!team) {
+            return res.status(404).json({ error: 'Team not found' });
+        }
+        // Get the current user from the request (you might need to add authentication middleware)
+        // For now, using the team owner as default
+        const owner = team.owner;
+        // Get the next order number for this team
+        const existingSets = yield Set_1.Set.find({ team: teamId });
+        const nextOrder = existingSets.length;
+        const set = new Set_1.Set({
+            name,
+            team: teamId,
+            segments: [],
+            transitionTimes: [],
+            owner,
+            order: nextOrder
+        });
+        yield set.save();
+        res.status(201).json({ message: 'Set created', set });
+    }
+    catch (error) {
+        console.error('Error creating set:', error);
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create set' });
+    }
+}));
+app.get('/api/sets/team/:teamId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { teamId } = req.params;
+        const sets = yield Set_1.Set.find({ team: teamId }).sort({ order: 1 });
+        res.json({ sets });
+    }
+    catch (error) {
+        console.error('Error fetching sets:', error);
+        res.status(500).json({ error: error.message || 'Failed to fetch sets' });
+    }
+}));
+app.get('/api/sets/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const set = yield Set_1.Set.findById(req.params.id).populate('segments');
+        if (!set)
+            return res.status(404).json({ error: 'Set not found' });
+        res.json({ set });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to fetch set' });
+    }
+}));
+app.patch('/api/sets/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const set = yield Set_1.Set.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        if (!set)
+            return res.status(404).json({ error: 'Set not found' });
+        res.json({ message: 'Set updated', set });
+    }
+    catch (error) {
+        console.error('Error updating set:', error);
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update set' });
+    }
+}));
+app.delete('/api/sets/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const set = yield Set_1.Set.findByIdAndDelete(req.params.id);
+        if (!set)
+            return res.status(404).json({ error: 'Set not found' });
+        res.json({ message: 'Set deleted', set });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to delete set' });
+    }
+}));
+app.post('/api/sets/:id/segments', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { segmentId, transitionTime } = req.body;
+        const set = yield Set_1.Set.findById(req.params.id);
+        if (!set)
+            return res.status(404).json({ error: 'Set not found' });
+        set.segments.push(segmentId);
+        set.transitionTimes.push(transitionTime || 0);
+        yield set.save();
+        res.json({ message: 'Segment added to set', set });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to add segment to set' });
+    }
+}));
+app.delete('/api/sets/:id/segments/:segmentId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const set = yield Set_1.Set.findById(req.params.id);
+        if (!set)
+            return res.status(404).json({ error: 'Set not found' });
+        const segmentIndex = set.segments.findIndex(seg => seg.toString() === req.params.segmentId);
+        if (segmentIndex === -1)
+            return res.status(404).json({ error: 'Segment not found in set' });
+        set.segments.splice(segmentIndex, 1);
+        set.transitionTimes.splice(segmentIndex, 1);
+        yield set.save();
+        res.json({ message: 'Segment removed from set', set });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to remove segment from set' });
     }
 }));
 app.listen(port, () => {

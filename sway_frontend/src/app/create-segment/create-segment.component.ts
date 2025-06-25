@@ -32,6 +32,15 @@ interface Style {
   color: string;
 }
 
+interface SegmentState {
+  formations: Performer[][];
+  formationDurations: number[];
+  animationDurations: number[];
+  currentFormationIndex: number;
+  timestamp: number;
+  action: string; // Description of the action that led to this state
+}
+
 declare global {
   interface Window {
     YT: any;
@@ -39,12 +48,14 @@ declare global {
   }
 }
 
+import { ControlBarComponent } from './control-bar/control-bar.component';
+
 @Component({
   selector: 'app-create-segment',
   templateUrl: './create-segment.component.html',
   styleUrls: ['./create-segment.component.scss'],
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ControlBarComponent],
   animations: [
     trigger('movePerformer', [
       transition('* => *', [
@@ -57,6 +68,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   @ViewChild('stageRef') stageRef!: ElementRef<HTMLDivElement>;
   @ViewChild('timelineBarRef') timelineBarRef!: ElementRef<HTMLDivElement>;
   @ViewChild('threeContainer') threeContainer!: ElementRef<HTMLDivElement>;
+  @ViewChild('audioFileInput') audioFileInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('backdropFileInput') backdropFileInput!: ElementRef<HTMLInputElement>;
 
   isCaptain = false;
   currentUserId: string = '';
@@ -164,6 +177,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private saveSubject = new Subject<void>();
   private autoSaveDebounceTime = 2000; // 2 seconds
   lastSaveTime: Date | null = null;
+  isSaving: boolean = false;
   private saveSubscription: any = null; // Add subscription tracking
 
   // Side Panel State
@@ -179,6 +193,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   
   // Add property to track which performer's previous position should be shown
   selectedPerformerForPreviousPosition: string | null = null;
+
+  // Add new property to track all selected performers for previous position display
+  selectedPerformersForPreviousPosition: Set<string> = new Set();
 
   // Add new property to track initial positions of all selected performers
   private selectedPerformersInitialPositions: { [id: string]: { x: number, y: number } } = {};
@@ -344,6 +361,19 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // Add property to track if we're currently adding a dummy performer
   private isAddingDummyPerformer = false;
 
+  // Undo/Redo functionality
+  canUndo = false;
+  canRedo = false;
+  private undoStack: SegmentState[] = [];
+  private redoStack: SegmentState[] = [];
+  private maxUndoSteps = 50; // Limit undo history to prevent memory issues
+
+  // New properties for top panel features
+  showStageToolsDropdown = false;
+  showTransitions = false;
+  allSegments: any[] = [];
+  currentSegmentIndex = -1;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -422,7 +452,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.initializeMobileAudioContextOnLoad();
     }
     
-    const segmentId = this.route.snapshot.queryParamMap.get('id') || this.route.snapshot.paramMap.get('id');
     const currentUser = this.authService.getCurrentUser();
     this.isCaptain = currentUser?.captain || false;
     this.currentUserId = currentUser?._id || '';
@@ -430,32 +459,26 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Always load team roster first, regardless of whether it's a new or existing segment
     if (currentUser?.team?._id) {
       this.loadTeamRosterAndMapFormations(currentUser.team._id);
+      this.loadAllSegments();
     }
     
-    if (segmentId) {
-      this.segmentService.getSegmentById(segmentId).subscribe({
-        next: (res) => {
-          this.segment = res.segment;
-          if (this.segment?.musicUrl) {
-            this.getSignedMusicUrl();
-          }
-          this.depth = this.segment.depth;
-          this.width = this.segment.width;
-          this.divisions = this.segment.divisions;
-          this.segmentName = this.segment.name || 'New Segment';
-          this.calculateStage();
-        },
-        error: (err) => {
-          console.error('Failed to load segment:', err);
-        }
-      });
-    } else {
-      // Only set defaults if creating a new segment
-      this.formations = [[]];
-      this.formationDurations = [5];
-      this.animationDurations = [];
-      this.currentFormationIndex = 0;
-    }
+    // Subscribe to route parameter changes to handle segment navigation
+    this.route.queryParamMap.subscribe(params => {
+      const segmentId = params.get('id');
+      const viewAsMemeber = params.get('viewAsMemeber');
+      
+      // Override captain status if viewing as member
+      if (viewAsMemeber === 'true') {
+        this.isCaptain = false;
+      }
+      
+      if (segmentId) {
+        this.loadSegmentData(segmentId);
+      } else {
+        // Only set defaults if creating a new segment
+        this.resetToNewSegment();
+      }
+    });
 
     // Always load team styles for the skill sliders
     if (currentUser?.team?._id) {
@@ -475,6 +498,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('keyup', this.handleKeyUp);
     window.addEventListener('blur', this.resetKeyStates);
+    
+    // Add click listener to close dropdowns when clicking outside
+    document.addEventListener('click', this.handleDocumentClick.bind(this));
 
     // Set initial side panel mode
     this.sidePanelMode = this.selectedPerformer ? 'performer' : 'roster';
@@ -994,6 +1020,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     // Always update performer tips when changing formation
     this.checkFormationPositioningTips();
+    
+    // Recalculate selection rectangle for selected performers in the new formation
+    if (this.selectedPerformerIds.size > 0) {
+      this.calculateSelectionRectangle();
+    }
   }
 
   jumpToFormation(index: number) {
@@ -1016,6 +1047,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   addFormation() {
+    // Save state before making changes
+    this.saveState('Add formation');
+
     // Get the current formation's performers
     const currentFormation = this.formations[this.currentFormationIndex];
     
@@ -1312,6 +1346,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // If performer is not selected and we're not in multi-selection mode, clear selection and select only this performer
     if (!isPerformerSelected && !isMultiSelection) {
       this.selectedPerformerIds.clear();
+      this.selectedPerformersForPreviousPosition.clear();
       this.multiSelectionEnabledByRectangle = false; // Clear rectangle-based multi-selection
     }
     
@@ -1319,6 +1354,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // but we're NOT in multi-selection mode (no shift/command), clear the multi-selection and select only this performer
     if (!isPerformerSelected && this.multiSelectionEnabledByRectangle && !isMultiSelection) {
       this.selectedPerformerIds.clear();
+      this.selectedPerformersForPreviousPosition.clear();
       this.multiSelectionEnabledByRectangle = false;
     }
     
@@ -1331,6 +1367,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
     // Show previous position for the dragged performer
     this.selectedPerformerForPreviousPosition = performer.id;
+
+    // Save state before starting drag (for undo/redo)
+    const selectedCount = this.selectedPerformerIds.size;
+    this.saveState(`Move performer${selectedCount > 1 ? 's' : ''} (${selectedCount} selected)`);
 
     this.draggingId = performer.id;
     const rect = this.stageRef.nativeElement.getBoundingClientRect();
@@ -1616,6 +1656,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.selectedPerformerId = firstSelectedId;
     }
     
+    // Update the performers for previous position display - show previous positions for all selected performers
+    this.selectedPerformersForPreviousPosition.clear();
+    this.selectedPerformerIds.forEach(id => {
+      this.selectedPerformersForPreviousPosition.add(id);
+    });
+    
     // Calculate selection rectangle for multiple performers
     this.calculateSelectionRectangle();
   }
@@ -1735,6 +1781,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     if (this.selectedPerformerIds.size < 2 || !this.selectionRectangle) return;
     
+    // Save state before starting rotation (for undo/redo)
+    const selectedCount = this.selectedPerformerIds.size;
+    this.saveState(`Rotate performer${selectedCount > 1 ? 's' : ''} (${selectedCount} selected)`);
+    
     this.isRotating = true;
     this.rotationSliderStartX = event.clientX;
     this.rotationSliderStartValue = this.currentRotationDegrees;
@@ -1848,6 +1898,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       // but we're NOT in multi-selection mode (no shift/command), clear the multi-selection and select only this performer
       if (!isPerformerSelected && this.multiSelectionEnabledByRectangle && !isMultiSelection) {
         this.selectedPerformerIds.clear();
+        this.selectedPerformersForPreviousPosition.clear();
         this.multiSelectionEnabledByRectangle = false;
         this.selectedPerformerIds.add(performer.id);
         console.log('Cleared rectangle multi-selection, selected only:', performer.name);
@@ -1863,12 +1914,19 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       } else {
         // Single selection mode: clear and select only this performer
         this.selectedPerformerIds.clear();
+        this.selectedPerformersForPreviousPosition.clear();
         this.multiSelectionEnabledByRectangle = false; // Clear rectangle-based multi-selection
         this.selectedPerformerIds.add(performer.id);
         console.log('Single selection:', performer.name);
       }
       
       console.log('Final selection:', Array.from(this.selectedPerformerIds));
+      
+      // Update the performers for previous position display - show previous positions for all selected performers
+      this.selectedPerformersForPreviousPosition.clear();
+      this.selectedPerformerIds.forEach(id => {
+        this.selectedPerformersForPreviousPosition.add(id);
+      });
       
       // Set the selected performer ID for the side panel
       this.setSelectedPerformer(performer);
@@ -1898,8 +1956,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   getPreviousPosition(performerId: string): { x: number, y: number } | null {
-    // Only show previous position if this performer is selected for previous position display
-    if (this.selectedPerformerForPreviousPosition !== performerId) {
+    // Show previous position if:
+    // 1. Show Transitions is enabled (shows for ALL performers), OR
+    // 2. This performer is selected for previous position display (either individually or as part of multiple selected performers)
+    const shouldShowPrevious = this.showTransitions || 
+                              this.selectedPerformerForPreviousPosition === performerId || 
+                              this.selectedPerformersForPreviousPosition.has(performerId);
+    
+    if (!shouldShowPrevious) {
       return null;
     }
     
@@ -2090,6 +2154,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       return;
     }
 
+    // Set saving state to true
+    this.isSaving = true;
+
     // If no segment exists, create a new one
     if (!this.segment || !this.segment._id) {
       this.segmentService.createSegment(
@@ -2144,6 +2211,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
             next: () => {
               this.lastSaveTime = new Date();
+              this.isSaving = false;
               
               // Update the URL to include the new segment ID
               this.router.navigate([], {
@@ -2154,11 +2222,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             },
             error: (err) => {
               console.error('Error updating new segment:', err);
+              this.isSaving = false;
             }
           });
         },
         error: (err) => {
           console.error('Error creating segment:', err);
+          this.isSaving = false;
         }
       });
       return;
@@ -2210,6 +2280,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
       next: () => {
         this.lastSaveTime = new Date();
+        this.isSaving = false;
         
         // TEMPORARILY DISABLED: Check for consistency warnings after saving
         // This might be causing the hang
@@ -2218,6 +2289,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       },
       error: (err) => {
         console.error('❌ DEBUG saveSegment: Error saving segment:', err);
+        this.isSaving = false;
       }
     });
   }
@@ -2530,7 +2602,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         barWidth: 2,
         barRadius: 3,
         cursorWidth: 2,
-        height: 80,
+        height: 40,
         barGap: 2,
         normalize: true,
         backend: 'WebAudio'
@@ -2870,6 +2942,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
     window.removeEventListener('blur', this.resetKeyStates);
+    document.removeEventListener('click', this.handleDocumentClick.bind(this));
     
     // Remove tracked resize listeners
     if (this.resizeListener) {
@@ -3004,6 +3077,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   onFormationResizeStart(event: MouseEvent, i: number) {
     event.stopPropagation();
+    
+    // Save state before starting resize (for undo/redo)
+    this.saveState(`Resize formation ${i + 1} duration`);
+    
     this.resizingFormationIndex = i;
     this.resizingStartX = event.clientX;
     this.resizingStartDuration = this.formationDurations[i] || 4;
@@ -3052,6 +3129,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   onTransitionResizeStart(event: MouseEvent, i: number) {
     event.stopPropagation();
+    
+    // Save state before starting resize (for undo/redo)
+    this.saveState(`Resize transition ${i + 1} duration`);
+    
     this.resizingTransitionIndex = i;
     this.resizingTransitionStartX = event.clientX;
     this.resizingTransitionStartDuration = this.animationDurations[i] || 1;
@@ -3197,11 +3278,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     } else {
       // Single selection mode
       this.selectedPerformerIds.clear();
+      this.selectedPerformersForPreviousPosition.clear();
       this.selectedPerformerIds.add(performer.id);
       // Use the new unified method to set selected performer
       this.setSelectedPerformer(performer);
       this.sidePanelMode = 'performer';
     }
+    
+    // Update the performers for previous position display - show previous positions for all selected performers
+    this.selectedPerformersForPreviousPosition.clear();
+    this.selectedPerformerIds.forEach(id => {
+      this.selectedPerformersForPreviousPosition.add(id);
+    });
     
     // Store initial positions for all selected performers
     this.selectedPerformersInitialPositions = {};
@@ -3223,6 +3311,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (!this.selectedPerformer) return;
     const performerId = this.selectedPerformer.id;
     const isDummy = this.selectedPerformer.isDummy;
+    const performerName = this.selectedPerformer.name || this.selectedPerformer.dummyName || 'Unknown';
+    
+    // Save state before making changes
+    this.saveState(`Remove performer: ${performerName}`);
     
     // Remove from all formations
     this.formations = this.formations.map(formation => 
@@ -3242,6 +3334,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Clear selection
     this.selectedPerformerIds.delete(performerId);
+    this.selectedPerformersForPreviousPosition.delete(performerId);
     this.selectedPerformerId = null;
     
     // Switch back to roster panel
@@ -3424,7 +3517,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       for (let i = 0; i < this.formations.length; i++) {
         const hold = this.formationDurations[i] || 4;
         if (audioTime < t + hold) {
-          this.playingFormationIndex = i;
+          this.updateFormationAndRecalculateSelection(i);
           this.inTransition = false;
           this.animatedPositions = {};
           break;
@@ -3434,7 +3527,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           const trans = this.animationDurations[i] || 1;
           if (audioTime < t + trans) {
             // During transition, animate between i and i+1
-            this.playingFormationIndex = i + 1;
+            this.updateFormationAndRecalculateSelection(i + 1);
             this.inTransition = true;
             const progress = (audioTime - t) / trans;
             this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
@@ -3619,6 +3712,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Add new method for triggering auto-save
   private triggerAutoSave() {
+    // Reset save time to show unsaved state
+    this.lastSaveTime = null;
     this.saveSubject.next();
   }
 
@@ -3678,6 +3773,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.selectedPerformerIds.delete(this.selectedPerformer.id);
     this.selectedPerformerIds.add(dummyPerformer.id);
     this.selectedPerformerId = dummyPerformer.id;
+    
+    // Update previous position tracking
+    this.selectedPerformersForPreviousPosition.delete(this.selectedPerformer.id);
+    this.selectedPerformersForPreviousPosition.add(dummyPerformer.id);
 
     // Close the dropdown
     this.showPerformerPairingDropdown = false;
@@ -3709,6 +3808,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.selectedPerformerIds.delete(dummyUserId);
     this.selectedPerformerIds.add(userPerformer.id);
     this.selectedPerformerId = userPerformer.id;
+    
+    // Update previous position tracking
+    this.selectedPerformersForPreviousPosition.delete(dummyUserId);
+    this.selectedPerformersForPreviousPosition.add(userPerformer.id);
 
     // Close the dropdown
     this.showPerformerPairingDropdown = false;
@@ -3827,6 +3930,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.pastePerformers();
     }
     
+    // Handle Escape key to clear previous positions
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.clearAllPreviousPositions();
+    }
+    
     // Handle delete key for removing performers
     if (event.key === 'Delete' || event.key === 'Backspace') {
       if (this.selectedPerformerIds.size > 0) {
@@ -3848,7 +3957,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   handleKeyUp = (event: KeyboardEvent) => {
     if (event.key === 'Shift') {
       this.isShiftPressed = false;
-    } else if (event.key === 'Meta' || event.key === 'Control') {
+    } else if (event.key === 'Meta' || event.key === 'Command' || event.key === 'Control') {
       this.isCommandPressed = false;
     }
     
@@ -3892,6 +4001,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       
       if (!isPerformerClick) {
         this.selectedPerformerIds.clear();
+        this.selectedPerformersForPreviousPosition.clear();
         this.selectedPerformerId = null;
         this.multiSelectionEnabledByRectangle = false; // Always clear rectangle-based multi-selection
         // Clear the previous position display when clicking on stage
@@ -3946,6 +4056,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   deleteFormation(index: number) {
     if (!this.isCaptain || this.formations.length <= 1) return;
     
+    // Save state before making changes
+    this.saveState(`Delete formation ${index + 1}`);
+    
     // Remove the formation
     this.formations.splice(index, 1);
     
@@ -3975,6 +4088,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   duplicateFormation(index: number) {
     if (!this.isCaptain || this.formations.length === 0) return;
+    
+    // Save state before making changes
+    this.saveState(`Duplicate formation ${index + 1}`);
+    
     // Deep copy the formation
     const formationCopy = this.formations[index].map(p => ({ ...p }));
     this.formations.splice(index + 1, 0, formationCopy);
@@ -4940,6 +5057,103 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.router.navigate(['/dashboard']);
   }
 
+  // New methods for top panel functionality
+  toggleStageToolsDropdown(event?: Event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    this.showStageToolsDropdown = !this.showStageToolsDropdown;
+  }
+
+  toggleShowTransitions() {
+    this.showTransitions = !this.showTransitions;
+    // Here you would implement the logic to show/hide performer transitions
+    // This could involve showing previous positions or transition paths on all formations
+  }
+
+  navigateToEditRoster() {
+    // Navigate to roster editing page - you may need to create this route
+    this.router.navigate(['/dashboard', 'roster']);
+  }
+
+  // Load all segments to enable prev/next navigation
+  private loadAllSegments() {
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser?.team?._id) {
+      this.segmentService.getSegmentsForTeam(currentUser.team._id).subscribe({
+        next: (res) => {
+          // Sort segments by segmentOrder
+          this.allSegments = res.segments.sort((a, b) => {
+            if (a.segmentOrder !== undefined && b.segmentOrder !== undefined) {
+              return a.segmentOrder - b.segmentOrder;
+            } else if (a.segmentOrder !== undefined) {
+              return -1;
+            } else if (b.segmentOrder !== undefined) {
+              return 1;
+            } else {
+              return a._id.localeCompare(b._id);
+            }
+          });
+          
+          // Find current segment index
+          if (this.segment?._id) {
+            this.currentSegmentIndex = this.allSegments.findIndex(s => s._id === this.segment._id);
+          }
+        },
+        error: (err) => {
+          console.error('Failed to load segments:', err);
+        }
+      });
+    }
+  }
+
+  canNavigateToPrevSegment(): boolean {
+    return this.currentSegmentIndex > 0;
+  }
+
+  canNavigateToNextSegment(): boolean {
+    return this.currentSegmentIndex >= 0 && this.currentSegmentIndex < this.allSegments.length - 1;
+  }
+
+  navigateToPrevSegment() {
+    if (this.canNavigateToPrevSegment()) {
+      const prevSegment = this.allSegments[this.currentSegmentIndex - 1];
+      this.router.navigate(['/create-segment'], { queryParams: { id: prevSegment._id } });
+    }
+  }
+
+  navigateToNextSegment() {
+    if (this.canNavigateToNextSegment()) {
+      const nextSegment = this.allSegments[this.currentSegmentIndex + 1];
+      this.router.navigate(['/create-segment'], { queryParams: { id: nextSegment._id } });
+    }
+  }
+
+  handleDocumentClick(event: Event) {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.stage-tools-dropdown')) {
+      this.showStageToolsDropdown = false;
+    }
+  }
+
+  triggerAudioUpload() {
+    if (this.audioFileInput) {
+      this.audioFileInput.nativeElement.click();
+    }
+  }
+
+  triggerBackdropUpload() {
+    if (this.backdropFileInput) {
+      this.backdropFileInput.nativeElement.click();
+    }
+  }
+
+  toggleViewOptions() {
+    // This could be used for additional view options in the future
+    console.log('View options clicked');
+  }
+
   onSliderPointerDown(event: PointerEvent) {
     const slider = event.target as HTMLElement;
     this.isDraggingSlider = true;
@@ -5355,6 +5569,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Clear selection and trigger auto-save
     this.selectedPerformerIds.clear();
+    this.selectedPerformersForPreviousPosition.clear();
     this.triggerAutoSave();
     
     console.log(`Pasted ${this.copiedPerformers.length} performers to formation ${this.currentFormationIndex + 1}`);
@@ -5365,6 +5580,264 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
    */
   canPaste(): boolean {
     return this.hasCopiedPerformers && this.copiedPerformers.length > 0;
+  }
+
+  // Undo/Redo implementation
+  private saveState(action: string) {
+    // Create a deep copy of the current state
+    const currentState: SegmentState = {
+      formations: this.formations.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } }))),
+      formationDurations: [...this.formationDurations],
+      animationDurations: [...this.animationDurations],
+      currentFormationIndex: this.currentFormationIndex,
+      timestamp: Date.now(),
+      action: action
+    };
+
+    // Add to undo stack
+    this.undoStack.push(currentState);
+
+    // Limit undo stack size
+    if (this.undoStack.length > this.maxUndoSteps) {
+      this.undoStack.shift(); // Remove oldest state
+    }
+
+    // Clear redo stack when new action is performed
+    this.redoStack = [];
+
+    // Update button states
+    this.updateUndoRedoStates();
+  }
+
+  private restoreState(state: SegmentState) {
+    // Restore the state
+    this.formations = state.formations.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } })));
+    this.formationDurations = [...state.formationDurations];
+    this.animationDurations = [...state.animationDurations];
+    this.currentFormationIndex = state.currentFormationIndex;
+
+    // Force change detection
+    this.formations = [...this.formations];
+    this.formationDurations = [...this.formationDurations];
+    this.animationDurations = [...this.animationDurations];
+
+    // Update timeline and playback
+    this.goToFormation(this.currentFormationIndex);
+
+    // Save the restored state (without creating undo history)
+    if (this.segment?._id) {
+      this.saveSegment();
+    } else {
+      this.triggerAutoSave();
+    }
+  }
+
+  private updateUndoRedoStates() {
+    this.canUndo = this.undoStack.length > 0;
+    this.canRedo = this.redoStack.length > 0;
+  }
+
+  // Control bar event handlers
+  onControlBarUndo() {
+    if (!this.canUndo || this.undoStack.length === 0) return;
+
+    // Save current state to redo stack before undoing
+    const currentState: SegmentState = {
+      formations: this.formations.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } }))),
+      formationDurations: [...this.formationDurations],
+      animationDurations: [...this.animationDurations],
+      currentFormationIndex: this.currentFormationIndex,
+      timestamp: Date.now(),
+      action: 'Current state before undo'
+    };
+    this.redoStack.push(currentState);
+
+    // Get and restore previous state
+    const previousState = this.undoStack.pop()!;
+    this.restoreState(previousState);
+
+    // Update button states
+    this.updateUndoRedoStates();
+
+    console.log(`Undid action: ${previousState.action}`);
+  }
+
+  onControlBarRedo() {
+    if (!this.canRedo || this.redoStack.length === 0) return;
+
+    // Save current state to undo stack before redoing
+    const currentState: SegmentState = {
+      formations: this.formations.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } }))),
+      formationDurations: [...this.formationDurations],
+      animationDurations: [...this.animationDurations],
+      currentFormationIndex: this.currentFormationIndex,
+      timestamp: Date.now(),
+      action: 'Current state before redo'
+    };
+    this.undoStack.push(currentState);
+
+    // Get and restore next state
+    const nextState = this.redoStack.pop()!;
+    this.restoreState(nextState);
+
+    // Update button states
+    this.updateUndoRedoStates();
+
+    console.log(`Redid action: ${nextState.action}`);
+  }
+
+  onControlBarPlayPause() {
+    this.toggleUnifiedPlay();
+  }
+
+  onControlBarPrevFormation() {
+    this.prevFormation();
+  }
+
+  onControlBarNextFormation() {
+    this.onNextFormationClick();
+  }
+
+  onControlBarZoomChange(newZoom: number) {
+    this.timelineZoom = newZoom;
+    this.onTimelineZoomChange({ target: { value: newZoom.toString() } } as any);
+  }
+
+  onControlBarAddFormation() {
+    this.addFormation();
+  }
+
+  onControlBarDuplicateFormation() {
+    if (this.currentFormationIndex !== null) {
+      this.duplicateFormation(this.currentFormationIndex);
+    }
+  }
+
+  onControlBarDeleteFormation() {
+    if (this.currentFormationIndex !== null) {
+      this.deleteFormation(this.currentFormationIndex);
+    }
+  }
+
+  getTotalSegmentDuration(): number {
+    return Math.max(0, this.getTimelineTotalDuration() - 2);
+  }
+
+  // Helper method to clear all previous position tracking
+  clearAllPreviousPositions() {
+    this.selectedPerformerForPreviousPosition = null;
+    this.selectedPerformersForPreviousPosition.clear();
+  }
+
+  // Check if any previous positions are being shown
+  hasVisiblePreviousPositions(): boolean {
+    return this.selectedPerformerForPreviousPosition !== null || 
+           this.selectedPerformersForPreviousPosition.size > 0;
+  }
+
+  // Helper method to handle formation changes and update selection rectangle
+  private updateFormationAndRecalculateSelection(newFormationIndex: number) {
+    this.currentFormationIndex = newFormationIndex;
+    this.playingFormationIndex = newFormationIndex;
+    
+    // Recalculate selection rectangle for selected performers in the new formation
+    if (this.selectedPerformerIds.size > 0) {
+      this.calculateSelectionRectangle();
+    }
+  }
+
+  // Helper method to load segment data when navigating between segments
+  private loadSegmentData(segmentId: string) {
+    // Clear any existing state before loading new segment
+    this.clearSegmentState();
+    
+    this.segmentService.getSegmentById(segmentId).subscribe({
+      next: (res) => {
+        this.segment = res.segment;
+        if (this.segment?.musicUrl) {
+          this.getSignedMusicUrl();
+        }
+        this.depth = this.segment.depth;
+        this.width = this.segment.width;
+        this.divisions = this.segment.divisions;
+        this.segmentName = this.segment.name || 'New Segment';
+        this.calculateStage();
+        
+        // Reset formation index to 0 when loading new segment
+        this.currentFormationIndex = 0;
+        this.playingFormationIndex = 0;
+        
+        // Update current segment index after loading
+        if (this.allSegments.length > 0) {
+          this.currentSegmentIndex = this.allSegments.findIndex(s => s._id === this.segment._id);
+        }
+        
+        // Reload team roster and formations with the new segment
+        const currentUser = this.authService.getCurrentUser();
+        if (currentUser?.team?._id) {
+          this.loadTeamRosterAndMapFormations(currentUser.team._id);
+        }
+        
+        // Force change detection
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Failed to load segment:', err);
+      }
+    });
+  }
+
+  // Helper method to reset to new segment state
+  private resetToNewSegment() {
+    this.clearSegmentState();
+    this.segment = null;
+    this.formations = [[]];
+    this.formationDurations = [5];
+    this.animationDurations = [];
+    this.currentFormationIndex = 0;
+    this.playingFormationIndex = 0;
+    this.segmentName = 'New Segment';
+  }
+
+  // Helper method to clear segment-specific state when navigating
+  private clearSegmentState() {
+    // Clear selections
+    this.selectedPerformerIds.clear();
+    this.selectedPerformersForPreviousPosition.clear();
+    this.selectedPerformerId = null;
+    this.selectedPerformerForPreviousPosition = null;
+    
+    // Clear audio/video state
+    if (this.waveSurfer) {
+      this.waveSurfer.destroy();
+      this.waveSurfer = null;
+    }
+    this.signedMusicUrl = null;
+    this.isPlaying = false;
+    this.waveformInitializedForUrl = null;
+    
+    // Clear video state
+    this.clearYoutubeOverlay();
+    this.clearVideoBackdrop();
+    
+    // Clear 3D state
+    if (this.is3DView) {
+      this.cleanup3DScene();
+    }
+    
+    // Clear undo/redo state
+    this.undoStack = [];
+    this.redoStack = [];
+    this.updateUndoRedoStates();
+    
+    // Reset UI state
+    this.showEditModal = false;
+    this.showStageToolsDropdown = false;
+    this.sidePanelMode = 'roster';
+    this.activeRosterTab = 'team';
+    
+    // Clear caches
+    this.clearAllCaches();
   }
 }
  

@@ -1,65 +1,133 @@
 <div class="segment-page-container">
   <div class="top-panel" *ngIf="isCaptain">
     <div class="top-panel-left">
+      <!-- Logo -->
       <div class="segment-logo-container" (click)="navigateToDashboard()">
         <img src="assets/logo.png" alt="Sway Logo" class="segment-logo">
       </div>
-      <div class="logo-divider"></div>
-      <div class="segment-name">
-        {{ segmentName }}
-        <span class="last-save-time" *ngIf="lastSaveTime">
-          Last saved at {{ lastSaveTime | date:'h:mm:ss a' }}
-        </span>
+      
+      <!-- Segment Info -->
+      <div class="segment-info">
+        <span class="segment-name">{{ segmentName }}</span>
+        <div class="save-status-container">
+          <span class="save-indicator saving" *ngIf="isSaving">
+            <div class="save-spinner">
+              <div class="spinner"></div>
+            </div>
+            Saving...
+          </span>
+          <span class="save-indicator saved" *ngIf="!isSaving">
+            Saved
+          </span>
+        </div>
+      </div>
+      
+      <!-- Segment Navigation -->
+      <div class="segment-navigation">
+        <button class="nav-segment-btn prev-segment" 
+                (click)="navigateToPrevSegment()" 
+                [disabled]="!canNavigateToPrevSegment()"
+                title="Previous Segment">
+          <span class="nav-icon">|◀</span>
+          <span class="nav-label">Prev Segment</span>
+        </button>
+        <button class="nav-segment-btn next-segment" 
+                (click)="navigateToNextSegment()" 
+                [disabled]="!canNavigateToNextSegment()"
+                title="Next Segment">
+          <span class="nav-icon">▶|</span>
+          <span class="nav-label">Next Segment</span>
+        </button>
       </div>
     </div>
+    
+        <!-- Color by Skill Selection (shows in middle when active) -->
+    <div class="top-panel-middle" *ngIf="selectedStyle">
+      <div class="selected-skill-display">
+        <div class="skill-name">{{ selectedStyle.name }}</div>
+        <div class="skill-gradient">
+          <div class="gradient-section" *ngFor="let i of [1,2,3,4,5]" 
+               [style.background]="getGradientColor(i)">
+            {{ i }}
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="top-panel-controls">
-      <label class="roster-add-btn" [class.loading]="isUploadingMusic">
-        <input type="file" accept=".mp3,audio/mp3" (change)="onMusicFileSelected($event)" hidden>
-        <span class="material-icons" *ngIf="!isUploadingMusic">audio_file</span>
-        <span class="material-icons loading-icon" *ngIf="isUploadingMusic">sync</span>
-        {{ isUploadingMusic ? 'Uploading...' : 'Add Audio File' }}
-      </label>
-      <button class="roster-add-btn" (click)="toggleColorBySkill()">
+      <!-- Color by Skill Options (shows when toggled, before Add Audio) -->
+      <div class="skill-options-panel" *ngIf="showColorBySkill && !selectedStyle">
+        <button class="skill-option" *ngFor="let style of segmentStyles" 
+                (click)="selectStyle(style)"
+                [style.background]="style.color">
+          {{ style.name }}
+        </button>
+      </div>
+      
+      <!-- Color by Skill -->
+      <button class="control-btn premium-btn" (click)="toggleColorBySkill()">
         <span class="material-icons">palette</span>
         Color by Skill
       </button>
-      <div class="style-selector-panel" *ngIf="showColorBySkill">
-        <div class="selected-style-card" *ngIf="selectedStyle">
-          <div class="style-name">{{ selectedStyle.name }}</div>
-          <div class="skill-gradient">
-            <div class="gradient-section" *ngFor="let i of [1,2,3,4,5]" 
-                 [style.background]="getGradientColor(i)">
-              {{ i }}
-            </div>
-          </div>
-        </div>
-        <div class="style-options" *ngIf="!selectedStyle">
-          <button class="style-option" *ngFor="let style of segmentStyles" 
-                  (click)="selectStyle(style)"
-                  [style.background]="style.color">
-            {{ style.name }}
+      
+      <!-- Add Audio -->
+      <button class="control-btn primary" [class.loading]="isUploadingMusic" (click)="triggerAudioUpload()">
+        <span class="material-icons" *ngIf="!isUploadingMusic">upload</span>
+        <span class="material-icons loading-icon" *ngIf="isUploadingMusic">sync</span>
+        Add Audio
+      </button>
+      <input type="file" accept=".mp3,audio/mp3" (change)="onMusicFileSelected($event)" hidden #audioFileInput>
+      
+      
+      
+      <!-- Add Backdrop (only in 3D view) -->
+      <button class="control-btn" *ngIf="is3DView" (click)="triggerBackdropUpload()">
+        <span class="material-icons">video_library</span>
+        Add Backdrop
+      </button>
+      <input type="file" accept="video/mp4,video/webm" (change)="onDirectVideoFileSelected($event)" hidden #backdropFileInput>
+      
+      <!-- Stage Tools Dropdown -->
+      <div class="stage-tools-dropdown">
+        <button class="control-btn" (click)="toggleStageToolsDropdown($event)">
+          Stage Tools
+          <span class="material-icons dropdown-arrow">{{ showStageToolsDropdown ? 'expand_less' : 'expand_more' }}</span>
+        </button>
+        <div class="dropdown-menu" *ngIf="showStageToolsDropdown">
+          <button class="dropdown-item" (click)="toggle3DView()">
+            <span class="material-icons">{{ is3DView ? 'view_in_ar' : 'grid_view' }}</span>
+            {{ is3DView ? '2D View' : '3D View' }}
+          </button>
+          <button class="dropdown-item" (click)="flipStage()">
+            <span class="material-icons">flip</span>
+            Flip Stage
+          </button>
+          <button class="dropdown-item" (click)="toggleShowTransitions()">
+            <span class="material-icons">{{ showTransitions ? 'check_box' : 'check_box_outline_blank' }}</span>
+            Show Transitions
+          </button>
+          <button class="dropdown-item" (click)="navigateToEditRoster()">
+            <span class="material-icons">group</span>
+            Edit Roster
           </button>
         </div>
       </div>
-      <label class="roster-add-btn" *ngIf="is3DView">
-        <input type="file" accept="video/mp4,video/webm" (change)="onDirectVideoFileSelected($event)" hidden>
-        <span class="material-icons">video_library</span>
-        Add Backdrop
-      </label>
-      <button class="roster-add-btn" (click)="toggle3DView()">
-        <span class="material-icons">
-          {{ is3DView ? 'grid_on' : 'view_in_ar' }}
-        </span>
-        {{ is3DView ? '2D View' : '3D View' }}
+
+      <!-- Clear Previous Positions -->
+      <button class="control-btn" 
+              *ngIf="hasVisiblePreviousPositions()" 
+              (click)="clearAllPreviousPositions()" 
+              title="Hide Previous Positions">
+        <span class="material-icons">visibility_off</span>
+        Hide Previous
       </button>
-      <button class="roster-add-btn" (click)="flipStage()">
-        <span class="material-icons">flip</span>
-        Flip Stage
-      </button>
-      <button *ngIf="isCaptain" class="edit-stage-btn" (click)="openEditModal()">
-        <span class="material-icons">edit</span> Edit Stage
+
+      <!-- Edit Stage Settings -->
+      <button class="control-btn settings-btn" (click)="openEditModal()" title="Edit Stage Settings">
+        <span class="material-icons">settings</span>
       </button>
     </div>
+
   </div>
 
   <div class="main-content">
@@ -329,7 +397,7 @@
               <path *ngFor="let performer of performers"
                      [attr.d]="getPerformerPath(performer.id)"
                      class="movement-line"
-                     [style.display]="getPreviousPosition(performer.id) ? 'block' : 'none'"/>
+                     [style.display]="(showTransitions || selectedPerformerForPreviousPosition === performer.id || selectedPerformersForPreviousPosition.has(performer.id)) && getPreviousPosition(performer.id) ? 'block' : 'none'"/>
             </svg>
 
             <!-- Main grid lines: vertical -->
@@ -357,7 +425,8 @@
             <!-- Previous position indicators -->
             <div *ngFor="let performer of performers" 
                  class="performer previous-position"
-                 [ngStyle]="getPreviousPositionStyle(performer.id)">
+                 [ngStyle]="getPreviousPositionStyle(performer.id)"
+                 [style.display]="(showTransitions || selectedPerformerForPreviousPosition === performer.id || selectedPerformersForPreviousPosition.has(performer.id)) && getPreviousPosition(performer.id) ? 'flex' : 'none'">
               {{performer.name}}
             </div>
             <!-- Current performers -->
@@ -392,104 +461,89 @@
                  title="Stage vertical position (↑ Up Arrow / ↓ Down Arrow)">
         </div>
       </div>
-      <div class="floating-controls" [class.has-audio]="signedMusicUrl">
-        <button class="unified-play-btn" *ngIf="signedMusicUrl" (click)="toggleUnifiedPlay()" (touchstart)="initializeMobileAudioContext()">
-          <span class="material-icons">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
-        </button>
-        <button class="unified-arrow-btn" (click)="prevFormation()" title="Previous formation (← Left Arrow)">
-          <span class="material-icons">chevron_left</span>
-        </button>
-        <button class="unified-arrow-btn" (click)="onNextFormationClick()" title="Next formation (→ Right Arrow)">
-          <span class="material-icons">chevron_right</span>
-        </button>
-        <button *ngIf="selectedPerformerIds.size === 2" 
-                class="swap-positions-btn" 
-                (click)="swapSelectedPerformers()">
-          <span class="material-icons">swap_horiz</span>
-        </button>
-      </div>
+
+      <!-- Control Bar -->
+      <app-control-bar
+        [currentFormationIndex]="currentFormationIndex"
+        [totalFormations]="formations.length"
+        [isPlaying]="isPlaying"
+        [playbackTime]="playbackTime"
+        [totalSegmentDuration]="getTotalSegmentDuration()"
+        [timelineZoom]="timelineZoom"
+        [minTimelineZoom]="minTimelineZoom"
+        [maxTimelineZoom]="maxTimelineZoom"
+        [timelineZoomStep]="timelineZoomStep"
+        [isCaptain]="isCaptain"
+        [canUndo]="canUndo"
+        [canRedo]="canRedo"
+        (prevFormation)="onControlBarPrevFormation()"
+        (playPause)="onControlBarPlayPause()"
+        (nextFormation)="onControlBarNextFormation()"
+        (zoomChange)="onControlBarZoomChange($event)"
+        (addFormation)="onControlBarAddFormation()"
+        (duplicateFormation)="onControlBarDuplicateFormation()"
+        (deleteFormation)="onControlBarDeleteFormation()"
+        (undo)="onControlBarUndo()"
+        (redo)="onControlBarRedo()">
+      </app-control-bar>
       <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl }">
-        <div class="bottom-panel-main">
-          <div class="timeline-audio-stack">
-            <div class="formation-timeline-bar simplified-timeline"
-                 #timelineBarRef
-                 [style.width.px]="waveformWidthPx"
-                 style="overflow-x: auto; position: relative;"
-                 (mousemove)="onTimelineMouseMove($event)"
-                 (mouseleave)="onTimelineMouseLeave()"
-                 (click)="onTimelineClick($event)">
-              <div class="formation-timeline-row" [style.width.px]="getTimelinePixelWidth()">
-                <ng-container *ngFor="let formation of formations; let i = index">
-                  <div class="formation-timeline-box"
-                       [class.active]="currentFormationIndex === i"
-                       (click)="jumpToFormation(i)"
-                       (mouseenter)="hoveredFormationIndex = i"
-                       (mouseleave)="hoveredFormationIndex = null"
-                       [style.width.px]="getFormationPixelWidth(i)">
-                    <div class="formation-label">F {{ i + 1 }}</div>
-                    <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
-                    <div *ngIf="isCaptain && i < formations.length - 1" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
+        <div class="timeline-audio-stack">
+          <div class="formation-timeline-bar simplified-timeline"
+               #timelineBarRef
+               style="overflow-x: auto; position: relative;"
+               (mousemove)="onTimelineMouseMove($event)"
+               (mouseleave)="onTimelineMouseLeave()"
+               (click)="onTimelineClick($event)">
+            <div class="formation-timeline-row" [style.width.px]="getTimelinePixelWidth()">
+              <ng-container *ngFor="let formation of formations; let i = index">
+                <div class="formation-timeline-box"
+                     [class.active]="currentFormationIndex === i"
+                     (click)="jumpToFormation(i)"
+                     (mouseenter)="hoveredFormationIndex = i"
+                     (mouseleave)="hoveredFormationIndex = null"
+                     [style.width.px]="getFormationPixelWidth(i)">
+                  <div class="formation-label">F {{ i + 1 }}</div>
+                  <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
+                  <div *ngIf="isCaptain && (formations.length === 1 || i < formations.length - 1)" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
+                </div>
+                <ng-container *ngIf="i < formations.length - 1">
+                  <div class="timeline-transition-bar" [style.width.px]="getTransitionPixelWidth(i)">
+                    <span class="transition-label">{{ animationDurations[i] | number:'1.1-1' }}s</span>
+                    <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onTransitionResizeStart($event, i)"></div>
                   </div>
-                  <ng-container *ngIf="i < formations.length - 1">
-                    <div class="timeline-transition-bar" [style.width.px]="getTransitionPixelWidth(i)">
-                      <span class="transition-label">{{ animationDurations[i] | number:'1.1-1' }}s</span>
-                      <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onTransitionResizeStart($event, i)"></div>
-                    </div>
-                  </ng-container>
                 </ng-container>
-                <button *ngIf="isCaptain" class="add-formation-btn add-formation-plus" (click)="addFormation()">
-                  <span class="material-icons">add</span>
-                </button>
-              </div>
-              <div class="timeline-playhead-container">
-                <div class="timeline-playhead" [style.left.px]="getHoveredPlayheadPixel()"></div>
+              </ng-container>
+              
+              <!-- Add Formation Button at end of timeline -->
+              <div *ngIf="isCaptain" class="add-formation-btn-timeline" 
+                   (click)="addFormation()" 
+                   title="Add Formation">
+                <span class="material-icons">add</span>
               </div>
             </div>
-            <div *ngIf="signedMusicUrl" class="audio-player-bar stage-audio-bar" [style.width.px]="waveformWidthPx">
-              <div class="waveform-container" style="display: flex; align-items: center; gap: 12px;">
-                <div style="flex: 1; position: relative;">
-                  <div class="formation-tracker">
-                    <ng-container *ngFor="let formation of formations; let i = index">
-                      <div class="formation-tracker-segment"
-                           [style.left.%]="getFormationStartPercent(i)"
-                           [style.width.%]="getFormationPercent(i)"
-                           [class.transition]="false">
-                      </div>
-                      <div class="formation-tracker-segment transition"
-                           *ngIf="i < animationDurations.length"
-                           [style.left.%]="getTransitionStartPercent(i)"
-                           [style.width.%]="getTransitionPercent(i)">
-                      </div>
-                    </ng-container>
-                  </div>
-                  <div id="waveform"></div>
-                </div>
-              </div>
+            <div class="timeline-playhead-container">
+              <div class="timeline-playhead" [style.left.px]="getHoveredPlayheadPixel()"></div>
             </div>
           </div>
-          <div class="bottom-panel-actions">
-            <div class="timeline-zoom-controls" *ngIf="isCaptain">
-              <span class="material-icons">zoom_out</span>
-              <input type="range" 
-                     [min]="minTimelineZoom" 
-                     [max]="maxTimelineZoom" 
-                     [step]="timelineZoomStep"
-                     [(ngModel)]="timelineZoom"
-                     (input)="onTimelineZoomChange($event)"
-                     class="timeline-zoom-slider">
-              <span class="material-icons">zoom_in</span>
-              <span class="zoom-percentage">{{ getTimelineZoomPercentage() }}%</span>
-            </div>
-            <div class="action-buttons">
-              <button *ngIf="isCaptain && currentFormationIndex !== null" class="delete-formation-btn" (click)="deleteFormation(currentFormationIndex)">
-                <span class="material-icons">delete</span>
-              </button>
-              <button *ngIf="isCaptain && currentFormationIndex !== null" class="duplicate-formation-btn" (click)="duplicateFormation(currentFormationIndex)">
-                <span class="material-icons">content_copy</span>
-              </button>
-            </div>
-            <div class="time-indicator segment-time-display" *ngIf="signedMusicUrl && isCaptain">
-              {{ formatTime(playbackTime) }}
+          <div *ngIf="signedMusicUrl" class="audio-player-bar stage-audio-bar">
+            <div class="waveform-container" style="display: flex; align-items: center; gap: 12px;">
+              <div style="flex: 1; position: relative;">
+                <div class="formation-tracker">
+                  <ng-container *ngFor="let formation of formations; let i = index">
+                    <div class="formation-tracker-segment"
+                         [style.left.%]="getFormationStartPercent(i)"
+                         [style.width.%]="getFormationPercent(i)"
+                         [class.transition]="false">
+                    </div>
+                    <div class="formation-tracker-segment transition"
+                         *ngIf="i < animationDurations.length"
+                         [style.left.%]="getTransitionStartPercent(i)"
+                         [style.width.%]="getTransitionPercent(i)">
+                    </div>
+                  </ng-container>
+                </div>
+                <div id="waveform"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -513,18 +567,23 @@
         <label>Segment Name:
           <input type="text" [(ngModel)]="editSegmentName" name="editSegmentName" required />
         </label>
-        <label>Width (ft):
-          <input type="number" min="8" max="60" [(ngModel)]="editWidth" name="editWidth" required />
-        </label>
-        <label>Depth (ft):
-          <input type="number" min="8" max="60" [(ngModel)]="editDepth" name="editDepth" required />
-        </label>
-        <label>Divisions:
-          <input type="number" min="1" max="8" [(ngModel)]="editDivisions" name="editDivisions" required />
-        </label>
+        
+        <!-- Width, Depth, and Divisions on same line -->
+        <div class="input-row">
+          <label class="third-width">Width (ft):
+            <input type="number" min="8" max="60" [(ngModel)]="editWidth" name="editWidth" required />
+          </label>
+          <label class="third-width">Depth (ft):
+            <input type="number" min="8" max="60" [(ngModel)]="editDepth" name="editDepth" required />
+          </label>
+          <label class="third-width">Divisions:
+            <input type="number" min="1" max="8" [(ngModel)]="editDivisions" name="editDivisions" required />
+          </label>
+        </div>
+        
         <div class="styles-section-modal">
           <div style="font-weight: 500; margin-bottom: 6px;">Styles</div>
-          <div *ngIf="teamStyles.length === 0" style="color: #888; font-size: 0.95em;">No styles defined for this team.</div>
+          <div *ngIf="teamStyles.length === 0" style="color: #888; font-size: 0.9em;">No styles defined for this team.</div>
           <div class="styles-list-modal" *ngIf="teamStyles.length > 0">
             <label *ngFor="let style of teamStyles"
                    class="style-checkbox-modal"
@@ -535,6 +594,7 @@
             </label>
           </div>
         </div>
+        
         <div class="modal-actions">
           <button type="submit" class="save">Save</button>
           <button type="button" (click)="closeEditModal()">Cancel</button>

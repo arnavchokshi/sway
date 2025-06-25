@@ -1,27 +1,112 @@
 <!-- Dashboard Layout -->
 <div class="dashboard-bg">
-  <div class="dashboard-header">
+  <!-- Top Navigation Bar -->
+  <div class="top-nav">
     <img src="assets/logoName.png" alt="Sway Logo" class="dashboard-logo">
-    <button *ngIf="isCaptain" class="roster-btn" (click)="showRosterModal = true">
-      <i class="fas fa-users"></i> Edit Team
-    </button>
-  </div>
-  <div class="dashboard-content">
-    <h1 class="dashboard-title">Segments</h1>
-    <app-formations></app-formations>
-  </div>
-
-  <button class="info-icon-btn" (click)="showInfoModal = true">
-    <i class="fas fa-info-circle"> help </i>
-  </button>
-
-  <div class="dashboard-join-code" *ngIf="team">
-    Join Code: <span class="join-code">{{ team.joinCode }}</span>
+    <div class="nav-buttons">
+      <button class="nav-btn help-btn" (click)="showInfoModal = true">
+        <i class="fas fa-info-circle"></i> Help
+      </button>
+      <div class="join-code-display" *ngIf="team">
+        Join Code: <span class="join-code">{{ team.joinCode }}</span>
+      </div>
+      <button *ngIf="isCaptain" class="nav-btn edit-team-btn" (click)="showRosterModal = true">
+        <i class="fas fa-users"></i> Edit Team
+      </button>
+    </div>
   </div>
 
+  <!-- Sets Section -->
+  <div class="sets-section">
+    <div class="sets-header">
+      <h1 class="sets-title">Your Sets</h1>
+      <button *ngIf="isCaptain" class="add-set-btn" (click)="openSetModal()">
+        <i class="fas fa-plus"></i> Add New Set
+      </button>
+    </div>
+    
+    <div class="sets-container">
+      <ng-container *ngIf="sets.length > 0; else noSets">
+        <div class="set-row" *ngFor="let set of sets; let setIndex = index">
+          <div class="set-content">
+            <div class="set-header">
+              <h3 class="set-name">{{ set.name }}</h3>
+              <div class="set-actions" *ngIf="isCaptain">
+                <button class="set-action-btn" (click)="editSet(set._id)">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button class="set-action-btn delete" (click)="deleteSet(set._id)">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div class="segments-in-set">
+              <ng-container *ngIf="getSegmentsForSet(set._id).length > 0; else noSegmentsInSet">
+                <div class="segment-card-in-set"
+                     *ngFor="let segment of getSegmentsForSet(set._id); let segIndex = index"
+                     (click)="goToSegment(segment._id)"
+                     [attr.data-segment-id]="segment._id">
+                  <div class="segment-grid-bg"></div>
+                  <div class="segment-order-badge">{{ segIndex + 1 }}</div>
+                  <div class="segment-name">{{ segment.name }}</div>
+                  <div class="segment-style-pills" *ngIf="segment.stylesInSegment?.length">
+                    <span class="style-pill" *ngFor="let styleName of segment.stylesInSegment"
+                          [ngStyle]="{ 'background-color': getStyleColor(styleName) }">
+                      {{ styleName }}
+                    </span>
+                  </div>
+                </div>
+                
+                <!-- Arrow to next set -->
+                <div class="next-set-arrow" *ngIf="setIndex < sets.length - 1">
+                  <i class="fas fa-arrow-right"></i>
+                </div>
+              </ng-container>
+              
+              <ng-template #noSegmentsInSet>
+                <div class="no-segments-in-set">
+                  <span>No segments in this set</span>
+                  <button *ngIf="isCaptain" class="add-segment-to-set-btn" (click)="addSegmentToSet(set._id)">
+                    <i class="fas fa-plus"></i> Add Segment
+                  </button>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+      
+      <ng-template #noSets>
+        <div class="no-sets">
+          <span>No sets created yet</span>
+
+        </div>
+      </ng-template>
+    </div>
+  </div>
+
+  <!-- Roster Modal -->
   <div class="roster-modal-overlay" *ngIf="showRosterModal">
     <div class="roster-modal-popup">
       <app-dashboard-roster (close)="showRosterModal = false"></app-dashboard-roster>
+    </div>
+  </div>
+
+  <!-- Set Creation Modal -->
+  <div class="modal-backdrop" *ngIf="showSetModal">
+    <div class="modal frosted-glass-modal">
+      <h2>{{ editingSet ? 'Edit Set' : 'Create New Set' }}</h2>
+      <form (ngSubmit)="submitSetModal()">
+        <label>
+          Set Name
+          <input type="text" [(ngModel)]="newSetName" name="name" required />
+        </label>
+        <div class="modal-actions">
+          <button type="submit" class="submit-btn">{{ editingSet ? 'Update' : 'Create' }}</button>
+          <button type="button" (click)="closeSetModal()" class="cancel-btn">Cancel</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -38,8 +123,8 @@
         <div class="info-item">
           <i class="fas fa-plus-circle"></i>
           <div class="info-text">
-            <strong>Add segments and build formations</strong>
-            <p>Create segments to organize your choreography and build formations.</p>
+            <strong>Create sets and add segments</strong>
+            <p>Organize your choreography into sets and add segments to build formations.</p>
           </div>
         </div>
         <div class="info-item">
@@ -65,12 +150,5 @@
         </div>
       </div>
     </div>
-  </div>
-
-  <!-- Segment viewer (assuming this is the main segment display area) -->
-  <div class="segment-viewer">
-    <!-- ... existing segment viewer code ... -->
-
-
   </div>
 </div> 

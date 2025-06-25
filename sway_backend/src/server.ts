@@ -6,6 +6,7 @@ import bcrypt from 'bcrypt';
 import { User } from './models/User';
 import { Team } from './models/Team';
 import { Segment } from './models/Segment';
+import { Set } from './models/Set';
 import AWS from 'aws-sdk';
 
 const app = express();
@@ -632,6 +633,122 @@ app.delete('/api/teams/:teamId/members/:memberId', async (req: Request, res: Res
     res.json({ message: 'Member removed successfully', team });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to remove member' });
+  }
+});
+
+// Sets API endpoints
+app.post('/api/sets', async (req: Request, res: Response) => {
+  try {
+    const { teamId, name } = req.body;
+    
+    // Find the team to verify it exists
+    const team = await Team.findById(teamId);
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    // Get the current user from the request (you might need to add authentication middleware)
+    // For now, using the team owner as default
+    const owner = team.owner;
+
+    // Get the next order number for this team
+    const existingSets = await Set.find({ team: teamId });
+    const nextOrder = existingSets.length;
+
+    const set = new Set({
+      name,
+      team: teamId,
+      segments: [],
+      transitionTimes: [],
+      owner,
+      order: nextOrder
+    });
+
+    await set.save();
+    res.status(201).json({ message: 'Set created', set });
+  } catch (error: any) {
+    console.error('Error creating set:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create set' });
+  }
+});
+
+app.get('/api/sets/team/:teamId', async (req: Request, res: Response) => {
+  try {
+    const { teamId } = req.params;
+    const sets = await Set.find({ team: teamId }).sort({ order: 1 });
+    res.json({ sets });
+  } catch (error: any) {
+    console.error('Error fetching sets:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch sets' });
+  }
+});
+
+app.get('/api/sets/:id', async (req: Request, res: Response) => {
+  try {
+    const set = await Set.findById(req.params.id).populate('segments');
+    if (!set) return res.status(404).json({ error: 'Set not found' });
+    res.json({ set });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch set' });
+  }
+});
+
+app.patch('/api/sets/:id', async (req: Request, res: Response) => {
+  try {
+    const set = await Set.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    if (!set) return res.status(404).json({ error: 'Set not found' });
+    res.json({ message: 'Set updated', set });
+  } catch (error: any) {
+    console.error('Error updating set:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update set' });
+  }
+});
+
+app.delete('/api/sets/:id', async (req: Request, res: Response) => {
+  try {
+    const set = await Set.findByIdAndDelete(req.params.id);
+    if (!set) return res.status(404).json({ error: 'Set not found' });
+    res.json({ message: 'Set deleted', set });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to delete set' });
+  }
+});
+
+app.post('/api/sets/:id/segments', async (req: Request, res: Response) => {
+  try {
+    const { segmentId, transitionTime } = req.body;
+    const set = await Set.findById(req.params.id);
+    if (!set) return res.status(404).json({ error: 'Set not found' });
+    
+    set.segments.push(segmentId);
+    set.transitionTimes.push(transitionTime || 0);
+    await set.save();
+    
+    res.json({ message: 'Segment added to set', set });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to add segment to set' });
+  }
+});
+
+app.delete('/api/sets/:id/segments/:segmentId', async (req: Request, res: Response) => {
+  try {
+    const set = await Set.findById(req.params.id);
+    if (!set) return res.status(404).json({ error: 'Set not found' });
+    
+    const segmentIndex = set.segments.findIndex(seg => seg.toString() === req.params.segmentId);
+    if (segmentIndex === -1) return res.status(404).json({ error: 'Segment not found in set' });
+    
+    set.segments.splice(segmentIndex, 1);
+    set.transitionTimes.splice(segmentIndex, 1);
+    await set.save();
+    
+    res.json({ message: 'Segment removed from set', set });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to remove segment from set' });
   }
 });
 

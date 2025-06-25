@@ -19,6 +19,7 @@ interface Position {
 interface Segment extends Document {
   name: string;
   team: mongoose.Types.ObjectId;
+  segmentSet?: mongoose.Types.ObjectId; // Reference to the Set this segment belongs to
   roster: mongoose.Types.ObjectId[];
   formations: Position[][];
   dummyTemplates: DummyTemplate[]; // Store dummy templates within segment
@@ -32,6 +33,8 @@ interface Segment extends Document {
   segmentOrder: number;
   stylesInSegment: [{ type: String }];
   propSpace: number;
+  isPublic: boolean; // Privacy control - if false, only captains can see it
+  createdBy: mongoose.Types.ObjectId; // User who created the segment
 }
 
 const DummyTemplateSchema = new Schema<DummyTemplate>({
@@ -53,6 +56,7 @@ const PositionSchema = new Schema<Position>({
 const SegmentSchema = new Schema<Segment>({
   name: { type: String, required: true },
   team: { type: Schema.Types.ObjectId, ref: 'Team', required: true },
+  segmentSet: { type: Schema.Types.ObjectId, ref: 'Set', required: false },
   roster: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   formations: [[PositionSchema]],
   dummyTemplates: [DummyTemplateSchema], // Add dummy templates array
@@ -65,7 +69,9 @@ const SegmentSchema = new Schema<Segment>({
   videoUrl: { type: String },
   segmentOrder: { type: Number, default: 0 },
   stylesInSegment: [{ type: String }],
-  propSpace: { type: Number, default: 2 }
+  propSpace: { type: Number, default: 2 },
+  isPublic: { type: Boolean, default: true },
+  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 });
 
 export const Segment = mongoose.model<Segment>('Segment', SegmentSchema);
