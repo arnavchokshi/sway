@@ -33,8 +33,10 @@ export class SegmentService {
 
   constructor(private http: HttpClient) {}
 
-  createSegment(teamId: string, name: string, depth: number, width: number, divisions: number, stylesInSegment: any[], isPublic: boolean = true, setId?: string): Observable<any> {
-    return this.http.post(this.apiUrl, { teamId, name, depth, width, divisions, stylesInSegment, isPublic, setId });
+  createSegment(teamId: string, name: string, depth: number, width: number, divisions: number, stylesInSegment: any[], isPublic: boolean = true, setId?: string, createdBy?: string): Observable<any> {
+    const payload = { teamId, name, depth, width, divisions, stylesInSegment, isPublic, setId, createdBy };
+    console.log('Segment creation payload:', payload);
+    return this.http.post(this.apiUrl, payload);
   }
 
   getSegmentsForTeam(teamId: string) {

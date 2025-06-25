@@ -9,10 +9,6 @@ export interface ISet {
   team: string;
   segments: string[];
   transitionTimes: number[]; // Array of transition times in seconds between segments
-  owner: string;
-  createdAt: Date;
-  updatedAt: Date;
-  order: number;
 }
 
 @Injectable({

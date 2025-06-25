@@ -157,12 +157,25 @@ app.get('/api/team-by-join-code/:joinCode', async (req: Request, res: Response) 
 
 app.post('/api/segments', async (req: Request, res: Response) => {
   try {
-    const { teamId, name, depth, width, divisions, animationDurations, stylesInSegment } = req.body;
+    const { teamId, name, depth, width, divisions, animationDurations, stylesInSegment, createdBy, isPublic, setId } = req.body;
+    
+    // Validate required fields
+    if (!createdBy) {
+      return res.status(400).json({ error: 'createdBy field is required' });
+    }
+    
     // Find the team to verify it exists
     const team = await Team.findById(teamId);
     if (!team) {
       return res.status(404).json({ error: 'Team not found' });
     }
+    
+    // Verify the user exists
+    const user = await User.findById(createdBy);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
     // Only allow styles that exist in the team's styles array
     const validStyleNames = (team.styles || []).map((s: any) => s.name);
     const filteredStyles = (Array.isArray(stylesInSegment) ? stylesInSegment : []).filter((s: any) => validStyleNames.includes(s));
@@ -177,7 +190,10 @@ app.post('/api/segments', async (req: Request, res: Response) => {
       divisions,
       animationDurations: Array.isArray(animationDurations) ? animationDurations : [1],
       musicUrl: '',
-      stylesInSegment: filteredStyles
+      stylesInSegment: filteredStyles,
+      createdBy: createdBy,
+      isPublic: isPublic !== undefined ? isPublic : true,
+      segmentSet: setId || undefined
     });
     await segment.save();
     res.status(201).json({ message: 'Segment created', segment });
@@ -647,21 +663,11 @@ app.post('/api/sets', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Team not found' });
     }
 
-    // Get the current user from the request (you might need to add authentication middleware)
-    // For now, using the team owner as default
-    const owner = team.owner;
-
-    // Get the next order number for this team
-    const existingSets = await Set.find({ team: teamId });
-    const nextOrder = existingSets.length;
-
     const set = new Set({
       name,
       team: teamId,
       segments: [],
-      transitionTimes: [],
-      owner,
-      order: nextOrder
+      transitionTimes: []
     });
 
     await set.save();
@@ -675,7 +681,7 @@ app.post('/api/sets', async (req: Request, res: Response) => {
 app.get('/api/sets/team/:teamId', async (req: Request, res: Response) => {
   try {
     const { teamId } = req.params;
-    const sets = await Set.find({ team: teamId }).sort({ order: 1 });
+    const sets = await Set.find({ team: teamId });
     res.json({ sets });
   } catch (error: any) {
     console.error('Error fetching sets:', error);
@@ -749,6 +755,29 @@ app.delete('/api/sets/:id/segments/:segmentId', async (req: Request, res: Respon
     res.json({ message: 'Segment removed from set', set });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to remove segment from set' });
+  }
+});
+
+// Update segment privacy
+app.patch('/api/segment/:segmentId/privacy', async (req: Request, res: Response) => {
+  try {
+    const { segmentId } = req.params;
+    const { isPublic } = req.body;
+    
+    const segment = await Segment.findByIdAndUpdate(
+      segmentId,
+      { isPublic },
+      { new: true }
+    );
+    
+    if (!segment) {
+      return res.status(404).json({ error: 'Segment not found' });
+    }
+    
+    res.json({ message: 'Segment privacy updated', segment });
+  } catch (error: any) {
+    console.error('Error updating segment privacy:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update segment privacy' });
   }
 });
 

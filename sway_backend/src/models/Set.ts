@@ -5,10 +5,6 @@ export interface ISet extends Document {
   team: mongoose.Types.ObjectId;
   segments: mongoose.Types.ObjectId[]; // Array of Segment IDs
   transitionTimes: number[]; // Array of transition times in seconds between segments (length = segments.length - 1)
-  owner: mongoose.Types.ObjectId; // User ID of the set creator
-  createdAt: Date;
-  updatedAt: Date;
-  order: number; // Order within the team's sets
 }
 
 const SetSchema = new Schema<ISet>(
@@ -32,18 +28,6 @@ const SetSchema = new Schema<ISet>(
       default: 0,
       min: 0, // Transition time cannot be negative
     }],
-    owner: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    order: {
-      type: Number,
-      default: 0,
-    },
-  },
-  {
-    timestamps: true, // Automatically adds createdAt and updatedAt
   }
 );
 

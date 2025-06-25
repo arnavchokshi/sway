@@ -21,6 +21,7 @@ export class DashboardComponent implements OnInit {
   showRosterModal = false;
   showInfoModal = false;
   showSetModal = false;
+  showSegmentModal = false;
   team: any = null;
   sets: ISet[] = [];
   segments: any[] = [];
@@ -28,6 +29,22 @@ export class DashboardComponent implements OnInit {
   // Set modal properties
   newSetName = '';
   editingSet: ISet | null = null;
+  
+  // Segment modal properties
+  newSegmentName = '';
+  newSegmentDepth = 24;
+  newSegmentWidth = 32;
+  newSegmentDivisions = 3;
+  newSegmentIsPublic = true;
+  newSegmentStyles: string[] = [];
+  teamStyles: any[] = [];
+  showAddStyleInput = false;
+  newStyleName = '';
+  isAddingStyle = false;
+      currentSetId: string | null = null;
+    
+    // UI state
+    activeSetMenu: string | null = null;
 
   segment = {
     stylesInSegment: ['bhangra', 'HH']
@@ -60,7 +77,7 @@ export class DashboardComponent implements OnInit {
     if (currentUser?.team?._id) {
       this.setService.getSetsForTeam(currentUser.team._id).subscribe({
         next: (res) => {
-          this.sets = res.sets.sort((a, b) => a.order - b.order);
+          this.sets = res.sets;
         },
         error: (err) => {
           console.error('Failed to load sets:', err);
@@ -91,6 +108,29 @@ export class DashboardComponent implements OnInit {
     return set.segments.map(segmentId => 
       this.segments.find(segment => segment._id === segmentId)
     ).filter(segment => segment !== undefined);
+  }
+
+  getTotalDuration(setId: string): number {
+    const segments = this.getSegmentsForSet(setId);
+    return segments.reduce((total, segment) => total + this.getSegmentDuration(segment), 0);
+  }
+
+  getSegmentDuration(segment: any): number {
+    // Calculate total duration from formation durations
+    if (segment.formationDurations && segment.formationDurations.length > 0) {
+      return segment.formationDurations.reduce((total: number, duration: number) => total + duration, 0);
+    }
+    // Fallback to default duration if no formation durations
+    return 30; // Default 30 seconds
+  }
+
+  toggleSetMenu(setId: string) {
+    this.activeSetMenu = this.activeSetMenu === setId ? null : setId;
+  }
+
+  previewSegment(segmentId: string) {
+    // For now, redirect to the segment view - could be enhanced with a preview modal
+    this.router.navigate(['/create-segment'], { queryParams: { id: segmentId, preview: true } });
   }
 
   openSetModal() {
@@ -161,9 +201,161 @@ export class DashboardComponent implements OnInit {
     });
   }
 
+  // Segment Modal Methods
+  openSegmentModal(setId?: string) {
+    this.showSegmentModal = true;
+    this.currentSetId = setId || null;
+    this.newSegmentName = '';
+    this.newSegmentDepth = 24;
+    this.newSegmentWidth = 32;
+    this.newSegmentDivisions = 3;
+    this.newSegmentIsPublic = true;
+    this.newSegmentStyles = [];
+    this.loadTeamStyles();
+  }
+
+  closeSegmentModal() {
+    this.showSegmentModal = false;
+    this.currentSetId = null;
+  }
+
+  submitSegmentModal() {
+    const currentUser = this.authService.getCurrentUser();
+    console.log('Current user for segment creation:', currentUser);
+    console.log('Current user ID:', currentUser?._id);
+    if (currentUser?.team) {
+      this.segmentService.createSegment(
+        currentUser.team._id,
+        this.newSegmentName,
+        this.newSegmentDepth,
+        this.newSegmentWidth,
+        this.newSegmentDivisions,
+        this.newSegmentStyles,
+        this.newSegmentIsPublic,
+        undefined, // setId
+        currentUser._id // createdBy
+      ).subscribe({
+        next: (response) => {
+          // If we have a currentSetId, add the segment to that set
+          if (this.currentSetId) {
+            const set = this.sets.find(s => s._id === this.currentSetId);
+            if (set) {
+              const updatedSegments = [...set.segments, response.segment._id];
+              this.setService.updateSet(this.currentSetId, { segments: updatedSegments }).subscribe({
+                next: () => {
+                  this.loadSets();
+                  this.loadSegments();
+                  this.closeSegmentModal();
+                  this.router.navigate(['/create-segment'], { queryParams: { id: response.segment._id } });
+                },
+                error: (err) => {
+                  console.error('Failed to add segment to set:', err);
+                  // Still navigate to the segment even if adding to set failed
+                  this.loadSegments();
+                  this.closeSegmentModal();
+                  this.router.navigate(['/create-segment'], { queryParams: { id: response.segment._id } });
+                }
+              });
+            }
+          } else {
+            this.loadSegments();
+            this.closeSegmentModal();
+            this.router.navigate(['/create-segment'], { queryParams: { id: response.segment._id } });
+          }
+        },
+        error: (error) => {
+          console.error('Error creating segment:', error);
+          alert('Failed to create segment!');
+        }
+      });
+    } else {
+      console.error('No user or team found');
+    }
+  }
+
+  loadTeamStyles() {
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser?.team?._id) {
+      this.teamService.getTeamById(currentUser.team._id).subscribe({
+        next: (res) => {
+          this.teamStyles = res.team.styles || [];
+        },
+        error: (err) => {
+          this.teamStyles = [];
+        }
+      });
+    }
+  }
+
+  isStyleSelected(style: any): boolean {
+    return this.newSegmentStyles.includes(style.name);
+  }
+
+  toggleStyle(style: any, checked: boolean): void {
+    if (checked) {
+      if (!this.newSegmentStyles.includes(style.name)) {
+        this.newSegmentStyles.push(style.name);
+      }
+    } else {
+      this.newSegmentStyles = this.newSegmentStyles.filter(s => s !== style.name);
+    }
+  }
+
+  addNewStyle() {
+    if (!this.newStyleName.trim() || this.isAddingStyle) return;
+    this.isAddingStyle = true;
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?.team?._id) return;
+    // Optionally, you can generate a random color or use a default
+    const color = '#6366f1';
+    this.teamService.addStyle(currentUser.team._id, { name: this.newStyleName.trim(), color }).subscribe({
+      next: (res) => {
+        this.teamStyles = res.team.styles || [];
+        this.newStyleName = '';
+        this.showAddStyleInput = false;
+        this.isAddingStyle = false;
+      },
+      error: (err) => {
+        alert('Failed to add style.');
+        this.isAddingStyle = false;
+      }
+    });
+  }
+
+  cancelAddStyle() {
+    this.showAddStyleInput = false;
+    this.newStyleName = '';
+  }
+
+  deleteStyle(style: any, event: MouseEvent) {
+    event.stopPropagation();
+    if (!confirm(`Are you sure you want to delete the style "${style.name}"?`)) return;
+    
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?.team?._id) return;
+    
+    // Find the index of the style in the teamStyles array
+    const styleIndex = this.teamStyles.findIndex(s => s.name === style.name);
+    if (styleIndex === -1) {
+      alert('Style not found.');
+      return;
+    }
+    
+    this.teamService.deleteStyle(currentUser.team._id, styleIndex).subscribe({
+      next: (res) => {
+        this.teamStyles = res.team.styles || [];
+        // Remove from selected styles if it was selected
+        this.newSegmentStyles = this.newSegmentStyles.filter(s => s !== style.name);
+      },
+      error: (err) => {
+        alert('Failed to delete style.');
+      }
+    });
+  }
+
   addSegmentToSet(setId: string) {
-    // For now, redirect to create segment - could be enhanced with a segment picker
-    this.router.navigate(['/create-segment'], { queryParams: { setId: setId } });
+    // Open the segment modal with the set context
+    this.openSegmentModal(setId);
   }
 
   goToSegment(segmentId: string) {
@@ -178,5 +370,36 @@ export class DashboardComponent implements OnInit {
       // Add more styles and colors as needed
     };
     return styleColors[styleName] || '#E6E6FA';
+  }
+
+  getSetVisibilityStatus(setId: string): boolean {
+    const segments = this.getSegmentsForSet(setId);
+    if (segments.length === 0) return true; // Default to public for empty sets
+    
+    // Return true (public/eye open) if ALL segments are public
+    return segments.every(segment => segment.isPublic === true);
+  }
+
+  toggleSetVisibility(setId: string) {
+    if (!this.isCaptain) return;
+    
+    const segments = this.getSegmentsForSet(setId);
+    if (segments.length === 0) return;
+    
+    const currentlyAllPublic = this.getSetVisibilityStatus(setId);
+    const newVisibility = !currentlyAllPublic;
+    
+    // Update all segments in the set
+    const updatePromises = segments.map(segment => 
+      this.segmentService.updateSegmentPrivacy(segment._id, newVisibility).toPromise()
+    );
+    
+    Promise.all(updatePromises).then(() => {
+      // Reload segments to reflect changes
+      this.loadSegments();
+    }).catch(err => {
+      console.error('Failed to update segment visibility:', err);
+      alert('Failed to update segment visibility!');
+    });
   }
 }

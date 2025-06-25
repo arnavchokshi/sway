@@ -21,7 +21,7 @@
     <div class="sets-header">
       <h1 class="sets-title">Your Sets</h1>
       <button *ngIf="isCaptain" class="add-set-btn" (click)="openSetModal()">
-        <i class="fas fa-plus"></i> Add New Set
+        Create New Set
       </button>
     </div>
     
@@ -30,31 +30,58 @@
         <div class="set-row" *ngFor="let set of sets; let setIndex = index">
           <div class="set-content">
             <div class="set-header">
-              <h3 class="set-name">{{ set.name }}</h3>
-              <div class="set-actions" *ngIf="isCaptain">
-                <button class="set-action-btn" (click)="editSet(set._id)">
-                  <i class="fas fa-edit"></i>
+              <div class="set-info">
+                <div class="set-icon" (click)="toggleSetVisibility(set._id)" [title]="getSetVisibilityStatus(set._id) ? 'Click to make all segments private' : 'Click to make all segments public'">
+                  <i class="fas" [class.fa-eye]="getSetVisibilityStatus(set._id)" [class.fa-eye-slash]="!getSetVisibilityStatus(set._id)"></i>
+                </div>
+                <h3 class="set-name">{{ set.name }}</h3>
+                <div class="set-stats">
+                  <span class="segment-count">{{ getSegmentsForSet(set._id).length }} segments</span>
+                  <span class="total-duration">{{ getTotalDuration(set._id) }}s total</span>
+                </div>
+              </div>
+              <div class="set-actions">
+                <button class="add-segment-btn" *ngIf="isCaptain" (click)="addSegmentToSet(set._id)">
+                  <i class="fas fa-plus"></i> Add Segment
                 </button>
-                <button class="set-action-btn delete" (click)="deleteSet(set._id)">
-                  <i class="fas fa-trash"></i>
+                <button class="set-menu-btn" *ngIf="isCaptain" (click)="toggleSetMenu(set._id)">
+                  <i class="fas fa-ellipsis-v"></i>
                 </button>
+                <div class="set-menu-dropdown" *ngIf="activeSetMenu === set._id" (clickOutside)="activeSetMenu = null">
+                  <button (click)="editSet(set._id)">
+                    <i class="fas fa-edit"></i> Edit Set
+                  </button>
+                  <button (click)="deleteSet(set._id)" class="delete-option">
+                    <i class="fas fa-trash"></i> Delete Set
+                  </button>
+                </div>
               </div>
             </div>
             
             <div class="segments-in-set">
               <ng-container *ngIf="getSegmentsForSet(set._id).length > 0; else noSegmentsInSet">
-                <div class="segment-card-in-set"
+                <div class="segment-card-enhanced"
                      *ngFor="let segment of getSegmentsForSet(set._id); let segIndex = index"
-                     (click)="goToSegment(segment._id)"
                      [attr.data-segment-id]="segment._id">
                   <div class="segment-grid-bg"></div>
-                  <div class="segment-order-badge">{{ segIndex + 1 }}</div>
-                  <div class="segment-name">{{ segment.name }}</div>
-                  <div class="segment-style-pills" *ngIf="segment.stylesInSegment?.length">
-                    <span class="style-pill" *ngFor="let styleName of segment.stylesInSegment"
-                          [ngStyle]="{ 'background-color': getStyleColor(styleName) }">
-                      {{ styleName }}
-                    </span>
+                  <div class="segment-number">{{ segIndex + 1 }}</div>
+                  <div class="segment-main-content">
+                    <h4 class="segment-title">{{ segment.name }}</h4>
+                    <div class="segment-style-pills" *ngIf="segment.stylesInSegment?.length">
+                      <span class="style-pill" *ngFor="let styleName of segment.stylesInSegment"
+                            [ngStyle]="{ 'background-color': getStyleColor(styleName) }">
+                        {{ styleName }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="segment-duration">{{ getSegmentDuration(segment) }}s</div>
+                  <div class="segment-actions">
+                    <button class="action-btn preview-btn" (click)="previewSegment(segment._id)">
+                      <i class="fas fa-play"></i> Preview
+                    </button>
+                    <button class="action-btn edit-btn" (click)="goToSegment(segment._id)">
+                      <i class="fas fa-edit"></i> Edit
+                    </button>
                   </div>
                 </div>
                 
@@ -67,9 +94,7 @@
               <ng-template #noSegmentsInSet>
                 <div class="no-segments-in-set">
                   <span>No segments in this set</span>
-                  <button *ngIf="isCaptain" class="add-segment-to-set-btn" (click)="addSegmentToSet(set._id)">
-                    <i class="fas fa-plus"></i> Add Segment
-                  </button>
+                  
                 </div>
               </ng-template>
             </div>
@@ -80,7 +105,9 @@
       <ng-template #noSets>
         <div class="no-sets">
           <span>No sets created yet</span>
-
+          <button *ngIf="isCaptain" class="create-first-set-btn" (click)="openSetModal()">
+            <i class="fas fa-plus"></i> Create Your First Set
+          </button>
         </div>
       </ng-template>
     </div>
@@ -105,6 +132,150 @@
         <div class="modal-actions">
           <button type="submit" class="submit-btn">{{ editingSet ? 'Update' : 'Create' }}</button>
           <button type="button" (click)="closeSetModal()" class="cancel-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Segment Creation Modal -->
+  <div class="modal-backdrop" *ngIf="showSegmentModal">
+    <div class="modal modern-segment-modal">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-music"></i>
+          <h2>Create New Segment</h2>
+        </div>
+        <button type="button" class="modal-close-btn" (click)="closeSegmentModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <form (ngSubmit)="submitSegmentModal()" class="segment-form">
+        <!-- Segment Name -->
+        <div class="form-group">
+          <label class="form-label">Segment Name <span class="required">*</span></label>
+          <input 
+            type="text" 
+            [(ngModel)]="newSegmentName" 
+            name="name" 
+            required 
+            class="form-input"
+            placeholder="e.g., Opening Formation, Finale"
+          />
+        </div>
+
+        <!-- Public/Private Toggle -->
+        <div class="form-group">
+          <div class="visibility-toggle">
+            <div class="toggle-icon">
+              <i class="fas" [class.fa-eye]="newSegmentIsPublic" [class.fa-eye-slash]="!newSegmentIsPublic"></i>
+            </div>
+            <div class="toggle-content">
+              <h3>{{ newSegmentIsPublic ? 'Public Segment' : 'Private Segment' }}</h3>
+              <p>{{ newSegmentIsPublic ? 'Visible to the full team' : 'Only visible to captains' }}</p>
+            </div>
+            <div class="toggle-switch" (click)="newSegmentIsPublic = !newSegmentIsPublic">
+              <div class="toggle-track" [class.active]="newSegmentIsPublic">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dance Styles -->
+        <div class="form-group">
+          <div class="styles-header">
+            <label class="form-label">Dance Style <span class="required">*</span></label>
+          </div>
+          
+          <div class="styles-grid-modern">
+            <div *ngFor="let style of teamStyles" 
+                 class="style-badge"
+                 [class.selected]="isStyleSelected(style)"
+                 (click)="toggleStyle(style, !isStyleSelected(style))">
+              <div class="style-circle" [style.background]="style.color"></div>
+              <span class="style-name">{{ style.name }}</span>
+            </div>
+            
+            <!-- Add New Style -->
+            <div class="style-badge add-new-style" 
+                 *ngIf="isCaptain && !showAddStyleInput"
+                 (click)="showAddStyleInput = true">
+              <div class="style-circle add-circle">
+                <i class="fas fa-plus"></i>
+              </div>
+              <span class="style-name">Add New Style</span>
+            </div>
+          </div>
+
+          <!-- Add Style Input -->
+          <div *ngIf="showAddStyleInput" class="add-style-input">
+            <input 
+              type="text" 
+              [(ngModel)]="newStyleName" 
+              name="newStyleName" 
+              placeholder="Style name"
+              class="style-input"
+              (keydown.enter)="addNewStyle()"
+              autofocus
+            />
+            <button type="button" (click)="addNewStyle()" class="add-style-confirm">
+              <i class="fas fa-check"></i>
+            </button>
+            <button type="button" (click)="cancelAddStyle()" class="add-style-cancel">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Dimensions -->
+        <div class="form-group">
+          <label class="form-label">Width Height Divisions</label>
+          <div class="dimensions-row">
+            <div class="dimension-input">
+              <input 
+                type="number" 
+                [(ngModel)]="newSegmentWidth" 
+                name="width" 
+                min="1" 
+                required
+                class="form-input-small"
+              />
+            </div>
+            <div class="dimension-input">
+              <input 
+                type="number" 
+                [(ngModel)]="newSegmentDepth" 
+                name="depth" 
+                min="1" 
+                required
+                class="form-input-small"
+              />
+            </div>
+            <div class="dimension-input">
+              <input 
+                type="number" 
+                [(ngModel)]="newSegmentDivisions" 
+                name="divisions" 
+                min="1" 
+                required
+                class="form-input-small"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Validation Message -->
+        <div class="validation-message" *ngIf="!newSegmentName || newSegmentStyles.length === 0">
+          Please fill in segment name and select a style
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="modal-actions-modern">
+          <button type="button" (click)="closeSegmentModal()" class="btn-cancel">Cancel</button>
+          <button type="submit" class="btn-create" [disabled]="!newSegmentName || newSegmentStyles.length === 0">
+            Create Segment
+          </button>
         </div>
       </form>
     </div>
