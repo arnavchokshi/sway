@@ -4,7 +4,7 @@
     <div class="header">
       <div class="header-content">
         <h1>Team Members</h1>
-        <p>Manage your team roster and skill ratings. Dancers will input their own height when they log in.</p>
+        <p>Manage your team roster, styles, skill ratings. Dancers will input their own height when they log in.</p>
       </div>
       <button 
         (click)="navigateBack()" 
@@ -34,8 +34,8 @@
         <div class="stat-label">Captains</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">{{ getAverageSkillRating() }}</div>
-        <div class="stat-label">Avg Skill Rating</div>
+        <div class="stat-value">{{ getAverageSegmentsPerPerformer() }}</div>
+        <div class="stat-label">Avg Segments per Performer</div>
       </div>
     </div>
 
@@ -50,50 +50,90 @@
         </div>
         <div class="sidebar-content">
           <div class="styles-list">
-            <div *ngFor="let style of styles; let i = index" class="style-item">
+            <div *ngFor="let style of styles; let i = index" class="style-item" [class.new-style]="style.isNew">
               <div class="style-info">
-                <div class="style-color" [style.background-color]="style.color"></div>
-                <span class="style-name">{{ style.name }}</span>
+                <input
+                  *ngIf="style.isNew"
+                  type="color"
+                  [(ngModel)]="style.color"
+                  class="style-color-input">
+                <div 
+                  *ngIf="!style.isNew"
+                  class="style-color" 
+                  [style.background-color]="style.color"></div>
+                
+                <!-- Editable name for new styles -->
+                <input
+                  *ngIf="style.isNew"
+                  [(ngModel)]="style.name"
+                  (keyup.enter)="saveNewStyle(style)"
+                  (blur)="!style.name.trim() ? cancelNewStyle(style) : null"
+                  (click)="$event.stopPropagation()"
+                  (input)="adjustInputWidth($event)"
+                  placeholder="Enter style name..."
+                  type="text"
+                  class="inline-style-input seamless-input"
+                  [style.width.ch]="style.name.length + 1">
+                
+                <!-- Editable name for existing styles in edit mode -->
+                <input
+                  *ngIf="!style.isNew && style.isEditing"
+                  [(ngModel)]="style.name"
+                  (ngModelChange)="saveEditedStyle(style, i)"
+                  (blur)="finishEditingStyle(style)"
+                  (keyup.enter)="finishEditingStyle(style)"
+                  (click)="$event.stopPropagation()"
+                  (input)="adjustInputWidth($event)"
+                  type="text"
+                  class="inline-style-input seamless-input"
+                  [style.width.ch]="style.name.length + 1"
+                  [id]="'style-name-input-' + i">
+                
+                <!-- Clickable name for existing styles not in edit mode -->
+                <span
+                  *ngIf="!style.isNew && !style.isEditing"
+                  class="style-name clickable"
+                  (click)="startEditingStyle(style, i); $event.stopPropagation()"
+                  title="Click to rename">
+                  {{ style.name }}
+                </span>
               </div>
-              <button
-                (click)="deleteStyle(i)"
-                class="delete-button">
-                <i class="fas fa-trash"></i>
-              </button>
+              
+              <div class="style-actions">
+                <!-- Actions for new styles -->
+                <div *ngIf="style.isNew" class="new-style-actions">
+                  <button
+                    (click)="saveNewStyle(style)"
+                    [disabled]="!style.name.trim()"
+                    class="save-btn">
+                    <i class="fas fa-check"></i>
+                  </button>
+                  <button
+                    (click)="cancelNewStyle(style)"
+                    class="cancel-btn">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                
+                <!-- Actions for existing styles not in edit mode -->
+                <div *ngIf="!style.isNew && !style.isEditing" class="existing-style-actions">
+                  <button
+                    (click)="deleteStyle(i)"
+                    class="delete-button">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
           <div class="add-style-section">
             <button
-              *ngIf="!isAddingStyle"
-              (click)="isAddingStyle = true"
+              (click)="addBlankStyle()"
               class="add-style-button">
               <i class="fas fa-plus"></i>
               Add Dance Style
             </button>
-            
-            <div *ngIf="isAddingStyle" class="add-style-form">
-              <input
-                [(ngModel)]="newStyle.name"
-                (keyup.enter)="addStyle()"
-                placeholder="Enter style name"
-                type="text"
-                #styleNameInput>
-              <input
-                [(ngModel)]="newStyle.color"
-                type="color">
-              <button
-                (click)="addStyle()"
-                [disabled]="!newStyle.name.trim()"
-                class="add-button">
-                Add
-              </button>
-              <button
-                (click)="cancelAddStyle()"
-                class="cancel-button">
-                <i class="fas fa-times"></i>
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -105,7 +145,7 @@
           <div class="header-buttons">
             <!-- Single Add Member Button -->
             <button
-              (click)="showSingleAddDialog = true"
+              (click)="addBlankMember()"
               class="add-member-btn">
               <i class="fas fa-user"></i>
               Add Member
@@ -119,41 +159,91 @@
               Bulk Add Members
             </button>
 
-            <button class="export-btn">
-              <i class="fas fa-download"></i>
-              Export
-            </button>
+
           </div>
         </div>
         <div class="section-content">
           <div class="members-list">
-            <div *ngFor="let member of members" class="member-card">
+            <div *ngFor="let member of members" class="member-card" [class.new-member]="member.isNew">
               
               <!-- Avatar & Basic Info -->
               <div class="member-avatar">
                 {{ member.name.charAt(0) || '?' }}
               </div>
               <div class="member-info">
-                <div class="member-name">
-                  {{ member.name }}
-                  <i *ngIf="member.captain" class="fas fa-crown crown-icon"></i>
+                <!-- Editable name for new members -->
+                <div class="member-name" *ngIf="member.isNew">
+                   <input 
+                     [(ngModel)]="member.name" 
+                     placeholder="Enter member name..."
+                     class="inline-name-input"
+                     (keyup.enter)="saveNewMember(member)"
+                     (blur)="!member.name.trim() ? cancelNewMember(member) : null">
+                   <i *ngIf="member.captain" class="fas fa-crown crown-icon"></i>
+                </div>
+
+                <!-- Editable name for existing members in edit mode -->
+                <div class="member-name" *ngIf="!member.isNew && member.isEditingName">
+                  <input 
+                    [(ngModel)]="member.name"
+                    (ngModelChange)="saveEditedMemberName(member)"
+                    (blur)="finishEditingMemberName(member)"
+                    (keyup.enter)="finishEditingMemberName(member)"
+                    (click)="$event.stopPropagation()"
+                    (input)="adjustInputWidth($event)"
+                    class="inline-name-input seamless-input"
+                    type="text"
+                    [style.width.ch]="member.name.length + 1"
+                    [id]="'member-name-input-' + member._id"
+                    #nameInput>
+                  <i 
+                    class="fas fa-crown crown-icon clickable"
+                    [class.captain]="member.captain"
+                    [class.not-captain]="!member.captain"
+                    (click)="toggleCaptainStatus(member); $event.stopPropagation()"
+                    [title]="member.captain ? 'Click to remove captain status' : 'Click to make captain'"
+                    ></i>
+                </div>
+
+                <!-- Clickable name for existing members not in edit mode -->
+                <div class="member-name" *ngIf="!member.isNew && !member.isEditingName">
+                  <span 
+                    class="member-name-text clickable"
+                    (click)="startEditingMemberName(member); $event.stopPropagation()"
+                    title="Click to rename">
+                    {{ member.name }}
+                  </span>
+                  <i 
+                    class="fas fa-crown crown-icon clickable"
+                    [class.captain]="member.captain"
+                    [class.not-captain]="!member.captain"
+                    (click)="toggleCaptainStatus(member)"
+                    [title]="member.captain ? 'Click to remove captain status' : 'Click to make captain'"
+                    ></i>
                 </div>
                 <div class="member-details">
-                  {{ member.feet || 5 }}'{{ member.inches || 6 }}" • Avg: {{ getAverageRating(member) }}
+                  <span 
+                    class="height-display"
+                    [class.draggable]="!member.isNew"
+                    (mousedown)="startHeightDrag($event, member)"
+                    [title]="member.isNew ? 'Height editing disabled for new members' : 'Click and drag to adjust height'"
+                    >{{ member.feet || 5 }}'{{ member.inches || 6 }}"</span>• {{ getMemberSegmentCount(member) }} seg
                 </div>
               </div>
 
               <!-- Style Ratings -->
               <div class="member-skills">
                 <div class="skills-grid">
-                  <div *ngFor="let style of styles.slice(0, 4)" class="skill-item">
+                  <div *ngFor="let style of styles" class="skill-item">
                     <div class="skill-color" [style.background-color]="style.color"></div>
                     <span class="skill-name">{{ style.name }}</span>
                     <div class="skill-stars">
                       <i *ngFor="let star of [1,2,3,4,5]" 
-                         class="fas fa-star"
+                         class="fas fa-star clickable-star"
                          [class.text-yellow-400]="star <= (member.skillLevels[style.name.toLowerCase()] || 0)"
-                         [class.text-gray-400]="star > (member.skillLevels[style.name.toLowerCase()] || 0)"></i>
+                         [class.text-gray-400]="star > (member.skillLevels[style.name.toLowerCase()] || 0)"
+                         (click)="updateMemberSkill(member, style.name, star)"
+                         [title]="'Set ' + style.name + ' skill to ' + star + ' stars'"></i>
                     </div>
                   </div>
                 </div>
@@ -161,16 +251,29 @@
 
               <!-- Actions -->
               <div class="member-actions">
-                <button
-                  (click)="openEditMemberDialog(member)"
-                  class="edit-btn">
-                  <i class="fas fa-edit"></i>
-                </button>
-                <button
-                  (click)="removeMember(member)"
-                  class="delete-btn">
-                  <i class="fas fa-trash"></i>
-                </button>
+                <!-- Actions for new members -->
+                <div *ngIf="member.isNew" class="new-member-actions">
+                  <button
+                    (click)="saveNewMember(member)"
+                    [disabled]="!member.name.trim()"
+                    class="save-btn">
+                    <i class="fas fa-check"></i>
+                  </button>
+                  <button
+                    (click)="cancelNewMember(member)"
+                    class="cancel-btn">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                
+                <!-- Actions for existing members -->
+                <div *ngIf="!member.isNew" class="existing-member-actions">
+                  <button
+                    (click)="removeMember(member)"
+                    class="delete-btn">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -226,79 +329,29 @@
       </div>
       
       <div class="modal-content">
-        <!-- Bulk Add Tabs -->
-        <div class="tabs">
-          <div class="tab-list">
-            <button 
-              (click)="bulkAddTab = 'text'"
-              [class.active]="bulkAddTab === 'text'">
-              Bulk Add
-            </button>
-            <button 
-              (click)="bulkAddTab = 'quick'"
-              [class.active]="bulkAddTab === 'quick'">
-              Quick Add
-            </button>
-          </div>
-
-          <!-- Bulk Add Text Tab -->
-          <div *ngIf="bulkAddTab === 'text'" class="tab-content">
-            <div class="form-group">
-              <label>Paste names (one per line)</label>
-              <textarea
-                [(ngModel)]="bulkAddText"
-                placeholder="John Smith&#10;Jane Doe&#10;Alex Johnson&#10;..."
-                rows="8"></textarea>
-              <p class="bulk-add-text">
-                {{ getBulkAddCount() }} members will be added
-              </p>
-            </div>
-            <div class="form-buttons">
-              <button 
-                (click)="addMembersFromText()" 
-                [disabled]="!bulkAddText.trim()" 
-                class="primary-btn">
-                <i class="fas fa-file-text"></i>
-                Add {{ getBulkAddCount() }} Members
-              </button>
-            </div>
-          </div>
-
-          <!-- Quick Add Tab -->
-          <div *ngIf="bulkAddTab === 'quick'" class="tab-content">
-            <div class="form-group">
-              <div class="form-row">
-                <label>Number of members:</label>
-                <select 
-                  [(ngModel)]="quickAddCount" 
-                  (change)="updateQuickAddNames()">
-                  <option value="3">3</option>
-                  <option value="5">5</option>
-                  <option value="8">8</option>
-                  <option value="10">10</option>
-                  <option value="15">15</option>
-                  <option value="20">20</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-group">
-              <div class="quick-add-grid">
-                <input *ngFor="let name of quickAddNames; let i = index"
-                  [(ngModel)]="quickAddNames[i]"
-                  [placeholder]="'Member ' + (i + 1)"
-                  type="text">
-              </div>
-            </div>
-            <div class="form-buttons">
-              <button 
-                (click)="addMembersFromQuickAdd()" 
-                [disabled]="getValidQuickAddCount() === 0"
-                class="primary-btn">
-                <i class="fas fa-bolt"></i>
-                Add {{ getValidQuickAddCount() }} Members
-              </button>
-            </div>
-          </div>
+        <div class="form-group">
+          <label>Paste names one per line (Hold shift + return for new line)</label>
+          <textarea
+            [(ngModel)]="bulkAddText"
+            placeholder="John Smith&#10;Jane Doe&#10;Alex Johnson&#10;..."
+            rows="8"></textarea>
+          <p class="bulk-add-text">
+            {{ getBulkAddCount() }} members will be added
+          </p>
+        </div>
+        <div class="form-buttons">
+          <button 
+            (click)="addMembersFromText()" 
+            [disabled]="!bulkAddText.trim()" 
+            class="primary-btn">
+            <i class="fas fa-users"></i>
+            Add {{ getBulkAddCount() }} Members
+          </button>
+          <button 
+            (click)="showBulkAddDialog = false"
+            class="secondary-btn">
+            Cancel
+          </button>
         </div>
       </div>
     </div>

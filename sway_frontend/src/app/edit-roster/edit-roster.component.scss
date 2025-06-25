@@ -1,3 +1,9 @@
+:host {
+  display: block;
+  height: 100vh; /* Full viewport height */
+  overflow: hidden; /* Prevent scrolling on this component */
+}
+
 /* Main container */
 .min-h-screen {
   min-height: 100vh;
@@ -654,6 +660,7 @@ select:focus {
   min-height: 100vh;
   background: linear-gradient(135deg, #5303a4 0%, #6f5d1d 100%);
   padding: 1.5rem;
+  margin-top: 5vh;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   animation: fadeInBackground 0.8s ease-out;
 
@@ -686,21 +693,36 @@ select:focus {
     }
 
     .close-button {
-      background: none;
-      border: none;
-      color: rgb(255, 255, 255);
-      padding: 0.5rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      padding: 0.75rem 1.5rem;
       font-size: 1rem;
+      font-weight: 600;
       border-radius: 0.5rem;
       cursor: pointer;
-      transition: background-color 0.15s ease;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      backdrop-filter: blur(10px);
 
-      &:hover {
-        background-color: rgba(255, 255, 255, 0.1);
+      &:before {
+        content: '\f060';
+        font-family: 'Font Awesome 5 Free';
+        font-weight: 900;
+        font-size: 1rem;
       }
 
-      i {
-        font-size: 1.25rem;
+      &:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      &:active {
+        transform: translateY(0);
       }
     }
   }
@@ -823,10 +845,16 @@ select:focus {
           margin-bottom: 0.5rem;
           backdrop-filter: blur(4px);
 
+          &.new-style {
+            border: 2px solid rgba(59, 130, 246, 0.5);
+            background-color: rgba(59, 130, 246, 0.1);
+          }
+
           .style-info {
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            flex: 1;
 
             .style-color {
               width: 1rem;
@@ -834,24 +862,132 @@ select:focus {
               border-radius: 9999px;
             }
 
+            .style-color-input {
+              width: 1.3rem;
+              height: 1.2rem;
+              border: none;
+              border-radius: 9999px;
+              cursor: pointer;
+              -webkit-appearance: none;
+              -moz-appearance: none;
+              appearance: none;
+              background: transparent;
+              overflow: hidden;
+
+              &::-webkit-color-swatch-wrapper {
+                padding: 0;
+                border: none;
+                border-radius: 9999px;
+              }
+
+              &::-webkit-color-swatch {
+                border: none;
+                border-radius: 9999px;
+              }
+
+              &::-moz-color-swatch {
+                border: none;
+                border-radius: 9999px;
+              }
+            }
+
             .style-name {
               font-weight: 500;
               color: white;
+              
+              &.clickable {
+                cursor: pointer;
+                padding: 0.25rem 0.5rem;
+                border-radius: 0.25rem;
+                transition: all 0.15s ease;
+
+                &:hover {
+                  background-color: rgba(255, 255, 255, 0.1);
+                }
+              }
+            }
+
+            .inline-style-input {
+              background-color: rgba(255, 255, 255, 0.2);
+              border: 1px solid rgba(255, 255, 255, 0.3);
+              color: white;
+              padding: 0.5rem;
+              border-radius: 0.25rem;
+              font-size: 0.875rem;
+              min-width: 120px;
+
+              &::placeholder {
+                color: rgba(255, 255, 255, 0.6);
+              }
+
+              &:focus {
+                outline: none;
+                border-color: rgba(59, 130, 246, 0.8);
+                box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+              }
             }
           }
 
-          .delete-button {
-            background: none;
-            border: none;
-            color: #f87171;
-            padding: 0.25rem;
-            border-radius: 0.25rem;
-            cursor: pointer;
-            transition: all 0.15s ease;
+          .style-actions {
+            display: flex;
+            gap: 0.5rem;
 
-            &:hover {
-              color: #fca5a5;
-              background-color: rgba(239, 68, 68, 0.2);
+            .new-style-actions,
+            .edit-style-actions,
+            .existing-style-actions {
+              display: flex;
+              gap: 0.25rem;
+            }
+
+            .save-btn {
+              background-color: #16a34a;
+              border: none;
+              color: white;
+              padding: 0.25rem 0.5rem;
+              border-radius: 0.25rem;
+              cursor: pointer;
+              transition: background-color 0.15s ease;
+              font-size: 0.75rem;
+
+              &:hover:not(:disabled) {
+                background-color: #15803d;
+              }
+
+              &:disabled {
+                background-color: #6b7280;
+                cursor: not-allowed;
+              }
+            }
+
+            .cancel-btn {
+              background: none;
+              border: none;
+              color: rgba(255, 255, 255, 0.7);
+              padding: 0.25rem 0.5rem;
+              border-radius: 0.25rem;
+              cursor: pointer;
+              transition: all 0.15s ease;
+              font-size: 0.75rem;
+
+              &:hover {
+                color: white;
+                background-color: rgba(255, 255, 255, 0.1);
+              }
+            }
+
+            .delete-button {
+              background: none;
+              border: none;
+              color: #f87171;
+              padding: 0.25rem;
+              border-radius: 0.25rem;
+              cursor: pointer;
+              transition: all 0.15s ease;
+
+              &:hover {
+                color: #fca5a5;
+                background-color: rgba(239, 68, 68, 0.2);
+              }
             }
           }
         }
@@ -1074,6 +1210,14 @@ select:focus {
             background-color: rgba(255, 255, 255, 0.15);
           }
 
+          // Special styling for new members
+          &.new-member {
+            border: 2px solid rgba(59, 130, 246, 0.5);
+            background-color: rgba(59, 130, 246, 0.1);
+            animation: none;
+            opacity: 1;
+          }
+
           .member-avatar {
             width: 3rem;
             height: 3rem;
@@ -1098,14 +1242,72 @@ select:focus {
               gap: 0.5rem;
               margin-bottom: 0.25rem;
 
+              .member-name-text {
+                &.clickable {
+                  cursor: pointer;
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  transition: all 0.15s ease;
+
+                  &:hover {
+                    background-color: rgba(255, 255, 255, 0.1);
+                  }
+                }
+              }
+
               .crown-icon {
-                color: #facc15;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                
+                &.captain {
+                  color: #facc15;
+                  opacity: 1;
+                }
+                
+                &.not-captain {
+                  color: #facc15;
+                  opacity: 0.3;
+                  -webkit-text-stroke: 1px #facc15;
+                  text-stroke: 1px #facc15;
+                }
+                
+                &:hover {
+                  transform: scale(1.1);
+                  opacity: 1;
+                }
               }
             }
 
             .member-details {
               font-size: 0.875rem;
               color: #e9d5ff;
+
+              .height-display {
+                &.draggable {
+                  cursor: row-resize;
+                  padding: 2px 4px;
+                  border-radius: 3px;
+                  transition: all 0.15s ease;
+                  border: 1px solid transparent;
+
+                  &:hover {
+                    background-color: rgba(255, 255, 255, 0.1);
+                    border-color: rgba(255, 255, 255, 0.2);
+                    color: white;
+                  }
+
+                  &:active {
+                    background-color: rgba(59, 130, 246, 0.2);
+                    border-color: rgba(59, 130, 246, 0.5);
+                    color: white;
+                  }
+                }
+
+                &:not(.draggable) {
+                  opacity: 0.7;
+                  cursor: not-allowed;
+                }
+              }
             }
           }
 
@@ -1143,6 +1345,16 @@ select:focus {
 
                   i {
                     font-size: 0.75rem;
+                    
+                    &.clickable-star {
+                      cursor: pointer;
+                      transition: all 0.15s ease;
+                      
+                      &:hover {
+                        transform: scale(1.2);
+                        filter: brightness(1.2);
+                      }
+                    }
 
                     &.text-yellow-400 {
                       color: #facc15;
@@ -1187,6 +1399,69 @@ select:focus {
                   background-color: rgba(239, 68, 68, 0.2);
                 }
               }
+
+              &.save-btn {
+                color: #16a34a;
+
+                &:hover:not(:disabled) {
+                  color: #15803d;
+                  background-color: rgba(22, 163, 74, 0.2);
+                }
+
+                &:disabled {
+                  color: #6b7280;
+                  cursor: not-allowed;
+                }
+              }
+
+              &.cancel-btn {
+                color: #f87171;
+
+                &:hover {
+                  color: #fca5a5;
+                  background-color: rgba(239, 68, 68, 0.2);
+                }
+              }
+            }
+
+            .new-member-actions,
+            .existing-member-actions {
+              display: flex;
+              gap: 0.5rem;
+            }
+          }
+
+          .inline-name-input {
+            background: transparent;
+            border: none;
+            color: white;
+            font-weight: 500;
+            font-size: inherit;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            outline: none;
+            min-width: 0;
+            width: fit-content;
+            flex-shrink: 0;
+
+            &.seamless-input {
+              padding: 0.25rem 0.5rem;
+              margin: 0;
+              line-height: inherit;
+              font-family: inherit;
+              text-align: left;
+              display: inline-block;
+              width: auto;
+              min-width: 50px;
+              max-width: 200px;
+            }
+
+            &::placeholder {
+              color: rgba(255, 255, 255, 0.6);
+            }
+
+            &:focus {
+              outline: none;
             }
           }
         }
@@ -1572,5 +1847,15 @@ select:focus {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+// Global styles for height dragging
+body.height-dragging {
+  cursor: row-resize !important;
+  user-select: none !important;
+  
+  * {
+    pointer-events: none !important;
   }
 } 
