@@ -370,9 +370,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // New properties for top panel features
   showStageToolsDropdown = false;
-  showTransitions = false;
+  showTransitions = true;
   allSegments: any[] = [];
   currentSegmentIndex = -1;
+
+  // Mirror mode functionality
+  isMirrorModeEnabled = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -1488,6 +1491,86 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
         return p;
       });
+
+      // Mirror movement: if mirror mode is enabled, also move mirror performers
+      if (this.isMirrorModeEnabled) {
+        const mirrorUpdates: { [id: string]: { x: number, y: number } } = {};
+        
+        // For each selected performer, find their mirror and calculate mirror movement
+        this.selectedPerformerIds.forEach(selectedId => {
+          const selectedPerformer = this.performers.find(p => p.id === selectedId);
+          if (!selectedPerformer) return;
+          
+          // Find mirror using INITIAL positions instead of current positions
+          const selectedInitialPos = this.selectedPerformersInitialPositions[selectedId];
+          if (!selectedInitialPos) return;
+          
+          // Calculate mirror position based on initial position
+          const centerX = this.width / 2;
+          const distanceFromCenter = selectedInitialPos.x - centerX;
+          const expectedMirrorX = centerX - distanceFromCenter;
+          
+          // Find mirror performer based on initial positions
+          const tolerance = 0.001; // Very small tolerance for floating point precision only
+          const mirrorPerformer = this.performers.find(p => {
+            if (p.id === selectedId) return false; // Skip self
+            if (this.selectedPerformerIds.has(p.id)) return false; // Skip if mirror is also selected
+            
+            // Check if this performer was at the mirror position initially
+            const pInitialPos = this.selectedPerformersInitialPositions[p.id];
+            if (!pInitialPos) {
+              // If we don't have initial position stored, use current position
+              const xMatch = Math.abs(p.x - expectedMirrorX) <= tolerance;
+              const yMatch = Math.abs(p.y - selectedInitialPos.y) <= tolerance;
+              console.log(`  📊 DRAG Checking ${p.name} (current): x=${p.x} vs ${expectedMirrorX}, y=${p.y} vs ${selectedInitialPos.y}, xMatch=${xMatch}, yMatch=${yMatch}`);
+              return xMatch && yMatch;
+            } else {
+              // Use initial positions for comparison
+              const xMatch = Math.abs(pInitialPos.x - expectedMirrorX) <= tolerance;
+              const yMatch = Math.abs(pInitialPos.y - selectedInitialPos.y) <= tolerance;
+              console.log(`  📊 DRAG Checking ${p.name} (initial): x=${pInitialPos.x} vs ${expectedMirrorX}, y=${pInitialPos.y} vs ${selectedInitialPos.y}, xMatch=${xMatch}, yMatch=${yMatch}`);
+              return xMatch && yMatch;
+            }
+          });
+          
+          if (!mirrorPerformer) return;
+          
+          // Calculate mirrored movement
+          const mirrorDeltaX = -deltaX; // Mirror X movement (opposite direction)
+          const mirrorDeltaY = deltaY;  // Same Y movement
+          
+          // Get mirror's initial position (store it if not already stored)
+          let mirrorInitialPos = this.selectedPerformersInitialPositions[mirrorPerformer.id];
+          if (!mirrorInitialPos) {
+            // Store the mirror's CURRENT position as its initial position for this drag
+            mirrorInitialPos = { x: mirrorPerformer.x, y: mirrorPerformer.y };
+            this.selectedPerformersInitialPositions[mirrorPerformer.id] = mirrorInitialPos;
+          }
+          
+          const mirrorInitial = this.selectedPerformersInitialPositions[mirrorPerformer.id] || { x: mirrorPerformer.x, y: mirrorPerformer.y };
+          
+          let newMirrorX = mirrorInitial.x + mirrorDeltaX;
+          let newMirrorY = mirrorInitial.y + mirrorDeltaY;
+          
+          // Clamp to stage boundaries
+          newMirrorX = Math.max(0, Math.min(this.width, newMirrorX));
+          newMirrorY = Math.max(0, Math.min(this.depth, newMirrorY));
+          
+          // Snap to grid
+          newMirrorX = snapToGrid(newMirrorX, gridPositionsX);
+          newMirrorY = snapToGrid(newMirrorY, gridPositionsY);
+          
+          mirrorUpdates[mirrorPerformer.id] = { x: newMirrorX, y: newMirrorY };
+        });
+        
+        // Apply mirror updates
+        this.performers = this.performers.map(p => {
+          if (mirrorUpdates[p.id]) {
+            return { ...p, ...mirrorUpdates[p.id] };
+          }
+          return p;
+        });
+      }
     }
 
     // Update selection rectangle in real-time during drag
@@ -5073,8 +5156,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   navigateToEditRoster() {
-    // Navigate to roster editing page - you may need to create this route
-    this.router.navigate(['/dashboard', 'roster']);
+    // Navigate to edit roster page
+    this.router.navigate(['/edit-roster']);
   }
 
   // Load all segments to enable prev/next navigation
@@ -5718,9 +5801,64 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onControlBarDeleteFormation() {
-    if (this.currentFormationIndex !== null) {
-      this.deleteFormation(this.currentFormationIndex);
+    this.deleteFormation(this.currentFormationIndex);
+  }
+
+  onControlBarMirrorModeToggle() {
+    this.isMirrorModeEnabled = !this.isMirrorModeEnabled;
+  }
+
+  /**
+   * Find the mirror performer for a given performer ID
+   * Mirror is determined by finding the performer at the EXACT mirrored X position (across center line)
+   * with the EXACT same Y position
+   */
+  private findMirrorPerformer(performerId: string): Performer | null {
+    if (!this.isMirrorModeEnabled) {
+      console.log('🚫 Mirror mode not enabled');
+      return null;
     }
+    
+    const performer = this.performers.find(p => p.id === performerId);
+    if (!performer) {
+      console.log('🚫 Performer not found:', performerId);
+      return null;
+    }
+    
+    const centerX = this.width / 2;
+    // Calculate mirror X position: distance from center on opposite side
+    const distanceFromCenter = performer.x - centerX;
+    const mirrorX = centerX - distanceFromCenter; // This is equivalent to: 2 * centerX - performer.x
+    
+    console.log(`🔍 MIRROR DEBUG for ${performer.name}:`, {
+      performerX: performer.x,
+      performerY: performer.y,
+      stageWidth: this.width,
+      centerX: centerX,
+      distanceFromCenter: distanceFromCenter,
+      expectedMirrorX: mirrorX,
+      allPerformers: this.performers.map(p => ({ name: p.name, x: p.x, y: p.y, id: p.id }))
+    });
+    
+    // Very small tolerance to account for floating point precision issues
+    const tolerance = 1; // 1 foot tolerance
+    
+    // Find the performer at the exact mirror position
+    const mirrorPerformer = this.performers.find(p => {
+      if (p.id === performerId) return false; // Skip self
+      
+      // Must be at mirror X position and same Y position (with tiny tolerance for precision)
+      const xMatch = Math.abs(p.x - mirrorX) <= tolerance;
+      const yMatch = Math.abs(p.y - performer.y) <= tolerance;
+      
+      console.log(`  📊 Checking ${p.name}: x=${p.x}, y=${p.y}, xDiff=${Math.abs(p.x - mirrorX)}, yDiff=${Math.abs(p.y - performer.y)}, xMatch=${xMatch}, yMatch=${yMatch}`);
+      
+      return xMatch && yMatch;
+    });
+    
+    console.log(`🎯 Mirror result for ${performer.name}:`, mirrorPerformer ? mirrorPerformer.name : 'NONE FOUND');
+    
+    return mirrorPerformer || null;
   }
 
   getTotalSegmentDuration(): number {

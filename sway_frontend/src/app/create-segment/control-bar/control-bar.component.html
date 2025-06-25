@@ -21,6 +21,28 @@
       </button>
       
     </div>
+
+    <!-- Mirror Mode Toggle -->
+    <div class="mirror-controls" *ngIf="isCaptain">
+      <button class="control-btn mirror-btn" 
+              (click)="onMirrorModeToggle()" 
+              title="Apply to Mirrors"
+              [class.active]="isMirrorModeEnabled">
+        <span class="material-icons">{{ isMirrorModeEnabled ? 'sync' : 'sync_disabled' }}</span>
+        <span class="mirror-label">Mirrors</span>
+      </button>
+    </div>
+
+    <!-- Transitions Toggle -->
+    <div class="transitions-controls" *ngIf="isCaptain">
+      <button class="control-btn transitions-btn" 
+              (click)="onTransitionsToggle()" 
+              title="Show/Hide Transitions"
+              [class.active]="showTransitions">
+        <span class="material-icons">{{ showTransitions ? 'visibility' : 'visibility_off' }}</span>
+        <span class="transitions-label">Transitions</span>
+      </button>
+    </div>
   </div>
 
   <!-- Center Section: Time Display -->

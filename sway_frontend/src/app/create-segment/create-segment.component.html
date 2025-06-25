@@ -103,8 +103,8 @@
             Flip Stage
           </button>
           <button class="dropdown-item" (click)="toggleShowTransitions()">
-            <span class="material-icons">{{ showTransitions ? 'check_box' : 'check_box_outline_blank' }}</span>
-            Show Transitions
+            <span class="material-icons">{{ showTransitions ? 'visibility' : 'touch_app' }}</span>
+            Transitions: {{ showTransitions ? 'Always' : 'On Click' }}
           </button>
           <button class="dropdown-item" (click)="navigateToEditRoster()">
             <span class="material-icons">group</span>
@@ -415,6 +415,12 @@
             <div *ngFor="let x of subVerticals" class="sub-vertical" [style.left.px]="x"></div>
             <!-- Subgrid lines: horizontal -->
             <div *ngFor="let y of subHorizontals" class="sub-horizontal" [style.top.px]="y"></div>
+            
+            <!-- Mirror line down the middle when mirror mode is enabled -->
+            <div *ngIf="isMirrorModeEnabled" class="mirror-line" [style.left.px]="stageWidthPx / 2">
+      <div class="mirror-line-dots"></div>
+    </div>
+            
             <!-- Previous position indicators -->
             <div *ngFor="let performer of performers" 
                  class="performer previous-position"
@@ -470,6 +476,8 @@
         [canUndo]="canUndo"
         [canRedo]="canRedo"
         [selectedPerformerCount]="selectedPerformerIds.size"
+        [isMirrorModeEnabled]="isMirrorModeEnabled"
+        [showTransitions]="showTransitions"
         (prevFormation)="onControlBarPrevFormation()"
         (playPause)="onControlBarPlayPause()"
         (nextFormation)="onControlBarNextFormation()"
@@ -479,7 +487,9 @@
         (deleteFormation)="onControlBarDeleteFormation()"
         (undo)="onControlBarUndo()"
         (redo)="onControlBarRedo()"
-        (quickSwap)="onControlBarQuickSwap()">
+        (quickSwap)="onControlBarQuickSwap()"
+        (mirrorModeToggle)="onControlBarMirrorModeToggle()"
+        (transitionsToggle)="toggleShowTransitions()">
       </app-control-bar>
       <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl }">
         <div class="timeline-audio-stack">

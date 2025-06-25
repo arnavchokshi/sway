@@ -24,6 +24,8 @@ export class ControlBarComponent {
   @Input() canUndo: boolean = false;
   @Input() canRedo: boolean = false;
   @Input() selectedPerformerCount: number = 0;
+  @Input() isMirrorModeEnabled: boolean = false;
+  @Input() showTransitions: boolean = true;
 
   // Output events to parent component
   @Output() prevFormation = new EventEmitter<void>();
@@ -36,6 +38,8 @@ export class ControlBarComponent {
   @Output() undo = new EventEmitter<void>();
   @Output() redo = new EventEmitter<void>();
   @Output() quickSwap = new EventEmitter<void>();
+  @Output() mirrorModeToggle = new EventEmitter<void>();
+  @Output() transitionsToggle = new EventEmitter<void>();
 
   onPrevFormation() {
     this.prevFormation.emit();
@@ -76,6 +80,14 @@ export class ControlBarComponent {
 
   onDeleteFormation() {
     this.deleteFormation.emit();
+  }
+
+  onMirrorModeToggle() {
+    this.mirrorModeToggle.emit();
+  }
+
+  onTransitionsToggle() {
+    this.transitionsToggle.emit();
   }
 
   formatTime(time: number): string {
