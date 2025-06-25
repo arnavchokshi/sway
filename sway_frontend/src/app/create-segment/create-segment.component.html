@@ -113,14 +113,7 @@
         </div>
       </div>
 
-      <!-- Clear Previous Positions -->
-      <button class="control-btn" 
-              *ngIf="hasVisiblePreviousPositions()" 
-              (click)="clearAllPreviousPositions()" 
-              title="Hide Previous Positions">
-        <span class="material-icons">visibility_off</span>
-        Hide Previous
-      </button>
+
 
       <!-- Edit Stage Settings -->
       <button class="control-btn settings-btn" (click)="openEditModal()" title="Edit Stage Settings">
@@ -476,6 +469,7 @@
         [isCaptain]="isCaptain"
         [canUndo]="canUndo"
         [canRedo]="canRedo"
+        [selectedPerformerCount]="selectedPerformerIds.size"
         (prevFormation)="onControlBarPrevFormation()"
         (playPause)="onControlBarPlayPause()"
         (nextFormation)="onControlBarNextFormation()"
@@ -484,7 +478,8 @@
         (duplicateFormation)="onControlBarDuplicateFormation()"
         (deleteFormation)="onControlBarDeleteFormation()"
         (undo)="onControlBarUndo()"
-        (redo)="onControlBarRedo()">
+        (redo)="onControlBarRedo()"
+        (quickSwap)="onControlBarQuickSwap()">
       </app-control-bar>
       <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl }">
         <div class="timeline-audio-stack">

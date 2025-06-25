@@ -151,131 +151,142 @@
       </div>
       
       <form (ngSubmit)="submitSegmentModal()" class="segment-form">
-        <!-- Segment Name -->
-        <div class="form-group">
-          <label class="form-label">Segment Name <span class="required">*</span></label>
-          <input 
-            type="text" 
-            [(ngModel)]="newSegmentName" 
-            name="name" 
-            required 
-            class="form-input"
-            placeholder="e.g., Opening Formation, Finale"
-          />
-        </div>
+        <!-- Main Content Row -->
+        <div class="form-main-row">
+          <!-- Left Side - Name and Settings -->
+          <div class="form-left">
+            <!-- Segment Name -->
+            <div class="form-group">
+              <label class="form-label">Segment Name <span class="required">*</span></label>
+              <input 
+                type="text" 
+                [(ngModel)]="newSegmentName" 
+                name="name" 
+                required 
+                class="form-input"
+                placeholder="e.g., Opening Formation, Finale"
+              />
+            </div>
 
-        <!-- Public/Private Toggle -->
-        <div class="form-group">
-          <div class="visibility-toggle">
-            <div class="toggle-icon">
-              <i class="fas" [class.fa-eye]="newSegmentIsPublic" [class.fa-eye-slash]="!newSegmentIsPublic"></i>
+            <!-- Public/Private Toggle -->
+            <div class="form-group">
+              <div class="visibility-toggle">
+                <div class="toggle-icon">
+                  <i class="fas" [class.fa-eye]="newSegmentIsPublic" [class.fa-eye-slash]="!newSegmentIsPublic"></i>
+                </div>
+                <div class="toggle-content">
+                  <h3>{{ newSegmentIsPublic ? 'Public Segment' : 'Private Segment' }}</h3>
+                  <p>{{ newSegmentIsPublic ? 'Visible to the full team' : 'Only visible to captains' }}</p>
+                </div>
+                <div class="toggle-switch" (click)="newSegmentIsPublic = !newSegmentIsPublic">
+                  <div class="toggle-track" [class.active]="newSegmentIsPublic">
+                    <div class="toggle-thumb"></div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="toggle-content">
-              <h3>{{ newSegmentIsPublic ? 'Public Segment' : 'Private Segment' }}</h3>
-              <p>{{ newSegmentIsPublic ? 'Visible to the full team' : 'Only visible to captains' }}</p>
+
+            <!-- Dimensions -->
+            <div class="form-group dimensions-section">
+              <div class="dimensions-row">
+                <div class="dimension-field">
+                  <label class="form-label">Width</label>
+                  <input 
+                    type="number" 
+                    [(ngModel)]="newSegmentWidth" 
+                    name="width" 
+                    min="1" 
+                    required
+                    class="form-input-small"
+                  />
+                </div>
+                <div class="dimension-field">
+                  <label class="form-label">Height</label>
+                  <input 
+                    type="number" 
+                    [(ngModel)]="newSegmentDepth" 
+                    name="depth" 
+                    min="1" 
+                    required
+                    class="form-input-small"
+                  />
+                </div>
+                <div class="dimension-field">
+                  <label class="form-label">Divisions</label>
+                  <input 
+                    type="number" 
+                    [(ngModel)]="newSegmentDivisions" 
+                    name="divisions" 
+                    min="1" 
+                    required
+                    class="form-input-small"
+                  />
+                </div>
+              </div>
             </div>
-            <div class="toggle-switch" (click)="newSegmentIsPublic = !newSegmentIsPublic">
-              <div class="toggle-track" [class.active]="newSegmentIsPublic">
-                <div class="toggle-thumb"></div>
+          </div>
+
+          <!-- Right Side - Dance Styles -->
+          <div class="form-right">
+            <div class="form-group">
+              <div class="styles-header">
+                <label class="form-label">Dance Style <span class="required">*</span></label>
+                                 <p class="styles-subheader">Add to view dancers skill level on chosen styles</p>
+              </div>
+              
+              <div class="styles-grid-modern">
+                <div *ngFor="let style of teamStyles" 
+                     class="style-badge"
+                     [class.selected]="isStyleSelected(style)"
+                     (click)="toggleStyle(style, !isStyleSelected(style))">
+                  <div class="style-circle" [style.background]="style.color"></div>
+                  <span class="style-name">{{ style.name }}</span>
+                </div>
+              </div>
+
+              <!-- Add New Style Button -->
+              <div class="add-style-section" *ngIf="isCaptain">
+                <div class="add-new-style-btn" 
+                     *ngIf="!showAddStyleInput"
+                     (click)="showAddStyleInput = true">
+                  <i class="fas fa-plus"></i>
+                  <span>Add New Style</span>
+                </div>
+
+                <!-- Add Style Input -->
+                <div *ngIf="showAddStyleInput" class="add-style-input">
+                  <input 
+                    type="text" 
+                    [(ngModel)]="newStyleName" 
+                    name="newStyleName" 
+                    placeholder="Style name"
+                    class="style-input"
+                    (keydown.enter)="addNewStyle()"
+                    autofocus
+                  />
+                  <button type="button" (click)="addNewStyle()" class="add-style-confirm">
+                    <i class="fas fa-check"></i>
+                  </button>
+                  <button type="button" (click)="cancelAddStyle()" class="add-style-cancel">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Dance Styles -->
-        <div class="form-group">
-          <div class="styles-header">
-            <label class="form-label">Dance Style <span class="required">*</span></label>
+        <!-- Bottom Row: Validation Message and Action Buttons -->
+        <div class="modal-bottom-row">
+          <div class="validation-message" *ngIf="!newSegmentName || newSegmentStyles.length === 0">
+            Please fill in segment name and select a style
           </div>
-          
-          <div class="styles-grid-modern">
-            <div *ngFor="let style of teamStyles" 
-                 class="style-badge"
-                 [class.selected]="isStyleSelected(style)"
-                 (click)="toggleStyle(style, !isStyleSelected(style))">
-              <div class="style-circle" [style.background]="style.color"></div>
-              <span class="style-name">{{ style.name }}</span>
-            </div>
-            
-            <!-- Add New Style -->
-            <div class="style-badge add-new-style" 
-                 *ngIf="isCaptain && !showAddStyleInput"
-                 (click)="showAddStyleInput = true">
-              <div class="style-circle add-circle">
-                <i class="fas fa-plus"></i>
-              </div>
-              <span class="style-name">Add New Style</span>
-            </div>
-          </div>
-
-          <!-- Add Style Input -->
-          <div *ngIf="showAddStyleInput" class="add-style-input">
-            <input 
-              type="text" 
-              [(ngModel)]="newStyleName" 
-              name="newStyleName" 
-              placeholder="Style name"
-              class="style-input"
-              (keydown.enter)="addNewStyle()"
-              autofocus
-            />
-            <button type="button" (click)="addNewStyle()" class="add-style-confirm">
-              <i class="fas fa-check"></i>
-            </button>
-            <button type="button" (click)="cancelAddStyle()" class="add-style-cancel">
-              <i class="fas fa-times"></i>
+          <div class="modal-actions-modern">
+            <button type="button" (click)="closeSegmentModal()" class="btn-cancel">Cancel</button>
+            <button type="submit" class="btn-create" [disabled]="!newSegmentName || newSegmentStyles.length === 0">
+              Create Segment
             </button>
           </div>
-        </div>
-
-        <!-- Dimensions -->
-        <div class="form-group">
-          <label class="form-label">Width Height Divisions</label>
-          <div class="dimensions-row">
-            <div class="dimension-input">
-              <input 
-                type="number" 
-                [(ngModel)]="newSegmentWidth" 
-                name="width" 
-                min="1" 
-                required
-                class="form-input-small"
-              />
-            </div>
-            <div class="dimension-input">
-              <input 
-                type="number" 
-                [(ngModel)]="newSegmentDepth" 
-                name="depth" 
-                min="1" 
-                required
-                class="form-input-small"
-              />
-            </div>
-            <div class="dimension-input">
-              <input 
-                type="number" 
-                [(ngModel)]="newSegmentDivisions" 
-                name="divisions" 
-                min="1" 
-                required
-                class="form-input-small"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- Validation Message -->
-        <div class="validation-message" *ngIf="!newSegmentName || newSegmentStyles.length === 0">
-          Please fill in segment name and select a style
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="modal-actions-modern">
-          <button type="button" (click)="closeSegmentModal()" class="btn-cancel">Cancel</button>
-          <button type="submit" class="btn-create" [disabled]="!newSegmentName || newSegmentStyles.length === 0">
-            Create Segment
-          </button>
         </div>
       </form>
     </div>

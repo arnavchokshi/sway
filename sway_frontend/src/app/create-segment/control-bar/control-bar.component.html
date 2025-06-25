@@ -19,11 +19,18 @@
       <button class="control-btn redo-btn" (click)="onRedo()" title="Redo" [disabled]="!canRedo">
         <span class="material-icons">redo</span>
       </button>
+      
     </div>
   </div>
 
   <!-- Center Section: Time Display -->
   <div class="control-bar-center">
+    <button class="control-btn quick-swap-btn" 
+              (click)="onQuickSwap()" 
+              title="Quick Swap Positions" 
+              *ngIf="selectedPerformerCount === 2">
+        <span class="material-icons">swap_horiz</span>
+      </button>
     <div class="time-display">
       {{ formatTime(playbackTime) }} / {{ formatTime(totalSegmentDuration) }}
     </div>

@@ -23,6 +23,7 @@ export class ControlBarComponent {
   @Input() isCaptain: boolean = false;
   @Input() canUndo: boolean = false;
   @Input() canRedo: boolean = false;
+  @Input() selectedPerformerCount: number = 0;
 
   // Output events to parent component
   @Output() prevFormation = new EventEmitter<void>();
@@ -34,6 +35,7 @@ export class ControlBarComponent {
   @Output() deleteFormation = new EventEmitter<void>();
   @Output() undo = new EventEmitter<void>();
   @Output() redo = new EventEmitter<void>();
+  @Output() quickSwap = new EventEmitter<void>();
 
   onPrevFormation() {
     this.prevFormation.emit();
@@ -53,6 +55,10 @@ export class ControlBarComponent {
 
   onRedo() {
     this.redo.emit();
+  }
+
+  onQuickSwap() {
+    this.quickSwap.emit();
   }
 
   onZoomChange(event: any) {

@@ -5686,6 +5686,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     console.log(`Redid action: ${nextState.action}`);
   }
 
+  onControlBarQuickSwap() {
+    this.swapSelectedPerformers();
+  }
+
   onControlBarPlayPause() {
     this.toggleUnifiedPlay();
   }

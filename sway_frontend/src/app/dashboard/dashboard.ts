@@ -221,8 +221,6 @@ export class DashboardComponent implements OnInit {
 
   submitSegmentModal() {
     const currentUser = this.authService.getCurrentUser();
-    console.log('Current user for segment creation:', currentUser);
-    console.log('Current user ID:', currentUser?._id);
     if (currentUser?.team) {
       this.segmentService.createSegment(
         currentUser.team._id,

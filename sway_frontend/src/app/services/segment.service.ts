@@ -35,7 +35,6 @@ export class SegmentService {
 
   createSegment(teamId: string, name: string, depth: number, width: number, divisions: number, stylesInSegment: any[], isPublic: boolean = true, setId?: string, createdBy?: string): Observable<any> {
     const payload = { teamId, name, depth, width, divisions, stylesInSegment, isPublic, setId, createdBy };
-    console.log('Segment creation payload:', payload);
     return this.http.post(this.apiUrl, payload);
   }
 
