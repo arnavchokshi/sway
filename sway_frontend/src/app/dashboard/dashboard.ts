@@ -43,6 +43,11 @@ export class DashboardComponent implements OnInit {
       // UI state
   activeSetMenu: string | null = null;
   
+  // Mobile detection and modal
+  isMobile = false;
+  showMobileWarningModal = false;
+  pendingSegmentId: string | null = null;
+  
   // Drag and drop state
   draggingSegmentIndex: number | null = null;
   draggingSetId: string | null = null;
@@ -63,6 +68,9 @@ export class DashboardComponent implements OnInit {
   ) {}
 
   ngOnInit() {
+    // Detect mobile devices
+    this.isMobile = /iPhone|iPod|Android.*Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    
     const currentUser = this.authService.getCurrentUser();
     this.isCaptain = !!currentUser?.captain;
     if (currentUser?.team?._id) {
@@ -364,6 +372,13 @@ export class DashboardComponent implements OnInit {
     // Prevent navigation if we just finished dragging
     if (this.draggingSegmentIndex !== null) return;
     
+    // Check if captain is on mobile and show warning
+    if (this.isCaptain && this.isMobile) {
+      this.pendingSegmentId = segmentId;
+      this.showMobileWarningModal = true;
+      return;
+    }
+    
     this.router.navigate(['/create-segment'], { queryParams: { id: segmentId } });
   }
 
@@ -581,5 +596,20 @@ export class DashboardComponent implements OnInit {
 
   navigateToEditRoster() {
     this.router.navigate(['/edit-roster']);
+  }
+
+  // Mobile warning modal methods
+  closeMobileWarningModal() {
+    this.showMobileWarningModal = false;
+    this.pendingSegmentId = null;
+  }
+
+  viewAsMemeber() {
+    // Navigate to segment with viewAsMemeber parameter to force member view
+    if (this.pendingSegmentId) {
+      this.showMobileWarningModal = false;
+      this.router.navigate(['/create-segment'], { queryParams: { id: this.pendingSegmentId, viewAsMemeber: 'true' } });
+      this.pendingSegmentId = null;
+    }
   }
 }
