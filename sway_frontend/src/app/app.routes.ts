@@ -7,6 +7,7 @@ import { JoinTeam } from './join-team/join-team';
 import { SignIn } from './sign-in/sign-in';
 import { DashboardComponent } from './dashboard/dashboard';
 import { CreateSegmentComponent } from './create-segment/create-segment.component';
+import { EditRosterComponent } from './edit-roster/edit-roster.component';
 
 const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -16,6 +17,7 @@ const routes: Routes = [
   { path: 'sign-in', component: SignIn },
   { path: 'dashboard', component: DashboardComponent },
   { path: 'create-segment', component: CreateSegmentComponent },
+  { path: 'edit-roster', component: EditRosterComponent },
   // ...other routes
 ];
 

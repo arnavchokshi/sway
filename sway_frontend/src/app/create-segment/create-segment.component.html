@@ -556,43 +556,113 @@
 
   <!-- Edit Modal -->
   <div class="edit-modal-backdrop" *ngIf="showEditModal">
-    <div class="edit-modal">
-      <h2>Edit Stage</h2>
-      <form (ngSubmit)="submitEditModal()">
-        <label>Segment Name:
-          <input type="text" [(ngModel)]="editSegmentName" name="editSegmentName" required />
-        </label>
-        
-        <!-- Width, Depth, and Divisions on same line -->
-        <div class="input-row">
-          <label class="third-width">Width (ft):
-            <input type="number" min="8" max="60" [(ngModel)]="editWidth" name="editWidth" required />
-          </label>
-          <label class="third-width">Depth (ft):
-            <input type="number" min="8" max="60" [(ngModel)]="editDepth" name="editDepth" required />
-          </label>
-          <label class="third-width">Divisions:
-            <input type="number" min="1" max="8" [(ngModel)]="editDivisions" name="editDivisions" required />
-          </label>
+    <div class="modern-edit-modal">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-cog"></i>
+          <h2>Edit Stage Settings</h2>
         </div>
-        
-        <div class="styles-section-modal">
-          <div style="font-weight: 500; margin-bottom: 6px;">Styles</div>
-          <div *ngIf="teamStyles.length === 0" style="color: #888; font-size: 0.9em;">No styles defined for this team.</div>
-          <div class="styles-list-modal" *ngIf="teamStyles.length > 0">
-            <label *ngFor="let style of teamStyles"
-                   class="style-checkbox-modal"
-                   [class.selected]="isStyleSelected(style)"
-                   (click)="toggleStyleSelection(style)"
-                   [style.--style-color]="style.color">
-              <span>{{ style.name }}</span>
-            </label>
+        <button type="button" class="modal-close-btn" (click)="closeEditModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <form (ngSubmit)="submitEditModal()" class="edit-form">
+        <!-- Main Content Row -->
+        <div class="form-main-row">
+          <!-- Left Side - Name and Dimensions -->
+          <div class="form-left">
+            <!-- Segment Name -->
+            <div class="form-group">
+              <label class="form-label">Segment Name <span class="required">*</span></label>
+              <input 
+                type="text" 
+                [(ngModel)]="editSegmentName" 
+                name="editSegmentName" 
+                required 
+                class="form-input"
+                placeholder="e.g., Opening Formation, Finale"
+              />
+            </div>
+
+            <!-- Dimensions -->
+            <div class="form-group dimensions-section">
+              <label class="form-label">Stage Dimensions</label>
+              <div class="dimensions-row">
+                <div class="dimension-field">
+                  <label class="form-label-small">Width (ft)</label>
+                  <input 
+                    type="number" 
+                    min="8" 
+                    max="60" 
+                    [(ngModel)]="editWidth" 
+                    name="editWidth" 
+                    required
+                    class="form-input-small"
+                  />
+                </div>
+                <div class="dimension-field">
+                  <label class="form-label-small">Depth (ft)</label>
+                  <input 
+                    type="number" 
+                    min="8" 
+                    max="60" 
+                    [(ngModel)]="editDepth" 
+                    name="editDepth" 
+                    required
+                    class="form-input-small"
+                  />
+                </div>
+                <div class="dimension-field">
+                  <label class="form-label-small">Divisions</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    max="8" 
+                    [(ngModel)]="editDivisions" 
+                    name="editDivisions" 
+                    required
+                    class="form-input-small"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Side - Styles -->
+          <div class="form-right">
+            <div class="form-group">
+              <div class="styles-header">
+                <label class="form-label">Dance Styles <span class="required">*</span></label>
+                <p class="styles-subheader">Select styles to enable skill-based formation views</p>
+              </div>
+
+              <div *ngIf="teamStyles.length === 0" class="no-styles-message">
+                No styles defined for this team.
+              </div>
+
+              <div class="styles-grid-modern" *ngIf="teamStyles.length > 0">
+                <div *ngFor="let style of teamStyles" 
+                     class="style-badge" 
+                     [class.selected]="isStyleSelected(style)"
+                     (click)="toggleStyleSelection(style)">
+                  <div class="style-circle" [style.background-color]="style.color">
+                  </div>
+                  <span class="style-name">{{ style.name }}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        
-        <div class="modal-actions">
-          <button type="submit" class="save">Save</button>
-          <button type="button" (click)="closeEditModal()">Cancel</button>
+
+        <!-- Bottom Row: Action Buttons -->
+        <div class="modal-bottom-row">
+          <div class="modal-actions-modern">
+            <button type="button" (click)="closeEditModal()" class="btn-cancel">Cancel</button>
+            <button type="submit" class="btn-save">
+              Save Changes
+            </button>
+          </div>
         </div>
       </form>
     </div>

@@ -1,7 +1,5 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormationsComponent } from './formations/formations';
-import { RosterComponent } from './roster/roster';
 import { AuthService } from '../services/auth.service';
 import { TeamService } from '../services/team.service';
 import { SetService, ISet } from '../services/set.service';
@@ -14,11 +12,10 @@ import { FormsModule } from '@angular/forms';
   templateUrl: './dashboard.html',
   styleUrls: ['./dashboard.scss'],
   standalone: true,
-  imports: [CommonModule, FormationsComponent, RosterComponent, FormsModule]
+  imports: [CommonModule, FormsModule]
 })
 export class DashboardComponent implements OnInit {
   isCaptain = false;
-  showRosterModal = false;
   showInfoModal = false;
   showSetModal = false;
   showSegmentModal = false;
@@ -43,8 +40,15 @@ export class DashboardComponent implements OnInit {
   isAddingStyle = false;
       currentSetId: string | null = null;
     
-    // UI state
-    activeSetMenu: string | null = null;
+      // UI state
+  activeSetMenu: string | null = null;
+  
+  // Drag and drop state
+  draggingSegmentIndex: number | null = null;
+  draggingSetId: string | null = null;
+  draggingSegmentId: string | null = null;
+  dragOverIndex: number | null = null;
+  dragOverSetId: string | null = null;
 
   segment = {
     stylesInSegment: ['bhangra', 'HH']
@@ -357,17 +361,96 @@ export class DashboardComponent implements OnInit {
   }
 
   goToSegment(segmentId: string) {
+    // Prevent navigation if we just finished dragging
+    if (this.draggingSegmentIndex !== null) return;
+    
     this.router.navigate(['/create-segment'], { queryParams: { id: segmentId } });
   }
 
+  deleteSegment(segmentId: string) {
+    if (!confirm('Are you sure you want to delete this segment?')) return;
+    
+    this.segmentService.deleteSegment(segmentId).subscribe({
+      next: () => {
+        this.loadSegments();
+        this.loadSets(); // Reload sets to update segment references
+      },
+      error: (err) => {
+        console.error('Failed to delete segment:', err);
+        alert('Failed to delete segment!');
+      }
+    });
+  }
+
   getStyleColor(styleName: string): string {
-    // Map style names to colors - this should ideally come from team styles
+    // Map style names to vibrant colors
     const styleColors: { [key: string]: string } = {
-      bhangra: '#3b82f6', // blue
-      HH: '#ffe14a',      // yellow
-      // Add more styles and colors as needed
+      // Hip Hop variations
+      'hip hop': '#FF6B35',        // Vibrant orange
+      'hiphop': '#FF6B35',         // Vibrant orange
+      'HH': '#FF6B35',             // Vibrant orange
+      'hip-hop': '#FF6B35',        // Vibrant orange
+      
+      // Bhangra variations
+      'bhangra': '#F7931E',        // Golden orange
+      'punjabi': '#F7931E',        // Golden orange
+      
+      // Contemporary/Modern
+      'contemporary': '#9B59B6',   // Purple
+      'modern': '#8E44AD',         // Dark purple
+      'lyrical': '#BB8FCE',        // Light purple
+      
+      // Jazz styles
+      'jazz': '#E74C3C',           // Red
+      'jazz funk': '#C0392B',      // Dark red
+      'commercial': '#EC7063',     // Light red
+      
+      // Latin styles
+      'latin': '#F39C12',          // Orange
+      'salsa': '#E67E22',          // Dark orange
+      'bachata': '#F8C471',        // Light orange
+      'reggaeton': '#D68910',      // Amber
+      
+      // Bollywood styles
+      'bollywood': '#E91E63',      // Pink
+      'classical': '#AD1457',      // Dark pink
+      'folk': '#F06292',           // Light pink
+      
+      // Street styles
+      'breaking': '#2ECC71',       // Green
+      'bboy': '#27AE60',           // Dark green
+      'bgirl': '#58D68D',          // Light green
+      'popping': '#16A085',        // Teal
+      'locking': '#48C9B0',        // Light teal
+      
+      // Ballroom
+      'ballroom': '#3498DB',       // Blue
+      'waltz': '#2980B9',          // Dark blue
+      'tango': '#5DADE2',          // Light blue
+      
+      // Cultural styles
+      'african': '#A569BD',        // Violet
+      'caribbean': '#52C0F5',      // Sky blue
+      'korean': '#FF5722',         // Deep orange
+      'kpop': '#FF8A65',           // Light orange
+      
+      // Other popular styles
+      'acro': '#795548',           // Brown
+      'musical theatre': '#607D8B', // Blue grey
+      'tap': '#455A64',            // Dark blue grey
+      'ballet': '#FCE4EC',         // Very light pink
+      'lyra': '#4CAF50',           // Light green
+      'pole': '#9C27B0',           // Deep purple
+      
+      // Default categories
+      'fusion': '#FF9800',         // Amber
+      'experimental': '#00BCD4',   // Cyan
+      'freestyle': '#CDDC39',      // Lime
     };
-    return styleColors[styleName] || '#E6E6FA';
+    
+    // Convert to lowercase for case-insensitive matching
+    const lowerStyleName = styleName.toLowerCase();
+    return styleColors[lowerStyleName] || '#6366F1'; // Default to indigo if not found
   }
 
   getSetVisibilityStatus(setId: string): boolean {
@@ -399,5 +482,104 @@ export class DashboardComponent implements OnInit {
       console.error('Failed to update segment visibility:', err);
       alert('Failed to update segment visibility!');
     });
+  }
+
+  // Drag and Drop Methods
+  onSegmentDragStart(event: DragEvent, segmentIndex: number, setId: string, segmentId: string) {
+    if (!this.isCaptain) {
+      event.preventDefault();
+      return;
+    }
+    
+    this.draggingSegmentIndex = segmentIndex;
+    this.draggingSetId = setId;
+    this.draggingSegmentId = segmentId;
+    
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', segmentIndex.toString());
+    }
+  }
+
+  onSegmentDragOver(event: DragEvent, segmentIndex: number, setId: string) {
+    if (!this.isCaptain || this.draggingSetId !== setId) return;
+    
+    event.preventDefault();
+    event.dataTransfer!.dropEffect = 'move';
+    
+    this.dragOverIndex = segmentIndex;
+    this.dragOverSetId = setId;
+  }
+
+  onSegmentDrop(event: DragEvent, targetIndex: number, setId: string) {
+    if (!this.isCaptain || this.draggingSetId !== setId) return;
+    
+    event.preventDefault();
+    
+    const sourceIndex = this.draggingSegmentIndex;
+    if (sourceIndex === null || sourceIndex === targetIndex) {
+      this.onSegmentDragEnd();
+      return;
+    }
+
+    // Get the current set
+    const set = this.sets.find(s => s._id === setId);
+    if (!set) {
+      this.onSegmentDragEnd();
+      return;
+    }
+
+    // Create a new segments array with the reordered segments
+    const newSegments = [...set.segments];
+    const draggedSegmentId = newSegments[sourceIndex];
+    
+    // Remove the dragged segment from its original position
+    newSegments.splice(sourceIndex, 1);
+    
+    // Insert it at the new position
+    newSegments.splice(targetIndex, 0, draggedSegmentId);
+
+    // Update the set with the new segment order
+    this.setService.updateSet(setId, { segments: newSegments }).subscribe({
+      next: () => {
+        this.loadSets();
+        this.onSegmentDragEnd();
+      },
+      error: (err) => {
+        console.error('Failed to update segment order:', err);
+        alert('Failed to update segment order!');
+        this.onSegmentDragEnd();
+      }
+    });
+  }
+
+  onSegmentDragEnd() {
+    this.draggingSegmentIndex = null;
+    this.draggingSetId = null;
+    this.draggingSegmentId = null;
+    this.dragOverIndex = null;
+    this.dragOverSetId = null;
+  }
+
+  toggleSegmentPrivacy(segmentId: string, currentPrivacy: boolean) {
+    const newPrivacy = !currentPrivacy;
+    
+    this.segmentService.updateSegmentPrivacy(segmentId, newPrivacy).subscribe({
+      next: () => {
+        // Update only the local segment data without affecting set-level indicators
+        const segment = this.segments.find(s => s._id === segmentId);
+        if (segment) {
+          segment.isPublic = newPrivacy;
+        }
+      },
+      error: (err) => {
+        console.error('Failed to update segment privacy:', err);
+        alert('Failed to update segment privacy!');
+      }
+    });
+  }
+
+  navigateToEditRoster() {
+    this.router.navigate(['/edit-roster']);
   }
 }

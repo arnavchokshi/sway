@@ -1,0 +1,405 @@
+<div class="edit-roster-container">
+  <div class="content-wrapper">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-content">
+        <h1>Team Members</h1>
+        <p>Manage your team roster and skill ratings. Dancers will input their own height when they log in.</p>
+      </div>
+      <button 
+        (click)="navigateBack()" 
+        class="close-button"
+        aria-label="Close">
+        Back to Dashboard
+      </button>
+    </div>
+
+    <!-- Error Message -->
+    <div *ngIf="errorMessage" class="error-message">
+      {{ errorMessage }}
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value">{{ members.length }}</div>
+        <div class="stat-label">Total Members</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ styles.length }}</div>
+        <div class="stat-label">Dance Styles</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ getCaptainCount() }}</div>
+        <div class="stat-label">Captains</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ getAverageSkillRating() }}</div>
+        <div class="stat-label">Avg Skill Rating</div>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <!-- Dance Styles Management -->
+      <div class="styles-sidebar">
+        <div class="sidebar-header">
+          <h2>
+            <i class="fas fa-music"></i>
+            Dance Styles
+          </h2>
+        </div>
+        <div class="sidebar-content">
+          <div class="styles-list">
+            <div *ngFor="let style of styles; let i = index" class="style-item">
+              <div class="style-info">
+                <div class="style-color" [style.background-color]="style.color"></div>
+                <span class="style-name">{{ style.name }}</span>
+              </div>
+              <button
+                (click)="deleteStyle(i)"
+                class="delete-button">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="add-style-section">
+            <button
+              *ngIf="!isAddingStyle"
+              (click)="isAddingStyle = true"
+              class="add-style-button">
+              <i class="fas fa-plus"></i>
+              Add Dance Style
+            </button>
+            
+            <div *ngIf="isAddingStyle" class="add-style-form">
+              <input
+                [(ngModel)]="newStyle.name"
+                (keyup.enter)="addStyle()"
+                placeholder="Enter style name"
+                type="text"
+                #styleNameInput>
+              <input
+                [(ngModel)]="newStyle.color"
+                type="color">
+              <button
+                (click)="addStyle()"
+                [disabled]="!newStyle.name.trim()"
+                class="add-button">
+                Add
+              </button>
+              <button
+                (click)="cancelAddStyle()"
+                class="cancel-button">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Team Members List -->
+      <div class="members-section">
+        <div class="section-header">
+          <h2>Team Roster</h2>
+          <div class="header-buttons">
+            <!-- Single Add Member Button -->
+            <button
+              (click)="showSingleAddDialog = true"
+              class="add-member-btn">
+              <i class="fas fa-user"></i>
+              Add Member
+            </button>
+
+            <!-- Bulk Add Members Button -->
+            <button
+              (click)="showBulkAddDialog = true"
+              class="bulk-add-btn">
+              <i class="fas fa-users"></i>
+              Bulk Add Members
+            </button>
+
+            <button class="export-btn">
+              <i class="fas fa-download"></i>
+              Export
+            </button>
+          </div>
+        </div>
+        <div class="section-content">
+          <div class="members-list">
+            <div *ngFor="let member of members" class="member-card">
+              
+              <!-- Avatar & Basic Info -->
+              <div class="member-avatar">
+                {{ member.name.charAt(0) || '?' }}
+              </div>
+              <div class="member-info">
+                <div class="member-name">
+                  {{ member.name }}
+                  <i *ngIf="member.captain" class="fas fa-crown crown-icon"></i>
+                </div>
+                <div class="member-details">
+                  {{ member.feet || 5 }}'{{ member.inches || 6 }}" • Avg: {{ getAverageRating(member) }}
+                </div>
+              </div>
+
+              <!-- Style Ratings -->
+              <div class="member-skills">
+                <div class="skills-grid">
+                  <div *ngFor="let style of styles.slice(0, 4)" class="skill-item">
+                    <div class="skill-color" [style.background-color]="style.color"></div>
+                    <span class="skill-name">{{ style.name }}</span>
+                    <div class="skill-stars">
+                      <i *ngFor="let star of [1,2,3,4,5]" 
+                         class="fas fa-star"
+                         [class.text-yellow-400]="star <= (member.skillLevels[style.name.toLowerCase()] || 0)"
+                         [class.text-gray-400]="star > (member.skillLevels[style.name.toLowerCase()] || 0)"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Actions -->
+              <div class="member-actions">
+                <button
+                  (click)="openEditMemberDialog(member)"
+                  class="edit-btn">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button
+                  (click)="removeMember(member)"
+                  class="delete-btn">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Single Add Member Dialog -->
+  <div *ngIf="showSingleAddDialog" class="modal-overlay">
+    <div class="modal small-modal">
+      <div class="modal-header">
+        <h3>Add Team Member</h3>
+        <button (click)="showSingleAddDialog = false" class="close-button">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-content">
+        <div class="form-group">
+          <label>Member Name</label>
+          <input
+            [(ngModel)]="singleMemberName"
+            (keyup.enter)="addSingleMember()"
+            placeholder="Enter member name"
+            type="text"
+            #singleMemberInput>
+        </div>
+        <div class="form-buttons">
+          <button 
+            (click)="addSingleMember()" 
+            [disabled]="!singleMemberName.trim()" 
+            class="primary-btn">
+            Add Member
+          </button>
+          <button 
+            (click)="showSingleAddDialog = false"
+            class="secondary-btn">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Add Members Dialog -->
+  <div *ngIf="showBulkAddDialog" class="modal-overlay">
+    <div class="modal large-modal">
+      <div class="modal-header">
+        <h3>Bulk Add Team Members</h3>
+        <button (click)="showBulkAddDialog = false" class="close-button">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="modal-content">
+        <!-- Bulk Add Tabs -->
+        <div class="tabs">
+          <div class="tab-list">
+            <button 
+              (click)="bulkAddTab = 'text'"
+              [class.active]="bulkAddTab === 'text'">
+              Bulk Add
+            </button>
+            <button 
+              (click)="bulkAddTab = 'quick'"
+              [class.active]="bulkAddTab === 'quick'">
+              Quick Add
+            </button>
+          </div>
+
+          <!-- Bulk Add Text Tab -->
+          <div *ngIf="bulkAddTab === 'text'" class="tab-content">
+            <div class="form-group">
+              <label>Paste names (one per line)</label>
+              <textarea
+                [(ngModel)]="bulkAddText"
+                placeholder="John Smith&#10;Jane Doe&#10;Alex Johnson&#10;..."
+                rows="8"></textarea>
+              <p class="bulk-add-text">
+                {{ getBulkAddCount() }} members will be added
+              </p>
+            </div>
+            <div class="form-buttons">
+              <button 
+                (click)="addMembersFromText()" 
+                [disabled]="!bulkAddText.trim()" 
+                class="primary-btn">
+                <i class="fas fa-file-text"></i>
+                Add {{ getBulkAddCount() }} Members
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Add Tab -->
+          <div *ngIf="bulkAddTab === 'quick'" class="tab-content">
+            <div class="form-group">
+              <div class="form-row">
+                <label>Number of members:</label>
+                <select 
+                  [(ngModel)]="quickAddCount" 
+                  (change)="updateQuickAddNames()">
+                  <option value="3">3</option>
+                  <option value="5">5</option>
+                  <option value="8">8</option>
+                  <option value="10">10</option>
+                  <option value="15">15</option>
+                  <option value="20">20</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="quick-add-grid">
+                <input *ngFor="let name of quickAddNames; let i = index"
+                  [(ngModel)]="quickAddNames[i]"
+                  [placeholder]="'Member ' + (i + 1)"
+                  type="text">
+              </div>
+            </div>
+            <div class="form-buttons">
+              <button 
+                (click)="addMembersFromQuickAdd()" 
+                [disabled]="getValidQuickAddCount() === 0"
+                class="primary-btn">
+                <i class="fas fa-bolt"></i>
+                Add {{ getValidQuickAddCount() }} Members
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Member Dialog -->
+  <div *ngIf="editingMember" class="modal-overlay">
+    <div class="modal large-modal">
+      <div class="modal-header">
+        <h3>Edit {{ editingMember.name }}</h3>
+        <button (click)="closeEditMemberDialog()" class="close-button">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="modal-content">
+        <!-- Edit Member Tabs -->
+        <div class="tabs">
+          <div class="tab-list">
+            <button 
+              (click)="editMemberTab = 'basic'"
+              [class.active]="editMemberTab === 'basic'">
+              Basic Info
+            </button>
+            <button 
+              (click)="editMemberTab = 'skills'"
+              [class.active]="editMemberTab === 'skills'">
+              Skill Ratings
+            </button>
+          </div>
+
+          <!-- Basic Info Tab -->
+          <div *ngIf="editMemberTab === 'basic'" class="tab-content">
+            <div class="form-group">
+              <label>Name</label>
+              <input
+                [(ngModel)]="editingMember.name"
+                type="text">
+            </div>
+            <div class="form-group">
+              <div class="form-row">
+                <div style="flex: 1;">
+                  <label>Feet</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="editingMember.feet">
+                </div>
+                <div style="flex: 1;">
+                  <label>Inches</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="editingMember.inches">
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="form-row">
+                <input
+                  type="checkbox"
+                  [(ngModel)]="editingMember.captain"
+                  id="captain-checkbox">
+                <label for="captain-checkbox">Team Captain</label>
+              </div>
+            </div>
+            <div class="form-buttons">
+              <button 
+                (click)="saveEditingMember()" 
+                class="success-btn">
+                Save Changes
+              </button>
+            </div>
+          </div>
+
+          <!-- Skills Tab -->
+          <div *ngIf="editMemberTab === 'skills'" class="tab-content">
+            <div class="skill-list">
+              <div *ngFor="let style of styles" class="skill-item">
+                <div class="skill-info">
+                  <div class="skill-color" [style.background-color]="style.color"></div>
+                  <span class="skill-name">{{ style.name }}</span>
+                </div>
+                <div class="star-rating">
+                  <button *ngFor="let star of [1,2,3,4,5]"
+                    (click)="updateEditingMemberSkill(style.name, star)">
+                    <i class="fas fa-star"
+                       [class.text-yellow-400]="star <= (editingMember.skillLevels[style.name.toLowerCase()] || 0)"
+                       [class.text-gray-300]="star > (editingMember.skillLevels[style.name.toLowerCase()] || 0)"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="form-buttons">
+              <button 
+                (click)="saveEditingMember()" 
+                class="success-btn">
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div> 

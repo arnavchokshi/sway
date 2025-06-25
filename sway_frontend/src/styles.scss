@@ -3,6 +3,8 @@
 html, body {
   margin: 0;
   padding: 0;
+  /* Prevent white flash by setting background immediately */
+  background: linear-gradient(135deg, #5303a4 0%, #6f5d1d 100%);
 }
 
 html {
@@ -12,4 +14,22 @@ html {
 body {
   min-height: 100vh;
   overflow-x: hidden;
+  /* Ensure consistent background across all pages */
+  background: linear-gradient(135deg, #5303a4 0%, #6f5d1d 100%);
+  /* Ensure background covers entire viewport */
+  background-attachment: fixed;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* Prevent any white flashes during page transitions */
+:root {
+  background: linear-gradient(135deg, #5303a4 0%, #6f5d1d 100%);
+}
+
+/* Ensure app root also has the background */
+app-root {
+  display: block;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #5303a4 0%, #6f5d1d 100%);
 }

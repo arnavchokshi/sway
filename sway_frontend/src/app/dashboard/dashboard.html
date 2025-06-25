@@ -10,7 +10,7 @@
       <div class="join-code-display" *ngIf="team">
         Join Code: <span class="join-code">{{ team.joinCode }}</span>
       </div>
-      <button *ngIf="isCaptain" class="nav-btn edit-team-btn" (click)="showRosterModal = true">
+      <button *ngIf="isCaptain" class="nav-btn edit-team-btn" (click)="navigateToEditRoster()">
         <i class="fas fa-users"></i> Edit Team
       </button>
     </div>
@@ -31,9 +31,6 @@
           <div class="set-content">
             <div class="set-header">
               <div class="set-info">
-                <div class="set-icon" (click)="toggleSetVisibility(set._id)" [title]="getSetVisibilityStatus(set._id) ? 'Click to make all segments private' : 'Click to make all segments public'">
-                  <i class="fas" [class.fa-eye]="getSetVisibilityStatus(set._id)" [class.fa-eye-slash]="!getSetVisibilityStatus(set._id)"></i>
-                </div>
                 <h3 class="set-name">{{ set.name }}</h3>
                 <div class="set-stats">
                   <span class="segment-count">{{ getSegmentsForSet(set._id).length }} segments</span>
@@ -62,26 +59,55 @@
               <ng-container *ngIf="getSegmentsForSet(set._id).length > 0; else noSegmentsInSet">
                 <div class="segment-card-enhanced"
                      *ngFor="let segment of getSegmentsForSet(set._id); let segIndex = index"
-                     [attr.data-segment-id]="segment._id">
+                     [attr.data-segment-id]="segment._id"
+                     [class.dragging]="draggingSegmentIndex === segIndex && draggingSetId === set._id"
+                     [class.drag-over]="dragOverIndex === segIndex && dragOverSetId === set._id"
+                     draggable="true"
+                     (dragstart)="onSegmentDragStart($event, segIndex, set._id, segment._id)"
+                     (dragover)="onSegmentDragOver($event, segIndex, set._id)"
+                     (drop)="onSegmentDrop($event, segIndex, set._id)"
+                     (dragend)="onSegmentDragEnd()"
+                     (click)="goToSegment(segment._id)">
                   <div class="segment-grid-bg"></div>
                   <div class="segment-number">{{ segIndex + 1 }}</div>
+                  
+                  <!-- Privacy toggle eye icon next to number -->
+                  <button class="privacy-toggle-btn" 
+                          (click)="toggleSegmentPrivacy(segment._id, segment.isPublic); $event.stopPropagation()" 
+                          [title]="segment.isPublic ? 'Make segment private' : 'Make segment public'">
+                    <i class="fas" [class.fa-eye]="segment.isPublic" [class.fa-eye-slash]="!segment.isPublic"></i>
+                  </button>
+                  
+                  <!-- Drag handle dots in top center -->
+                  <div class="drag-handle" *ngIf="isCaptain">
+                    <div class="drag-dot"></div>
+                    <div class="drag-dot"></div>
+                    <div class="drag-dot"></div>
+                    <div class="drag-dot"></div>
+                    <div class="drag-dot"></div>
+                    <div class="drag-dot"></div>
+                  </div>
+                  
+                  <!-- Delete button in top right corner -->
+                  <button class="delete-btn" *ngIf="isCaptain" (click)="deleteSegment(segment._id); $event.stopPropagation()" title="Delete segment">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                  
                   <div class="segment-main-content">
                     <h4 class="segment-title">{{ segment.name }}</h4>
-                    <div class="segment-style-pills" *ngIf="segment.stylesInSegment?.length">
-                      <span class="style-pill" *ngFor="let styleName of segment.stylesInSegment"
-                            [ngStyle]="{ 'background-color': getStyleColor(styleName) }">
-                        {{ styleName }}
-                      </span>
-                    </div>
                   </div>
-                  <div class="segment-duration">{{ getSegmentDuration(segment) }}s</div>
-                  <div class="segment-actions">
-                    <button class="action-btn preview-btn" (click)="previewSegment(segment._id)">
-                      <i class="fas fa-play"></i> Preview
-                    </button>
-                    <button class="action-btn edit-btn" (click)="goToSegment(segment._id)">
-                      <i class="fas fa-edit"></i> Edit
-                    </button>
+                  
+                  <!-- Style pills in bottom left corner -->
+                  <div class="segment-style-pills" *ngIf="segment.stylesInSegment?.length">
+                    <span class="style-pill" *ngFor="let styleName of segment.stylesInSegment"
+                          [ngStyle]="{ 'background-color': getStyleColor(styleName) }">
+                      {{ styleName }}
+                    </span>
+                  </div>
+                  
+                  <!-- Duration and Edit button in bottom right -->
+                  <div class="segment-bottom-right">
+                    <div class="segment-duration">{{ getSegmentDuration(segment) }}s</div>
                   </div>
                 </div>
                 
@@ -113,12 +139,7 @@
     </div>
   </div>
 
-  <!-- Roster Modal -->
-  <div class="roster-modal-overlay" *ngIf="showRosterModal">
-    <div class="roster-modal-popup">
-      <app-dashboard-roster (close)="showRosterModal = false"></app-dashboard-roster>
-    </div>
-  </div>
+
 
   <!-- Set Creation Modal -->
   <div class="modal-backdrop" *ngIf="showSetModal">
