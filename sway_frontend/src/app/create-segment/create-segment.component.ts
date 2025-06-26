@@ -1764,8 +1764,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Check each performer to see if they're in the selection rectangle
     let performersInSelection = 0;
     this.performers.forEach(performer => {
-      const performerX = performer.x * this.pixelsPerFoot;
-      const performerY = performer.y * this.pixelsPerFoot;
+      // Use the same coordinate system as getPerformerStyle
+      const performerSize = 25; // px - same as in getPerformerStyle
+      const totalPosition = this.getPerformerTotalPosition(performer);
+      
+      // Calculate performer position in pixels using the same logic as getPerformerStyle
+      const performerX = (totalPosition.x / (this.width + 2 * this.offstageWidth)) * this.totalStageWidthPx;
+      const performerY = (performer.y / this.depth) * this.stageHeightPx;
 
       // Check if performer is within the selection rectangle
       if (performerX >= left && performerX <= right && 
@@ -1830,10 +1835,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       return;
     }
 
-    // Convert performer positions to pixel coordinates
+    // Convert performer positions to pixel coordinates using the same logic as getPerformerStyle
     const performerPositions = selectedPerformers.map(performer => {
       const performerSize = 25; // px - same as in getPerformerStyle
-      const x = (performer.x / this.width) * this.stageWidthPx;
+      const totalPosition = this.getPerformerTotalPosition(performer);
+      
+      // Use the same coordinate calculation as getPerformerStyle
+      const x = (totalPosition.x / (this.width + 2 * this.offstageWidth)) * this.totalStageWidthPx;
       const y = (performer.y / this.depth) * this.stageHeightPx;
       return { x, y, size: performerSize };
     });
