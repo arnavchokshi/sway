@@ -124,13 +124,15 @@ export class DashboardComponent implements OnInit {
 
   getTotalDuration(setId: string): number {
     const segments = this.getSegmentsForSet(setId);
-    return segments.reduce((total, segment) => total + this.getSegmentDuration(segment), 0);
+    const total = segments.reduce((total, segment) => total + this.getSegmentDuration(segment), 0);
+    return Math.round(total * 10) / 10; // Round to nearest tenth
   }
 
   getSegmentDuration(segment: any): number {
     // Calculate total duration from formation durations
     if (segment.formationDurations && segment.formationDurations.length > 0) {
-      return segment.formationDurations.reduce((total: number, duration: number) => total + duration, 0);
+      const total = segment.formationDurations.reduce((total: number, duration: number) => total + duration, 0);
+      return Math.round(total * 10) / 10; // Round to nearest tenth
     }
     // Fallback to default duration if no formation durations
     return 30; // Default 30 seconds

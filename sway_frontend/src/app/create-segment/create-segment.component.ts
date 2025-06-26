@@ -80,6 +80,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   segmentName: string = 'New Segment';
   depth = 24; // feet
   width = 32; // feet
+  offstageWidth = 8; // feet - width of offstage areas on each side
   divisions = 3;
 
   // For grid rendering
@@ -93,6 +94,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   stageWidthPx = 800;
   stageHeightPx = 600;
   pixelsPerFoot = 20;
+  
+  // Offstage properties
+  totalStageWidthPx = 960; // Includes offstage areas (32 + 8 + 8) * 20
+  offstageWidthPx = 160; // 8 feet * 20 pixels per foot
 
   // Multi-formation support
   formations: Performer[][] = [];
@@ -249,6 +254,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private controls: OrbitControls | null = null;
   private performerMeshes: { [id: string]: THREE.Group } = {};
   private stageMesh: THREE.Mesh | null = null;
+  private curtainMeshes: THREE.Mesh[] = []; // Track curtain meshes for cleanup
   private animationFrameId: number | null = null;
   private videoMesh: THREE.Mesh | null = null;
   private videoElement: HTMLVideoElement | null = null;
@@ -376,6 +382,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Mirror mode functionality
   isMirrorModeEnabled = false;
+
+  // Animation state tracking
+  hasPlayedInitialAnimation = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -910,6 +919,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         this.calculateStageWithDOMSize();
         this.cdr.detectChanges();
       }, 0);
+      
+      // Set animation flag after initial animations complete
+      setTimeout(() => {
+        this.hasPlayedInitialAnimation = true;
+      }, 2000); // Wait for all initial animations to complete
     } else {
       console.error('Stage reference not available in ngAfterViewInit');
     }
@@ -951,6 +965,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.pixelsPerFoot = 20;
       this.stageWidthPx = this.width * this.pixelsPerFoot;
       this.stageHeightPx = this.depth * this.pixelsPerFoot;
+      this.offstageWidthPx = this.offstageWidth * this.pixelsPerFoot;
+      this.totalStageWidthPx = this.stageWidthPx + (2 * this.offstageWidthPx);
     }
     // Main lines - create 8 columns (9 lines) and 4 rows (5 lines)
     this.mainVerticals = [];
@@ -990,9 +1006,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
       }
     }
+    // Add grid points for offstage left and right
+    this.subVerticals.push(-this.offstageWidth);
+    this.subVerticals.push(this.width + this.offstageWidth);
+    // Sort for safety
+    this.subVerticals.sort((a, b) => a - b);
     this.mainVerticals = this.mainVerticals.sort((a, b) => a - b);
     this.mainHorizontals = this.mainHorizontals.sort((a, b) => a - b);
-    this.subVerticals = this.subVerticals.sort((a, b) => a - b);
     this.subHorizontals = this.subHorizontals.sort((a, b) => a - b);
     // Calculate the grid height in px
     this.stageGridHeightPx = this.mainHorizontals[this.mainHorizontals.length - 1] - this.mainHorizontals[0];
@@ -1422,11 +1442,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const gridPositionsX: number[] = [];
     const gridPositionsY: number[] = [];
 
-    // Main verticals (8 sections, 9 lines)
+    // Main verticals (8 sections, 9 lines) - main stage only
     for (let i = 0; i <= 8; i++) {
       gridPositionsX.push((i / 8) * this.width);
     }
-    // Subgrid verticals
+    // Subgrid verticals - main stage only
     for (let i = 0; i < 8; i++) {
       const start = (i / 8) * this.width;
       const end = ((i + 1) / 8) * this.width;
@@ -1434,6 +1454,33 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         gridPositionsX.push(start + ((end - start) * d) / (this.divisions + 1));
       }
     }
+    
+    // Add grid points for offstage left area (from -offstageWidth to 0)
+    for (let i = 0; i <= 8; i++) {
+      gridPositionsX.push(-this.offstageWidth + (i / 8) * this.offstageWidth);
+    }
+    // Subgrid for offstage left
+    for (let i = 0; i < 8; i++) {
+      const start = -this.offstageWidth + (i / 8) * this.offstageWidth;
+      const end = -this.offstageWidth + ((i + 1) / 8) * this.offstageWidth;
+      for (let d = 1; d <= this.divisions; d++) {
+        gridPositionsX.push(start + ((end - start) * d) / (this.divisions + 1));
+      }
+    }
+    
+    // Add grid points for offstage right area (from width to width + offstageWidth)
+    for (let i = 0; i <= 8; i++) {
+      gridPositionsX.push(this.width + (i / 8) * this.offstageWidth);
+    }
+    // Subgrid for offstage right
+    for (let i = 0; i < 8; i++) {
+      const start = this.width + (i / 8) * this.offstageWidth;
+      const end = this.width + ((i + 1) / 8) * this.offstageWidth;
+      for (let d = 1; d <= this.divisions; d++) {
+        gridPositionsX.push(start + ((end - start) * d) / (this.divisions + 1));
+      }
+    }
+    
     // Main horizontals (4 sections, 5 lines)
     for (let i = 0; i <= 4; i++) {
       gridPositionsY.push((i / 4) * this.depth);
@@ -1459,8 +1506,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     x = snapToGrid(x, gridPositionsX);
     y = snapToGrid(y, gridPositionsY);
 
-    // Clamp to stage boundaries
-    x = Math.max(0, Math.min(this.width, x));
+    // Clamp to stage boundaries (including offstage areas)
+    x = Math.max(-this.offstageWidth, Math.min(this.width + this.offstageWidth, x));
     y = Math.max(0, Math.min(this.depth, y));
 
     // Calculate the movement delta from the initial position
@@ -1478,8 +1525,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             let newX = initialPos.x + deltaX;
             let newY = initialPos.y + deltaY;
             
-            // Clamp to stage boundaries
-            newX = Math.max(0, Math.min(this.width, newX));
+            // Clamp to stage boundaries (including offstage areas)
+            newX = Math.max(-this.offstageWidth, Math.min(this.width + this.offstageWidth, newX));
             newY = Math.max(0, Math.min(this.depth, newY));
             
             // Snap to grid
@@ -1552,8 +1599,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           let newMirrorX = mirrorInitial.x + mirrorDeltaX;
           let newMirrorY = mirrorInitial.y + mirrorDeltaY;
           
-          // Clamp to stage boundaries
-          newMirrorX = Math.max(0, Math.min(this.width, newMirrorX));
+          // Clamp to stage boundaries (including offstage areas)
+          newMirrorX = Math.max(-this.offstageWidth, Math.min(this.width + this.offstageWidth, newMirrorX));
           newMirrorY = Math.max(0, Math.min(this.depth, newMirrorY));
           
           // Snap to grid
@@ -2098,13 +2145,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       y = this.animatedPositions[performer.id].y;
     }
 
-    // Use proportional positioning
-    const left = (x / this.width) * this.stageWidthPx - performerSize / 2;
+    // Convert to total stage coordinates (including offstage areas)
+    const totalPosition = this.getPerformerTotalPosition({ ...performer, x, y });
+    
+    // Use proportional positioning with total stage width
+    const left = (totalPosition.x / (this.width + 2 * this.offstageWidth)) * this.totalStageWidthPx - performerSize / 2;
     const top = (y / this.depth) * this.stageHeightPx - performerSize / 2;
 
     const isCurrentUser = performer.id === this.currentUserId;
     const isSelected = this.isPerformerSelected(performer);
     const isHovered = this.isPerformerHovered(performer);
+    const isOffstage = this.isPerformerOffstage({ ...performer, x, y });
 
     const baseStyle = {
       left: `${left}px`,
@@ -2138,8 +2189,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const prevPos = this.getPreviousPosition(performerId);
     if (!prevPos) return { display: 'none' };
 
-    // Use proportional positioning
-    const left = (prevPos.x / this.width) * this.stageWidthPx - performerSize / 2;
+    // Convert to total stage coordinates (including offstage areas)
+    const totalPosition = this.getPerformerTotalPosition({ id: performerId, name: '', x: prevPos.x, y: prevPos.y, skillLevels: {} });
+    
+    // Use proportional positioning with total stage width
+    const left = (totalPosition.x / (this.width + 2 * this.offstageWidth)) * this.totalStageWidthPx - performerSize / 2;
     const top = (prevPos.y / this.depth) * this.stageHeightPx - performerSize / 2;
 
     return {
@@ -2530,21 +2584,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     });
   }
 
-  getPerformerPath(performerId: string, prevMap?: { [id: string]: Performer }, nextMap?: { [id: string]: Performer }): string {
-    let prevPos, performer;
-    if (prevMap && nextMap) {
-      prevPos = prevMap[performerId];
-      performer = nextMap[performerId];
-    } else {
-      prevPos = this.getPreviousPosition(performerId);
-      performer = this.performers.find(p => p.id === performerId);
-    }
-    if (!prevPos || !performer) return '';
-    const startX = (prevPos.x / this.width) * this.stageWidthPx;
-    const startY = (prevPos.y / this.depth) * this.stageHeightPx;
-    const endX = (performer.x / this.width) * this.stageWidthPx;
-    const endY = (performer.y / this.depth) * this.stageHeightPx;
-    return `M ${startX} ${startY} L ${endX} ${endY}`;
+  getPerformerPath(performerId: string): string {
+    const performer = this.performers.find(p => p.id === performerId);
+    const prev = this.getPreviousPosition(performerId);
+    if (!performer || !prev) return '';
+    // Convert feet to pixels and offset x by offstageWidthPx
+    const x1 = prev.x * this.pixelsPerFoot + this.offstageWidthPx;
+    const y1 = prev.y * this.pixelsPerFoot;
+    const x2 = performer.x * this.pixelsPerFoot + this.offstageWidthPx;
+    const y2 = performer.y * this.pixelsPerFoot;
+    return `M${x1},${y1} L${x2},${y2}`;
   }
 
   async animateToNextFormation() {
@@ -2918,8 +2967,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.playbackTimer = null;
     }
     this.isPlaying = false;
-    this.playbackTime = 0;
-    this.playingFormationIndex = 0;
+    // Don't reset playbackTime - preserve the current position
+    // this.playbackTime = 0;
+    // Don't reset playingFormationIndex - preserve the current formation
+    // this.playingFormationIndex = 0;
     if (this.waveSurfer) {
       this.waveSurfer.pause();
     }
@@ -3308,20 +3359,23 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       return this.getPlayheadPixel();
     }
     
-    // When not playing, use hover position
-    if (this.hoveredTimelineX === null) return 0;
-    
-    const totalWidth = this.getTimelinePixelWidth();
-    const totalDuration = this.getTimelineTotalDuration();
-    
-    // Calculate position based on hovered time
-    if (this.hoveredTimelineTime !== null) {
-      const timePercent = this.hoveredTimelineTime / totalDuration;
-      return timePercent * totalWidth;
+    // When not playing, use hover position if available, otherwise use current playback time
+    if (this.hoveredTimelineX !== null) {
+      const totalWidth = this.getTimelinePixelWidth();
+      const totalDuration = this.getTimelineTotalDuration();
+      
+      // Calculate position based on hovered time
+      if (this.hoveredTimelineTime !== null) {
+        const timePercent = this.hoveredTimelineTime / totalDuration;
+        return timePercent * totalWidth;
+      }
+      
+      // Fallback to direct x position if time is not available
+      return Math.max(0, Math.min(this.hoveredTimelineX, totalWidth));
     }
     
-    // Fallback to direct x position if time is not available
-    return Math.max(0, Math.min(this.hoveredTimelineX, totalWidth));
+    // When not playing and not hovering, use current playback time
+    return this.getPlayheadPixel();
   }
 
   async selectPerformer(performer: Performer) {
@@ -3632,29 +3686,95 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.togglePlay();
       return;
     }
-    // No audio: animate through formations
+    // No audio: animate through formations and update playbackTime smoothly
     if (!this.isPlaying) {
       this.isPlaying = true;
-      this.unifiedFormationInterval = setInterval(() => {
-        if (this.currentFormationIndex < this.formations.length - 1) {
-          this.currentFormationIndex++;
-          // Set playbackTime to the start time of the current formation
-          let t = 0;
-          for (let i = 0; i < this.currentFormationIndex; i++) {
-            t += this.formationDurations[i] || 4;
-            if (i < this.animationDurations.length) {
-              t += this.animationDurations[i] || 1;
-            }
+      const totalDuration = this.getTimelineTotalDuration();
+      const startTime = performance.now();
+      const initialPlaybackTime = this.playbackTime;
+      const animate = (now: number) => {
+        if (!this.isPlaying) return;
+        const elapsed = (now - startTime) / 1000; // seconds
+        this.playbackTime = Math.min(initialPlaybackTime + elapsed, totalDuration);
+        // Update formation index and transitions
+        let t = 0;
+        let found = false;
+        for (let i = 0; i < this.formations.length; i++) {
+          const hold = this.formationDurations[i] || 4;
+          if (this.playbackTime < t + hold) {
+            this.playingFormationIndex = i;
+            this.inTransition = false;
+            this.animatedPositions = {};
+            found = true;
+            break;
           }
-          this.playbackTime = t;
+          t += hold;
+          if (i < this.animationDurations.length) {
+            const trans = this.animationDurations[i] || 1;
+            if (this.playbackTime < t + trans) {
+              this.playingFormationIndex = i + 1;
+              this.inTransition = true;
+              const progress = (this.playbackTime - t) / trans;
+              this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+              found = true;
+              break;
+            }
+            t += trans;
+          }
+        }
+        if (!found) {
+          // If past all, show last formation
+          this.playingFormationIndex = this.formations.length - 1;
+          this.inTransition = false;
+          this.animatedPositions = {};
+        }
+        this.cdr.detectChanges();
+        if (this.playbackTime < totalDuration && this.isPlaying) {
+          this.playbackTimer = requestAnimationFrame(animate);
         } else {
           this.isPlaying = false;
-          clearInterval(this.unifiedFormationInterval);
         }
-      }, 1200); // 1.2s per formation (adjust as needed)
+      };
+      this.playbackTimer = requestAnimationFrame(animate);
     } else {
       this.isPlaying = false;
-      clearInterval(this.unifiedFormationInterval);
+      if (this.playbackTimer) {
+        cancelAnimationFrame(this.playbackTimer);
+        this.playbackTimer = null;
+      }
+      // Update formation index and transition state to match current playback time
+      let t = 0;
+      let found = false;
+      for (let i = 0; i < this.formations.length; i++) {
+        const hold = this.formationDurations[i] || 4;
+        if (this.playbackTime < t + hold) {
+          this.playingFormationIndex = i;
+          this.inTransition = false;
+          this.animatedPositions = {};
+          found = true;
+          break;
+        }
+        t += hold;
+        if (i < this.animationDurations.length) {
+          const trans = this.animationDurations[i] || 1;
+          if (this.playbackTime < t + trans) {
+            this.playingFormationIndex = i + 1;
+            this.inTransition = true;
+            const progress = (this.playbackTime - t) / trans;
+            this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+            found = true;
+            break;
+          }
+          t += trans;
+        }
+      }
+      if (!found) {
+        // If past all, show last formation
+        this.playingFormationIndex = this.formations.length - 1;
+        this.inTransition = false;
+        this.animatedPositions = {};
+      }
+      this.cdr.detectChanges();
     }
   }
 
@@ -4292,6 +4412,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.camera = null;
     this.performerMeshes = {};
     this.stageMesh = null;
+    this.curtainMeshes = []; // Track curtain meshes for cleanup
   }
 
   private init3DScene() {
@@ -4414,6 +4535,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
       }
     }
+
+    // Add curtains offstage on every horizontal line
+    this.addCurtainsTo3DScene();
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -5418,11 +5542,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const gridPositionsX: number[] = [];
     const gridPositionsY: number[] = [];
 
-    // Main verticals (8 sections, 9 lines)
+    // Main verticals (8 sections, 9 lines) - main stage only
     for (let i = 0; i <= 8; i++) {
       gridPositionsX.push((i / 8) * this.width);
     }
-    // Subgrid verticals
+    // Subgrid verticals - main stage only
     for (let i = 0; i < 8; i++) {
       const start = (i / 8) * this.width;
       const end = ((i + 1) / 8) * this.width;
@@ -5430,6 +5554,33 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         gridPositionsX.push(start + ((end - start) * d) / (this.divisions + 1));
       }
     }
+    
+    // Add grid points for offstage left area (from -offstageWidth to 0)
+    for (let i = 0; i <= 8; i++) {
+      gridPositionsX.push(-this.offstageWidth + (i / 8) * this.offstageWidth);
+    }
+    // Subgrid for offstage left
+    for (let i = 0; i < 8; i++) {
+      const start = -this.offstageWidth + (i / 8) * this.offstageWidth;
+      const end = -this.offstageWidth + ((i + 1) / 8) * this.offstageWidth;
+      for (let d = 1; d <= this.divisions; d++) {
+        gridPositionsX.push(start + ((end - start) * d) / (this.divisions + 1));
+      }
+    }
+    
+    // Add grid points for offstage right area (from width to width + offstageWidth)
+    for (let i = 0; i <= 8; i++) {
+      gridPositionsX.push(this.width + (i / 8) * this.offstageWidth);
+    }
+    // Subgrid for offstage right
+    for (let i = 0; i < 8; i++) {
+      const start = this.width + (i / 8) * this.offstageWidth;
+      const end = this.width + ((i + 1) / 8) * this.offstageWidth;
+      for (let d = 1; d <= this.divisions; d++) {
+        gridPositionsX.push(start + ((end - start) * d) / (this.divisions + 1));
+      }
+    }
+    
     // Main horizontals (4 sections, 5 lines)
     for (let i = 0; i <= 4; i++) {
       gridPositionsY.push((i / 4) * this.depth);
@@ -5507,8 +5658,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       const x = centerX + offset.x;
       const y = centerY + offset.y;
       
-      // Check if position is within stage boundaries
-      if (x >= 0 && x <= this.width && y >= 0 && y <= this.depth) {
+      // Check if position is within stage boundaries (including offstage areas)
+      if (x >= -this.offstageWidth && x <= this.width + this.offstageWidth && y >= 0 && y <= this.depth) {
         // Check if this position is far enough from all existing performers
         const isAvailable = this.performers.every(performer => {
           const distance = Math.sqrt(
@@ -5980,6 +6131,169 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Clear caches
     this.clearAllCaches();
+  }
+
+  // Helper method to determine if a performer is in offstage area
+  isPerformerOffstage(performer: Performer): boolean {
+    return performer.x < 0 || performer.x > this.width;
+  }
+
+  // Helper method to get offstage side (left, right, or null if on stage)
+  getOffstageSide(performer: Performer): 'left' | 'right' | null {
+    if (performer.x < 0) return 'left';
+    if (performer.x > this.width) return 'right';
+    return null;
+  }
+
+  // Helper method to get performer position in total stage coordinates
+  getPerformerTotalPosition(performer: Performer): { x: number, y: number } {
+    const totalX = performer.x + this.offstageWidth; // Adjust for offstage offset
+    return { x: totalX, y: performer.y };
+  }
+
+  // Helper method to convert total stage coordinates back to performer coordinates
+  getPerformerCoordinatesFromTotal(totalX: number, totalY: number): { x: number, y: number } {
+    const x = totalX - this.offstageWidth; // Remove offstage offset
+    return { x, y: totalY };
+  }
+
+  addCurtainsTo3DScene() {
+    if (!this.scene) return;
+    
+    // Clear any existing curtain meshes
+    this.curtainMeshes.forEach(mesh => {
+      if (mesh.geometry) mesh.geometry.dispose();
+      if (mesh.material) {
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach(m => m.dispose());
+        } else {
+          mesh.material.dispose();
+        }
+      }
+      this.scene?.remove(mesh);
+    });
+    this.curtainMeshes = [];
+    
+    // Create wavy curtain material
+    const curtainMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0x2d3748, // Dark gray color
+      transparent: true, 
+      opacity: 0.8,
+      side: THREE.DoubleSide
+    });
+
+    // Create floor material
+    const floorMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0x1a202c, // Darker gray for floor
+      side: THREE.DoubleSide
+    });
+    
+    // Add curtains and floor offstage on every horizontal line
+    for (let i = 0; i <= 4; i++) {
+      const z = (i / 4 - 0.5) * this.depth;
+      
+      // Left offstage curtain - create wavy geometry with variation
+      const leftCurtainGeometry = this.createWavyCurtainGeometry(this.offstageWidth, 20, 12, 16, i % 6);
+      const leftCurtain = new THREE.Mesh(leftCurtainGeometry, curtainMaterial);
+      leftCurtain.position.set(-this.width/2 - this.offstageWidth/2, 10, z); // 10 feet high, positioned in left offstage
+      this.scene.add(leftCurtain);
+      this.curtainMeshes.push(leftCurtain);
+      
+      // Left offstage floor
+      const leftFloorGeometry = new THREE.PlaneGeometry(this.offstageWidth, 6); // 4 feet deep floor
+      const leftFloor = new THREE.Mesh(leftFloorGeometry, floorMaterial);
+      leftFloor.position.set(-this.width/2 - this.offstageWidth/2, 0.01, z); // Slightly above ground level
+      leftFloor.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+      this.scene.add(leftFloor);
+      this.curtainMeshes.push(leftFloor);
+      
+      // Right offstage curtain - create wavy geometry with variation
+      const rightCurtainGeometry = this.createWavyCurtainGeometry(this.offstageWidth, 20, 12, 16, (i + 2) % 6);
+      const rightCurtain = new THREE.Mesh(rightCurtainGeometry, curtainMaterial);
+      rightCurtain.position.set(this.width/2 + this.offstageWidth/2, 10, z); // 10 feet high, positioned in right offstage
+      this.scene.add(rightCurtain);
+      this.curtainMeshes.push(rightCurtain);
+      
+      // Right offstage floor
+      const rightFloorGeometry = new THREE.PlaneGeometry(this.offstageWidth, 6); // 4 feet deep floor
+      const rightFloor = new THREE.Mesh(rightFloorGeometry, floorMaterial);
+      rightFloor.position.set(this.width/2 + this.offstageWidth/2, 0.01, z); // Slightly above ground level
+      rightFloor.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+      this.scene.add(rightFloor);
+      this.curtainMeshes.push(rightFloor);
+    }
+  }
+
+  private createWavyCurtainGeometry(width: number, height: number, widthSegments: number, heightSegments: number, variation: number): THREE.BufferGeometry {
+    const geometry = new THREE.PlaneGeometry(width, height, widthSegments, heightSegments);
+    
+    // Get the position attribute
+    const position = geometry.attributes['position'];
+    const vertex = new THREE.Vector3();
+    
+    // Apply wavy displacement to vertices with different variations
+    for (let i = 0; i < position.count; i++) {
+      vertex.fromBufferAttribute(position, i);
+      
+      let combinedWave = 0;
+      
+      switch (variation) {
+        case 0: // Main horizontal waves with small vertical waves
+          combinedWave = Math.sin(vertex.x * 0.8) * 0.8 + 
+                        Math.sin(vertex.x * 1.5) * 0.3 + 
+                        Math.sin(vertex.x * 2.2) * 0.2 +
+                        Math.sin(vertex.y * 0.4) * 0.15 + // Small vertical waves
+                        Math.sin(vertex.y * 0.8) * 0.1;
+          break;
+        case 1: // Different horizontal wave pattern with small vertical waves
+          combinedWave = Math.sin(vertex.x * 0.6) * 0.9 + 
+                        Math.sin(vertex.x * 1.2) * 0.4 + 
+                        Math.sin(vertex.x * 1.8) * 0.2 +
+                        Math.sin(vertex.y * 0.3) * 0.12 + // Small vertical waves
+                        Math.sin(vertex.y * 0.6) * 0.08;
+          break;
+        case 2: // Another horizontal wave pattern with small vertical waves
+          combinedWave = Math.sin(vertex.x * 0.7) * 0.7 + 
+                        Math.sin(vertex.x * 1.4) * 0.5 + 
+                        Math.sin(vertex.x * 2.1) * 0.3 +
+                        Math.sin(vertex.y * 0.5) * 0.18 + // Small vertical waves
+                        Math.sin(vertex.y * 1.0) * 0.12;
+          break;
+        case 3: // Complex horizontal waves with small vertical waves
+          combinedWave = Math.sin(vertex.x * 0.5) * 0.6 + 
+                        Math.sin(vertex.x * 1.0) * 0.5 + 
+                        Math.sin(vertex.x * 1.6) * 0.4 + 
+                        Math.sin(vertex.x * 2.3) * 0.2 +
+                        Math.sin(vertex.y * 0.35) * 0.14 + // Small vertical waves
+                        Math.sin(vertex.y * 0.7) * 0.09;
+          break;
+        case 4: // New variation: More complex mixed waves
+          combinedWave = Math.sin(vertex.x * 0.9) * 0.75 + 
+                        Math.sin(vertex.x * 1.6) * 0.35 + 
+                        Math.sin(vertex.x * 2.4) * 0.25 +
+                        Math.sin(vertex.y * 0.45) * 0.16 + // Small vertical waves
+                        Math.sin(vertex.y * 0.9) * 0.11;
+          break;
+        case 5: // New variation: Diagonal influence
+          combinedWave = Math.sin(vertex.x * 0.65) * 0.85 + 
+                        Math.sin(vertex.x * 1.3) * 0.45 + 
+                        Math.sin(vertex.x * 1.9) * 0.28 +
+                        Math.sin(vertex.y * 0.4) * 0.13 + // Small vertical waves
+                        Math.sin(vertex.y * 0.8) * 0.07;
+          break;
+      }
+      
+      // Apply the wave displacement only in z-direction
+      vertex.z += combinedWave;
+      
+      // Update the position
+      position.setZ(i, vertex.z);
+    }
+    
+    // Recalculate normals for proper lighting
+    geometry.computeVertexNormals();
+    
+    return geometry;
   }
 }
  

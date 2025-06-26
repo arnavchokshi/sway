@@ -8,6 +8,7 @@
   background: linear-gradient(135deg, #161647 0%, #1c0404f2 50%, #18184d 100%);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow: hidden;
+  animation: fadeInBackground 0.8s ease-out;
 }
 
 .top-panel {
@@ -25,6 +26,8 @@
   padding: 0 1.5rem;
   z-index: 100;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  animation: fadeInUp 0.6s ease-out 0.2s forwards;
 }
 
 .top-panel-left {
@@ -435,6 +438,19 @@
   }
 }
 
+// Animated button styles for staggered animations
+.animated-btn {
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out forwards;
+  
+  &:nth-child(1) { animation-delay: 0.3s; }
+  &:nth-child(2) { animation-delay: 0.4s; }
+  &:nth-child(3) { animation-delay: 0.5s; }
+  &:nth-child(4) { animation-delay: 0.6s; }
+  &:nth-child(5) { animation-delay: 0.7s; }
+  &:nth-child(6) { animation-delay: 0.8s; }
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -493,6 +509,10 @@
       font-size: 1rem;
       margin-left: 0.25rem;
       transition: transform 0.2s ease;
+      
+      &.expanded {
+        transform: rotate(180deg);
+      }
     }
     
     .dropdown-menu {
@@ -507,6 +527,25 @@
       min-width: 180px;
       z-index: 9999;
       margin-top: 0;
+      transform-origin: top right;
+      
+      // Default closed state
+      opacity: 0;
+      transform: translateY(-10px) scale(0.95);
+      transition: all 0.2s ease-out;
+      visibility: hidden;
+      
+      // Open state
+      &.show {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        visibility: visible;
+        
+        .dropdown-item {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
       
       .dropdown-item {
         display: flex;
@@ -519,8 +558,15 @@
         color: #e2e8f0;
         font-size: 0.9rem;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.15s ease-out;
         text-align: left;
+        opacity: 0;
+        transform: translateX(-10px);
+        
+        &:nth-child(1) { transition-delay: 0.05s; }
+        &:nth-child(2) { transition-delay: 0.1s; }
+        &:nth-child(3) { transition-delay: 0.15s; }
+        &:nth-child(4) { transition-delay: 0.2s; }
         
         &:hover {
           background: rgba(59, 130, 246, 0.1);
@@ -774,6 +820,8 @@
   overflow: hidden;
   flex: 1 1 auto;
   min-height: 0;
+  opacity: 0;
+  animation: fadeInUp 0.6s ease-out 0.4s forwards;
 }
 
 .roster-sidebar {
@@ -795,6 +843,8 @@
   top: 0;
   bottom: 0;
   z-index: 150; // Increased from 99 to 150 to ensure it's above the top panel
+  opacity: 0;
+  animation: fadeInUp 0.6s ease-out 0.6s forwards;
 
   .sidepanel-top-line {
     position: absolute;
@@ -927,6 +977,9 @@
       padding-top: 1rem;
       position: relative;
       z-index: 1;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: all 0.18s ease-out 0.3s; // Delay so it comes after other items
 
       .add-new-user-input-group {
         display: flex;
@@ -1480,11 +1533,10 @@
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   z-index: 20000;
   pointer-events: none;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 2px 8px;
+  padding: 4px 8px;
   border-radius: 4px;
   backdrop-filter: blur(0px);
-  transform: translate(-50%, -80%);
+  transform: translate(-60%, -80%);
 }
 
 .vertical-number {
@@ -1796,6 +1848,11 @@
     font-weight: 500;
     color: #e2e8f0;
     margin-bottom: 2px;
+    
+    &.initial-animation {
+      opacity: 0;
+      animation: fadeInUp 0.4s ease-out forwards;
+    }
     &:hover {
       background: rgba(59, 130, 246, 0.06);
     }
@@ -1845,7 +1902,13 @@
     font-weight: 700;
     margin-left: 0.3em;
     color: #2563eb;
-    transition: color 0.18s;
+    transition: all 0.18s ease;
+    transform: rotate(0deg);
+  }
+  
+  &:hover .plus-sign {
+    transform: rotate(90deg);
+    color: #1d4ed8;
   }
 }
 
@@ -1858,16 +1921,38 @@
 
 .add-performer-dropdown {
   background: transparent;
-  max-height: none;
-  overflow-y: visible;
+  overflow: hidden;
   position: static;
   width: 100%;
   margin: 0 0 1.2rem 0;
   display: flex;
   flex-direction: column;
   padding: 0;
-  animation: slideDownPanel 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-  transition: max-height 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  // Default closed state
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-16px);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  visibility: hidden;
+  
+  // Open state
+  &.show {
+    max-height: 600px;
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+    
+    .dropdown-content .dropdown-item {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .dropdown-content .add-new-user-section {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
   .dropdown-content {
     flex: 1 1 0;
@@ -1890,7 +1975,15 @@
       border-radius: 8px;
       font-size: 1.08rem;
       font-weight: 500;
-      transition: background 0.18s, color 0.18s;
+      transition: all 0.18s ease-out;
+      opacity: 0;
+      transform: translateY(-10px);
+      
+      &:nth-child(1) { transition-delay: 0.05s; }
+      &:nth-child(2) { transition-delay: 0.1s; }
+      &:nth-child(3) { transition-delay: 0.15s; }
+      &:nth-child(4) { transition-delay: 0.2s; }
+      &:nth-child(5) { transition-delay: 0.25s; }
       &:hover {
         background: rgba(59, 130, 246, 0.10);
         color: #fff;
@@ -2421,11 +2514,11 @@
 
 // Vertical Stage Position Slider
 .stage-position-control {
-  position: absolute;
+  position: fixed;
   right: 0.5rem;
-  top: 55%;
+  top: 50%;
   transform: translateY(-50%);
-  height: 80%;
+  height: 80vh;
   display: flex;
   align-items: center;
   z-index: 20;
@@ -2798,7 +2891,7 @@
 // Collapsible Positioning Tips Tab
 .positioning-tips-tab {
   position: fixed;
-  top: 80px;
+  top: 40px;
   right: 0;
   height: auto;
   max-height: 60vh;
@@ -2806,6 +2899,8 @@
   display: flex;
   align-items: stretch;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  animation: fadeInOpacity 0.6s ease-out 0.8s forwards;
 
   &.expanded {
     transform: translateX(0);
@@ -3755,6 +3850,110 @@
         font-weight: bold;
       }
     }
+  }
+}
+
+// Page Animation Keyframes
+@keyframes fadeInBackground {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInOpacity {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dropdownFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+}
+
+@keyframes dropdownItemFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Offstage area styles */
+.offstage-area {
+  position: absolute;
+  top: 0;
+  background: linear-gradient(135deg, rgba(125, 164, 227, 0.2) 0%, rgba(55, 65, 81, 0.2) 100%);
+  backdrop-filter: blur(20px);
+  z-index: 1;
+  
+  .offstage-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    color: rgba(156, 163, 175, 0.8);
+    font-size: 1.25rem;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    letter-spacing: 1px;
+  }
+  
+  &.left-offstage {
+    left: 0;
+    border-right: 2px solid rgba(59, 130, 246, 0.3);
+  }
+  
+  &.right-offstage {
+    border-left: 2px solid rgba(59, 130, 246, 0.3);
+  }
+}
+
+/* Performer styles for offstage performers */
+.performer.offstage {
+  opacity: 0.8;
+  
+  &:hover {
+    opacity: 1;
+    border-color: rgba(156, 163, 175, 0.9);
   }
 }
 

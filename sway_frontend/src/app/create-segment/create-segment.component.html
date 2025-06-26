@@ -65,13 +65,13 @@
       </div>
       
       <!-- Color by Skill -->
-      <button class="control-btn premium-btn" (click)="toggleColorBySkill()">
+      <button class="control-btn premium-btn animated-btn" (click)="toggleColorBySkill()">
         <span class="material-icons">palette</span>
         Color by Skill
       </button>
       
       <!-- Add Audio -->
-      <button class="control-btn primary" [class.loading]="isUploadingMusic" (click)="triggerAudioUpload()">
+      <button class="control-btn primary animated-btn" [class.loading]="isUploadingMusic" (click)="triggerAudioUpload()">
         <span class="material-icons" *ngIf="!isUploadingMusic">upload</span>
         <span class="material-icons loading-icon" *ngIf="isUploadingMusic">sync</span>
         Add Audio
@@ -81,7 +81,7 @@
       
       
       <!-- Add Backdrop (only in 3D view) -->
-      <button class="control-btn" *ngIf="is3DView" (click)="triggerBackdropUpload()">
+      <button class="control-btn animated-btn" *ngIf="is3DView" (click)="triggerBackdropUpload()">
         <span class="material-icons">video_library</span>
         Add Backdrop
       </button>
@@ -89,11 +89,14 @@
       
       <!-- Stage Tools Dropdown -->
       <div class="stage-tools-dropdown">
-        <button class="control-btn" (click)="toggleStageToolsDropdown($event)">
+        <button class="control-btn animated-btn" (click)="toggleStageToolsDropdown($event)">
           Stage Tools
-          <span class="material-icons dropdown-arrow">{{ showStageToolsDropdown ? 'expand_less' : 'expand_more' }}</span>
+          <span class="material-icons dropdown-arrow" [class.expanded]="showStageToolsDropdown">expand_more</span>
         </button>
-        <div class="dropdown-menu" *ngIf="showStageToolsDropdown">
+        <div class="dropdown-menu" 
+             [class.show]="showStageToolsDropdown"
+             [style.visibility]="showStageToolsDropdown ? 'visible' : 'hidden'"
+             [style.pointer-events]="showStageToolsDropdown ? 'auto' : 'none'">
           <button class="dropdown-item" (click)="toggle3DView()">
             <span class="material-icons">{{ is3DView ? 'view_in_ar' : 'grid_view' }}</span>
             {{ is3DView ? '2D View' : '3D View' }}
@@ -116,7 +119,7 @@
 
 
       <!-- Edit Stage Settings -->
-      <button class="control-btn settings-btn" (click)="openEditModal()" title="Edit Stage Settings">
+      <button class="control-btn settings-btn animated-btn" (click)="openEditModal()" title="Edit Stage Settings">
         <span class="material-icons">settings</span>
       </button>
     </div>
@@ -299,6 +302,8 @@
           <div class="performers-list">
             <div class="performer-item" *ngFor="let performer of sortedPerformers; let i = index" 
                  [class.selected]="selectedPerformerIds.has(performer.id)"
+                 [class.initial-animation]="!hasPlayedInitialAnimation"
+                 [style.animation-delay.s]="!hasPlayedInitialAnimation ? (0.8 + i * 0.1) : null"
                  (click)="selectPerformer(performer)">
               <span class="performer-number">{{i + 1}}</span>
               <span class="performer-name">{{performer.name}}</span>
@@ -309,7 +314,10 @@
             Available Team Memmbers <span class="plus-sign">+</span>
           </div>
           <hr class="add-performer-divider" />
-          <div *ngIf="showAddPerformerDropdown" class="add-performer-dropdown">
+          <div class="add-performer-dropdown" 
+               [class.show]="showAddPerformerDropdown"
+               [style.visibility]="showAddPerformerDropdown ? 'visible' : 'hidden'"
+               [style.pointer-events]="showAddPerformerDropdown ? 'auto' : 'none'">
             <div class="dropdown-content">
               <button class="dropdown-item" (click)="addDummyPerformer()">
                 <span class="material-icons">person_add</span>
@@ -359,7 +367,7 @@
             <div class="stage-label">{{ isStageFlipped ? 'FRONTSTAGE' : 'BACKSTAGE' }}</div>
           </div>
           <div class="stage-grid-outer"
-               [style.width.px]="stageWidthPx"
+               [style.width.px]="totalStageWidthPx"
                [style.height.px]="stageHeightPx"
                [ngStyle]="getStageStyle()">
             <!-- Spotlight overlay - only show for non-captains -->
@@ -385,7 +393,7 @@
             </div>
             
             <!-- SVG for movement lines -->
-            <svg class="movement-lines" [style.width.px]="stageWidthPx" [style.height.px]="stageHeightPx">
+            <svg class="movement-lines" [style.width.px]="totalStageWidthPx" [style.height.px]="stageHeightPx">
               <!-- Path lines -->
               <path *ngFor="let performer of performers"
                      [attr.d]="getPerformerPath(performer.id)"
@@ -394,11 +402,11 @@
             </svg>
 
             <!-- Main grid lines: vertical -->
-            <div *ngFor="let x of mainVerticals; let i = index" class="main-vertical" [style.left.px]="x"></div>
+            <div *ngFor="let x of mainVerticals; let i = index" class="main-vertical" [style.left.px]="x + offstageWidthPx"></div>
             <!-- Vertical grid numbers (bottom of grid) -->
             <div *ngFor="let x of mainVerticals; let i = index"
                  class="grid-number vertical-number"
-                 [style.left.px]="x"
+                 [style.left.px]="x + offstageWidthPx"
                  [style.bottom.px]="-28">
               {{ i - 4 }}
             </div>
@@ -412,14 +420,27 @@
               {{ i }}
             </div>
             <!-- Subgrid lines: vertical -->
-            <div *ngFor="let x of subVerticals" class="sub-vertical" [style.left.px]="x"></div>
+            <div *ngFor="let x of subVerticals" class="sub-vertical" [style.left.px]="x + offstageWidthPx"></div>
             <!-- Subgrid lines: horizontal -->
             <div *ngFor="let y of subHorizontals" class="sub-horizontal" [style.top.px]="y"></div>
             
+            <!-- Offstage area indicators -->
+            <div class="offstage-area left-offstage" 
+                 [style.width.px]="offstageWidthPx"
+                 [style.height.px]="stageHeightPx">
+              <div class="offstage-label">OFFSTAGE LEFT</div>
+            </div>
+            <div class="offstage-area right-offstage" 
+                 [style.left.px]="stageWidthPx + offstageWidthPx"
+                 [style.width.px]="offstageWidthPx"
+                 [style.height.px]="stageHeightPx">
+              <div class="offstage-label">OFFSTAGE RIGHT</div>
+            </div>
+            
             <!-- Mirror line down the middle when mirror mode is enabled -->
-            <div *ngIf="isMirrorModeEnabled" class="mirror-line" [style.left.px]="stageWidthPx / 2">
-      <div class="mirror-line-dots"></div>
-    </div>
+            <div *ngIf="isMirrorModeEnabled" class="mirror-line" [style.left.px]="offstageWidthPx + (stageWidthPx / 2)">
+              <div class="mirror-line-dots"></div>
+            </div>
             
             <!-- Previous position indicators -->
             <div *ngFor="let performer of performers" 
@@ -435,6 +456,7 @@
                  [class.selected]="selectedPerformerIds.has(performer.id)"
                  [class.hovered]="isPerformerHovered(performer)"
                  [class.loading]="isPerformerSelectionLoading"
+                 [class.offstage]="isPerformerOffstage(performer)"
                  (mousedown)="isCaptain && onDragStart($event, performer)"
                  (click)="isCaptain && onPerformerClick(performer)"
                  (mouseenter)="isCaptain && onPerformerMouseEnter(performer)"
