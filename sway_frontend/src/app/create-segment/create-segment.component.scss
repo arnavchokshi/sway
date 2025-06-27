@@ -3957,3 +3957,16 @@
   }
 }
 
+/* --- Mobile fixes: ensure full stage is visible, including OFFSTAGE RIGHT --- */
+@media (max-width: 768px) {
+  .stage-container {
+    justify-content: flex-start !important; /* align left so right side isn't cut */
+    align-items: flex-start !important;    /* align top to avoid vertical shift */
+    overflow: visible !important;          /* don't crop scaled stage */
+  }
+
+  .stage-area {
+    transform-origin: top left !important; /* keep origin consistent with TS logic */
+  }
+}
+

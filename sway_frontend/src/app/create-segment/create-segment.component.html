@@ -470,17 +470,6 @@
           </div>
         </div>
         <div #threeContainer class="three-container" *ngIf="is3DView"></div>
-        <div class="stage-position-control" *ngIf="!is3DView">
-          <input type="range" 
-                 class="stage-position-slider" 
-                 min="-300" 
-                 max="100" 
-                 [value]="stageVerticalOffset" 
-                 (pointerdown)="onSliderPointerDown($event)"
-                 (pointerup)="onSliderPointerUp($event)"
-                 (pointermove)="onSliderPointerMove($event)"
-                 title="Stage vertical position (↑ Up Arrow / ↓ Down Arrow)">
-        </div>
       </div>
 
       <!-- Control Bar -->
@@ -646,7 +635,7 @@
                   />
                 </div>
                 <div class="dimension-field">
-                  <label class="form-label-small">Divisions</label>
+                  <label class="form-label-small">Sub-Divisions</label>
                   <input 
                     type="number" 
                     min="1" 

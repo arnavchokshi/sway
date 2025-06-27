@@ -9,6 +9,7 @@ export interface PerformerPosition {
   x: number;
   y: number;
   side: 'left' | 'right' | 'center';
+  formationIndex?: number;
   segmentName?: string;
 }
 
@@ -25,6 +26,8 @@ export interface ConsistencyWarning {
   previousSide: 'left' | 'right' | 'center';
   currentSegment: string;
   currentSide: 'left' | 'right' | 'center';
+  previousFormationIndex?: number;
+  currentFormationIndex?: number;
   message: string;
 }
 
@@ -63,6 +66,61 @@ export class PerformerConsistencyService {
   ) {}
 
   /**
+   * Helper: returns true when x is within the visible stage (>=0 and <= stageWidth)
+   */
+  private isOnStage(x: number, stageWidth: number): boolean {
+    return x >= 0 && x <= stageWidth;
+  }
+
+  /**
+   * Returns performer positions for the first (or last) formation in a segment where
+   * each performer is actually on stage. This is used for boundary checks so that
+   * off-stage appearances are ignored.
+   */
+  private getBoundaryPerformerPositions(
+    segment: any,
+    rosterMap: Map<string, any>,
+    boundary: 'start' | 'end'
+  ): PerformerPosition[] {
+    if (!segment.formations || segment.formations.length === 0) return [];
+
+    // Decide iteration order
+    const formations = boundary === 'start'
+      ? segment.formations
+      : [...segment.formations].slice().reverse();
+
+    const collected = new Map<string, PerformerPosition>();
+
+    for (const formation of formations) {
+      formation.forEach((performer: any) => {
+        if (
+          performer.user &&
+          !collected.has(performer.user) &&
+          this.isOnStage(performer.x, segment.width)
+        ) {
+          const side = this.determineSide(performer.x, segment.width);
+          collected.set(performer.user, {
+            performerId: performer.user,
+            performerName: this.getPerformerName(performer, rosterMap),
+            x: performer.x,
+            y: performer.y,
+            side,
+            formationIndex: boundary === 'start' ? formations.indexOf(formation) : (segment.formations.length - 1 - formations.indexOf(formation)),
+            segmentName: segment.name,
+          });
+        }
+      });
+
+      // Early exit optimisation: if we've collected every performer that is ever on stage in this segment
+      // and we are on the boundary side we care about, further formations will not give new information.
+      // But we cannot easily know "every" performer, so simply continue.
+      // Break here if at least one performer collected and you only need first formation with any performer.
+    }
+
+    return Array.from(collected.values());
+  }
+
+  /**
    * Analyzes performer positioning consistency across all segments for a team
    * Only checks boundary formations: first formation vs previous segment's last formation,
    * and last formation vs next segment's first formation
@@ -97,14 +155,20 @@ export class PerformerConsistencyService {
               
               console.log(`\nProcessing boundary ${i}: ${currentSegment.name} ↔ ${nextSegment.name}`);
               
-              // Check current segment's last formation vs next segment's first formation
-              console.log(`  Checking boundary: ${currentSegment.name} last formation vs ${nextSegment.name} first formation`);
-              const lastFormationAnalysis = this.analyzeFormation(
-                currentSegment.formations[currentSegment.formations.length - 1], 
-                currentSegment, 
-                rosterMap
+              // Check current segment's last on-stage formation vs next segment's first on-stage formation
+              console.log(`  Checking boundary: ${currentSegment.name} last on-stage formation vs ${nextSegment.name} first on-stage formation`);
+
+              const lastFormationAnalysis = this.getBoundaryPerformerPositions(
+                currentSegment,
+                rosterMap,
+                'end'
               );
-              const nextFirstFormationAnalysis = this.analyzeFormation(nextSegment.formations[0], nextSegment, rosterMap);
+
+              const nextFirstFormationAnalysis = this.getBoundaryPerformerPositions(
+                nextSegment,
+                rosterMap,
+                'start'
+              );
               
               this.compareFormations(
                 lastFormationAnalysis,
@@ -158,10 +222,13 @@ export class PerformerConsistencyService {
     const warnings: MirrorHeightWarning[] = [];
     const stageCenterX = segment.width / 2;
     
+    // Filter out performers who are off-stage
+    const onStagePerformers = formation.filter((p: any) => this.isOnStage(p.x, segment.width));
+    
     // Group performers by their Y position (same row)
     const performersByY = new Map<number, any[]>();
     
-    formation.forEach((performer: any) => {
+    onStagePerformers.forEach((performer: any) => {
       if (performer.user) { // Only analyze real performers
         const y = Math.round(performer.y * 10) / 10; // Round to 1 decimal place for grouping
         if (!performersByY.has(y)) {
@@ -230,6 +297,9 @@ export class PerformerConsistencyService {
     const stageDepth = segment.depth || 24; // Default stage depth
     const stageCenterY = stageDepth / 2;
     
+    // Filter out performers who are off-stage
+    const onStagePerformers = formation.filter((p: any) => this.isOnStage(p.x, segment.width));
+    
     // Analyze performers in the current formation
     const performersWithPositions: Array<{
       id: string;
@@ -239,7 +309,7 @@ export class PerformerConsistencyService {
       skillLevel: number;
     }> = [];
     
-    formation.forEach((performer: any) => {
+    onStagePerformers.forEach((performer: any) => {
       if (performer.user) { // Only analyze real performers, not dummies
         const user = rosterMap.get(performer.user);
         if (user) {
@@ -313,7 +383,7 @@ export class PerformerConsistencyService {
     
     if (formation && formation.length > 0) {
       formation.forEach((performer: any) => {
-        if (performer.user) { // Only analyze real performers, not dummies
+        if (performer.user && this.isOnStage(performer.x, segment.width)) { // Only analyze real on-stage performers
           const side = this.determineSide(performer.x, segment.width);
           performerPositions.push({
             performerId: performer.user,
@@ -374,6 +444,8 @@ export class PerformerConsistencyService {
             previousSide: performer1.side,
             currentSegment: segment2Name,
             currentSide: performer2.side,
+            previousFormationIndex: performer1.formationIndex,
+            currentFormationIndex: performer2.formationIndex,
             message: this.generateWarningMessage(
               performer1.performerName,
               segment1Name,
@@ -382,7 +454,7 @@ export class PerformerConsistencyService {
               performer2.side,
               position
             )
-          };
+          } as ConsistencyWarning;
           
           console.log('Adding warning:', warning.message);
           warnings.push(warning);
@@ -404,7 +476,7 @@ export class PerformerConsistencyService {
       const lastFormation = segment.formations[segment.formations.length - 1];
       
       lastFormation.forEach((performer: any) => {
-        if (performer.user) { // Only analyze real performers, not dummies
+        if (performer.user && this.isOnStage(performer.x, segment.width)) { // Only analyze real on-stage performers
           const side = this.determineSide(performer.x, segment.width);
           performerPositions.push({
             performerId: performer.user,
@@ -412,6 +484,7 @@ export class PerformerConsistencyService {
             x: performer.x,
             y: performer.y,
             side,
+            formationIndex: segment.formations.indexOf(lastFormation),
             segmentName: segment.name
           });
         }
@@ -503,38 +576,45 @@ export class PerformerConsistencyService {
             
             sortedSegments.forEach(segment => {
               if (segment.formations && segment.formations.length > 0) {
-                // Check first formation
-                const firstFormation = segment.formations[0];
-                const firstPerformer = firstFormation.find((p: any) => p.user === performerId);
-                
-                if (firstPerformer) {
-                  const side = this.determineSide(firstPerformer.x, segment.width);
+                // --- First formation where performer is on stage ---
+                let firstOnStage: any = null;
+                for (const formation of segment.formations) {
+                  const candidate = formation.find((p: any) => p.user === performerId && this.isOnStage(p.x, segment.width));
+                  if (candidate) { firstOnStage = candidate; break; }
+                }
+
+                if (firstOnStage) {
+                  const side = this.determineSide(firstOnStage.x, segment.width);
                   positions.push({
-                    performerId: firstPerformer.user,
-                    performerName: this.getPerformerName(firstPerformer, rosterMap),
-                    x: firstPerformer.x,
-                    y: firstPerformer.y,
+                    performerId: firstOnStage.user,
+                    performerName: this.getPerformerName(firstOnStage, rosterMap),
+                    x: firstOnStage.x,
+                    y: firstOnStage.y,
                     side,
+                    formationIndex: segment.formations.indexOf(firstOnStage),
                     segmentName: `${segment.name} (start)`
                   });
                 }
                 
-                // Check last formation (only if different from first)
-                if (segment.formations.length > 1) {
-                  const lastFormation = segment.formations[segment.formations.length - 1];
-                  const lastPerformer = lastFormation.find((p: any) => p.user === performerId);
-                  
-                  if (lastPerformer) {
-                    const side = this.determineSide(lastPerformer.x, segment.width);
-                    positions.push({
-                      performerId: lastPerformer.user,
-                      performerName: this.getPerformerName(lastPerformer, rosterMap),
-                      x: lastPerformer.x,
-                      y: lastPerformer.y,
-                      side,
-                      segmentName: `${segment.name} (end)`
-                    });
-                  }
+                // --- Last formation where performer is on stage ---
+                let lastOnStage: any = null;
+                for (let fIdx = segment.formations.length - 1; fIdx >= 0; fIdx--) {
+                  const formation = segment.formations[fIdx];
+                  const candidate = formation.find((p: any) => p.user === performerId && this.isOnStage(p.x, segment.width));
+                  if (candidate) { lastOnStage = candidate; break; }
+                }
+
+                if (lastOnStage && (firstOnStage ? lastOnStage !== firstOnStage : true)) {
+                  const side = this.determineSide(lastOnStage.x, segment.width);
+                  positions.push({
+                    performerId: lastOnStage.user,
+                    performerName: this.getPerformerName(lastOnStage, rosterMap),
+                    x: lastOnStage.x,
+                    y: lastOnStage.y,
+                    side,
+                    formationIndex: segment.formations.indexOf(lastOnStage),
+                    segmentName: `${segment.name} (end)`
+                  });
                 }
               }
             });

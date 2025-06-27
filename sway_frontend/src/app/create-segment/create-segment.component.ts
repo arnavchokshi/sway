@@ -386,6 +386,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // Animation state tracking
   hasPlayedInitialAnimation = false;
 
+  // Pan sensitivity (multiplier on wheel delta). Increase to pan faster, decrease for slower.
+  panSensitivityX = 1;
+  panSensitivityY = 1;
+
+  // Throttle live updating of formation tips while dragging performers
+  private lastTipUpdateTime = 0;
+  private readonly TIP_UPDATE_THROTTLE_MS = 300;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -443,7 +451,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   ngOnInit() {
     // Detect iPhone or small mobile
-    this.isMobile = /iPhone|iPod|Android.*Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 500;
+    this.isMobile = /iPhone|iPod|Android.*Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
     
     // Additional iPhone-specific detection
     const isIPhone = /iPhone|iPod/i.test(navigator.userAgent);
@@ -911,7 +919,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.setupSliderDebug();
       // Fix: recalculate grid using actual DOM size
       this.calculateStageWithDOMSize();
-      this.resizeListener = () => this.calculateStageWithDOMSize();
+      // NEW: auto-fit the full stage (including offstage areas) into the mobile viewport
+      this.adjustMobileZoomToFit();
+      this.resizeListener = () => {
+        this.calculateStageWithDOMSize();
+        this.adjustMobileZoomToFit();
+      };
       window.addEventListener('resize', this.resizeListener);
       
       // Fix: Use ChangeDetectorRef to handle the height change properly
@@ -1250,6 +1263,42 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     });
   }
 
+  /**
+   * Calculates the next available dummy number by scanning existing dummy performers
+   * in all formations as well as any dummy templates already attached to the segment.
+   * This guarantees unique dummy names even if the local counter is reset.
+   */
+  private getNextDummyNumber(): number {
+    let maxDummyNum = 0;
+
+    // 1) Look at dummy templates that already exist on the segment (if any)
+    if (this.segment?.dummyTemplates?.length) {
+      this.segment.dummyTemplates.forEach((template: any) => {
+        const num = parseInt(template.name, 10);
+        if (!isNaN(num)) {
+          maxDummyNum = Math.max(maxDummyNum, num);
+        }
+      });
+    }
+
+    // 2) Look at current formations for any dummy performers already placed
+    this.formations.forEach(formation => {
+      formation.forEach(p => {
+        if (p.isDummy) {
+          const num = parseInt(p.dummyName || p.name, 10);
+          if (!isNaN(num)) {
+            maxDummyNum = Math.max(maxDummyNum, num);
+          }
+        }
+      });
+    });
+
+    // Keep the component level counter ahead so other legacy usages remain unique
+    this.dummyCounter = Math.max(this.dummyCounter, maxDummyNum + 1);
+
+    return maxDummyNum + 1;
+  }
+
   addDummyPerformer() {
     // Prevent rapid clicking
     if (this.isAddingDummyPerformer) {
@@ -1260,11 +1309,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
     if (!this.segment?._id) {
       // For new segments, create a temporary dummy template
-      const dummyName = `${this.dummyCounter}`;
+      const nextDummyNumber = this.getNextDummyNumber();
+      const dummyName = `${nextDummyNumber}`;
       const dummyTemplateId = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Increment counter BEFORE creating the dummy to ensure unique names
-      this.dummyCounter++;
       
       // Find an available position for the new dummy performer
       const position = this.findAvailablePosition();
@@ -1297,7 +1344,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       return;
     }
 
-    const dummyName = `${this.dummyCounter}`;
+    const dummyName = `${this.getNextDummyNumber()}`;
     
     // Increment counter BEFORE creating the dummy to ensure unique names
     this.dummyCounter++;
@@ -1623,6 +1670,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Update selection rectangle in real-time during drag
     this.calculateSelectionRectangle();
 
+    // Throttled live update of formation positioning tips
+    const now = Date.now();
+    if (now - this.lastTipUpdateTime > this.TIP_UPDATE_THROTTLE_MS) {
+      this.lastTipUpdateTime = now;
+      this.checkFormationPositioningTips();
+    }
+
     this.triggerAutoSave();
   };
 
@@ -1669,13 +1723,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     event.preventDefault();
     event.stopPropagation();
 
-    // Find the stage-grid-outer element to calculate coordinates relative to it
+    // Get coordinates relative to the stage-grid-outer (excludes header height)
     const stageGridElement = this.stageRef.nativeElement.querySelector('.stage-grid-outer') as HTMLElement;
     if (!stageGridElement) return;
 
     const rect = stageGridElement.getBoundingClientRect();
-    this.selectionStartX = event.clientX - rect.left;
-    this.selectionStartY = event.clientY - rect.top;
+    const scale = this.currentZoom || 1;
+    const translateY = this.stageVerticalOffset || 0;
+    
+    // Calculate raw mouse coordinates relative to the stage-grid-outer
+    const rawX = event.clientX - rect.left;
+    const rawY = event.clientY - rect.top;
+    
+    // Apply inverse transformation to get coordinates in the stage-grid coordinate system
+    this.selectionStartX = rawX / scale;
+    this.selectionStartY = rawY / scale;
     this.selectionEndX = this.selectionStartX;
     this.selectionEndY = this.selectionStartY;
     this.isSelecting = false; // Will be set to true if we move enough
@@ -1688,13 +1750,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   onStageMouseMove = (event: MouseEvent) => {
     if (!this.stageRef) return;
 
-    // Find the stage-grid-outer element to calculate coordinates relative to it
+    // Get coordinates relative to the stage-grid-outer (excludes header height)
     const stageGridElement = this.stageRef.nativeElement.querySelector('.stage-grid-outer') as HTMLElement;
     if (!stageGridElement) return;
 
     const rect = stageGridElement.getBoundingClientRect();
-    const currentX = event.clientX - rect.left;
-    const currentY = event.clientY - rect.top;
+    const scale = this.currentZoom || 1;
+    const translateY = this.stageVerticalOffset || 0;
+    
+    // Calculate raw mouse coordinates relative to the stage-grid-outer
+    const rawX = event.clientX - rect.left;
+    const rawY = event.clientY - rect.top;
+    
+    // Apply inverse transformation to get coordinates in the stage-grid coordinate system
+    const currentX = rawX / scale;
+    const currentY = rawY / scale;
 
     // Calculate distance moved
     const dx = currentX - this.selectionStartX;
@@ -1755,7 +1825,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private updateSelection() {
     if (!this.stageRef || !this.isSelecting) return;
 
-    // Calculate selection rectangle
+    // Calculate selection rectangle (these are now in unscaled coordinates)
     const left = Math.min(this.selectionStartX, this.selectionEndX);
     const right = Math.max(this.selectionStartX, this.selectionEndX);
     const top = Math.min(this.selectionStartY, this.selectionEndY);
@@ -1768,11 +1838,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       const performerSize = 25; // px - same as in getPerformerStyle
       const totalPosition = this.getPerformerTotalPosition(performer);
       
-      // Calculate performer position in pixels using the same logic as getPerformerStyle
+      // Calculate performer position in unscaled pixels (same coordinate system as selection)
       const performerX = (totalPosition.x / (this.width + 2 * this.offstageWidth)) * this.totalStageWidthPx;
       const performerY = (performer.y / this.depth) * this.stageHeightPx;
 
-      // Check if performer is within the selection rectangle
+      // Check if performer is within the selection rectangle (both in unscaled coordinates)
       if (performerX >= left && performerX <= right && 
           performerY >= top && performerY <= bottom) {
         this.selectedPerformerIds.add(performer.id);
@@ -2126,9 +2196,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const currentUserPerformer = this.performers.find(p => p.id === this.currentUserId);
     if (!currentUserPerformer) return {};
 
-    // Correct: use proportional position
-    const xPercent = (currentUserPerformer.x / this.width) * 100;
-    const yPercent = (currentUserPerformer.y / this.depth) * 100;
+    // Use the same coordinate system as performers for consistent positioning
+    const totalPosition = this.getPerformerTotalPosition(currentUserPerformer);
+    
+    // Convert to pixel coordinates using the same logic as getPerformerStyle
+    const left = (totalPosition.x / (this.width + 2 * this.offstageWidth)) * this.totalStageWidthPx;
+    const top = (currentUserPerformer.y / this.depth) * this.stageHeightPx;
+
+    // Scale the spotlight radius based on zoom level to maintain consistent visual size
+    const zoomAdjustedRadius = this.spotlightRadius * (this.currentZoom || 1);
 
     return {
       'pointer-events': 'none',
@@ -2138,7 +2214,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       'width': this.stageWidthPx + 'px',
       'height': this.stageHeightPx + 'px',
       'z-index': 10,
-      'background': `radial-gradient(circle ${this.spotlightRadius}px at ${xPercent}% ${yPercent}%, transparent 0%, transparent 70%, rgba(0,0,0,${this.spotlightOpacity}) 100%)`
+      'background': `radial-gradient(circle ${zoomAdjustedRadius}px at ${left}px ${top}px, transparent 0%, transparent 70%, rgba(0,0,0,${this.spotlightOpacity}) 100%)`
     };
   }
 
@@ -2574,21 +2650,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       warning.previousSegment === this.segment.name
     );
     
-    // Filter warnings based on current formation index
+    // Show the warning when we're on the formation where the issue occurs
     return segmentWarnings.filter(warning => {
-      const isFirstFormation = this.currentFormationIndex === 0;
-      const isLastFormation = this.currentFormationIndex === this.formations.length - 1;
-      
-      if (isFirstFormation) {
-        // Only show warnings about the start of this segment when on first formation
-        return warning.currentSegment === this.segment.name;
-      } else if (isLastFormation) {
-        // Only show warnings about the end of this segment when on last formation
-        return warning.previousSegment === this.segment.name;
-      } else {
-        // Don't show any warnings for middle formations
-        return false;
+      if (warning.currentSegment === this.segment.name && warning.currentFormationIndex !== undefined) {
+        return this.currentFormationIndex === warning.currentFormationIndex;
       }
+      if (warning.previousSegment === this.segment.name && warning.previousFormationIndex !== undefined) {
+        return this.currentFormationIndex === warning.previousFormationIndex;
+      }
+      return false;
     });
   }
 
@@ -3961,8 +4031,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   convertToDummy() {
     if (!this.selectedPerformer) return;
 
-    const dummyName = `${this.dummyCounter}`;
-    const dummyId = `dummy-${this.dummyCounter}`;
+    const nextDummyNumber = this.getNextDummyNumber();
+    const dummyName = `${nextDummyNumber}`;
+    const dummyId = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     // Create a new dummy performer with the same properties
     const dummyPerformer: Performer = {
@@ -4325,20 +4396,36 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (!stageArea) return;
 
     stageArea.style.transform = this.getStageTransform();
-    stageArea.style.transformOrigin = 'center center';
+    // On mobile use top-left so the whole scaled stage starts at the left edge
+    stageArea.style.transformOrigin = this.isMobile ? 'top left' : 'center center';
   }
 
   private enforcePanBounds() {
     const stageArea = this.stageRef?.nativeElement;
     if (!stageArea) return;
 
-    const rect = stageArea.getBoundingClientRect();
-    const maxX = (rect.width - rect.width) / 2;
-    const maxY = (rect.height - rect.height) / 2;
+    const rect = stageArea.getBoundingClientRect(); // already scaled by CSS transform
+    const scale = this.currentZoom || 1;
 
-    // Clamp the translation values
-    this.currentTranslateX = Math.max(-maxX, Math.min(maxX, this.currentTranslateX));
-    this.currentTranslateY = Math.max(-maxY, Math.min(maxY, this.currentTranslateY));
+    // Base (un-scaled) size of the area
+    const baseWidth = rect.width / scale;
+    const baseHeight = rect.height / scale;
+
+    const excessWidth = rect.width - baseWidth;   // extra pixels gained by zoom
+    const excessHeight = rect.height - baseHeight;
+
+    const maxX = excessWidth / 2;
+    const maxY = excessHeight / 2;
+
+    // Allow users to drag further in any direction (one extra container size)
+    const horizontalAllowance = rect.width;
+    const verticalAllowance = rect.height;
+
+    const allowedX = maxX + horizontalAllowance;
+    const allowedY = maxY + verticalAllowance;
+
+    this.currentTranslateX = Math.max(-allowedX, Math.min(allowedX, this.currentTranslateX));
+    this.currentTranslateY = Math.max(-allowedY, Math.min(allowedY, this.currentTranslateY));
   }
 
   toggle3DView() {
@@ -5052,15 +5139,37 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const stageArea = this.stageRef.nativeElement;
     if (!stageArea) return;
 
-    // Mouse wheel zoom
-    stageArea.addEventListener('wheel', (event: WheelEvent) => {
-      event.preventDefault();
-      const now = Date.now();
-      if (now - this.lastZoomTime < this.zoomDebounceTime) return;
-      this.lastZoomTime = now;
+    // Use the entire stage-container as the interaction surface
+    const container = stageArea.parentElement || stageArea;
 
-      const delta = event.deltaY > 0 ? -this.zoomStep : this.zoomStep;
-      this.zoomAtPoint(event.clientX, event.clientY, delta);
+    // Mouse-wheel / track-pad gestures
+    container.addEventListener('wheel', (event: WheelEvent) => {
+      // Trackpad pinch gestures on most browsers fire wheel events with ctrlKey === true.
+      // We only want to treat those as zoom. Regular two-finger scrolls should be allowed
+      // to perform their default behaviour (i.e. page scroll / pan around the interface).
+
+      if (event.ctrlKey) {
+        // Pinch-to-zoom (track-pad) → handle zoom.
+        event.preventDefault();
+
+        const now = Date.now();
+        if (now - this.lastZoomTime < this.zoomDebounceTime) return;
+        this.lastZoomTime = now;
+
+        const delta = event.deltaY > 0 ? -this.zoomStep : this.zoomStep;
+        this.zoomAtPoint(event.clientX, event.clientY, delta);
+      } else {
+        // Two-finger scroll → pan (look around) instead of scrolling the whole page.
+        event.preventDefault();
+
+        // Apply sensitivity factors and normalize by current zoom so feel is consistent.
+        const scale = this.currentZoom || 1;
+        this.currentTranslateX -= (event.deltaX * this.panSensitivityX) / scale;
+        this.currentTranslateY -= (event.deltaY * this.panSensitivityY) / scale;
+
+        this.enforcePanBounds();
+        this.updateStageTransform();
+      }
     }, { passive: false });
 
     // Touch pinch zoom
@@ -5111,10 +5220,31 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Update zoom
     this.currentZoom = newZoom;
 
-    // Reset translation to keep stage centered
-    this.currentTranslateX = 0;
-    this.currentTranslateY = 0;
+    // Adjust translation so the zoom focuses on the point under the cursor / touch-midpoint.
+    const container = this.stageRef.nativeElement.parentElement || this.stageRef.nativeElement;
+    const rect = container.getBoundingClientRect();
 
+    const x = clientX - rect.left; // position inside container (px)
+    const y = clientY - rect.top;
+
+    // Existing translate components (before zoom)
+    const prevScale = this.currentZoom;
+    const prevTx = this.currentTranslateX;
+    const prevTy = this.currentTranslateY + this.stageVerticalOffset; // include vertical slider offset
+
+    // World coordinates of the focus point before zoom
+    const worldX = (x / prevScale) - prevTx;
+    const worldY = (y / prevScale) - prevTy;
+
+    // New translation so that world point stays under the same screen position
+    const newTx = (x / newZoom) - worldX;
+    const newTotalTy = (y / newZoom) - worldY; // includes slider offset
+
+    this.currentTranslateX = newTx;
+    this.currentTranslateY = newTotalTy - this.stageVerticalOffset;
+
+    // Clamp inside bounds and apply
+    this.enforcePanBounds();
     this.updateStageTransform();
   }
 
@@ -5414,19 +5544,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     });
 
     requestAnimationFrame(() => {
-      const stageArea = this.stageRef?.nativeElement;
-      if (!stageArea) return;
-      const transform = `scale(${this.currentZoom || 1}) translate(0, ${this.stageVerticalOffset}px)`;
-      stageArea.style.transform = transform;
-      stageArea.style.transformOrigin = 'center center';
+      this.updateStageTransform();
     });
   }
 
   // Update the existing getStageTransform method
   getStageTransform(): string {
     const scale = this.currentZoom || 1;
-    const translateY = this.stageVerticalOffset || 0;
-    return `scale(${scale}) translate(0, ${translateY}px)`;
+    // Combine slider vertical offset with pan amount
+    const translateX = this.currentTranslateX || 0;
+    const translateY = (this.stageVerticalOffset || 0) + (this.currentTranslateY || 0);
+    return `translate(${translateX}px, ${translateY}px) scale(${scale})`;
   }
 
   // Add logic to delete all dummies when deleting a segment
@@ -5625,19 +5753,34 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Sort by distance from center (closest first)
     allGridPositions.sort((a, b) => a.distance - b.distance);
 
-    // Try each grid position, starting from the center
-    for (const position of allGridPositions) {
-      // Check if this position is far enough from all existing performers
-      const isAvailable = this.performers.every(performer => {
-        const distance = Math.sqrt(
-          Math.pow(performer.x - position.x, 2) + Math.pow(performer.y - position.y, 2)
-        );
-        return distance >= minDistance;
-      });
+    // NEW LOGIC: Prioritize offstage (side‐stage) spots for new performers
+    const isOffstage = (p: { x: number; y: number }) => p.x < 0 || p.x > this.width;
+    const offstagePositions = allGridPositions.filter(isOffstage);
+    const onstagePositions = allGridPositions.filter(p => !isOffstage(p));
 
-      if (isAvailable) {
-        return { x: position.x, y: position.y };
+    const tryFindPosition = (positions: { x: number; y: number }[]) => {
+      for (const pos of positions) {
+        const isAvailable = this.performers.every(per => {
+          const distance = Math.sqrt(
+            Math.pow(per.x - pos.x, 2) + Math.pow(per.y - pos.y, 2)
+          );
+          return distance >= minDistance;
+        });
+        if (isAvailable) {
+          return pos;
+        }
       }
+      return null;
+    };
+
+    let candidate = tryFindPosition(offstagePositions);
+    if (candidate) {
+      return { x: candidate.x, y: candidate.y };
+    }
+
+    candidate = tryFindPosition(onstagePositions);
+    if (candidate) {
+      return { x: candidate.x, y: candidate.y };
     }
 
     // If no grid position is available, try positions with some offset from center
@@ -6302,6 +6445,34 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     geometry.computeVertexNormals();
     
     return geometry;
+  }
+
+  private adjustMobileZoomToFit(): void {
+    // Only apply on mobile devices where the stage width exceeds the viewport
+    if (!this.isMobile || !this.stageRef) {
+      return;
+    }
+
+    const container = this.stageRef.nativeElement.parentElement as HTMLElement | null;
+    if (!container) {
+      return;
+    }
+
+    const containerWidth = container.getBoundingClientRect().width;
+    if (containerWidth === 0) {
+      return;
+    }
+
+    const requiredScale = Math.min(1, containerWidth / this.totalStageWidthPx);
+
+    this.currentZoom = requiredScale;
+
+    // On mobile we align the stage flush left to guarantee full width is visible
+    this.currentTranslateX = 0;
+    // Reset vertical translation so top is visible
+    this.currentTranslateY = 0;
+
+    this.updateStageTransform();
   }
 }
  
