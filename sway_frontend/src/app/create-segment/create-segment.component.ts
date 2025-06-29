@@ -285,15 +285,24 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Add timeline zoom properties
   timelineZoom = 1;
-  minTimelineZoom = 0.05;
-  maxTimelineZoom = 1.5;  // Changed from 1.0 to 2.0 to allow zooming in
-  timelineZoomStep = 0.01;
+  minTimelineZoom = 0.5;
+  maxTimelineZoom = 4.5;  // Increased from 1.5 to 3 for more zoom-in
+  timelineZoomStep = 0.02;
+
+  // Dynamic timeline width calculation
+  private timelineContainerWidth = 0;
+  private audioDuration = 0;
 
   // Add these properties after other drag-related properties
   draggingFormationIndex: number | null = null;
   dragFormationStartX: number = 0;
   dragFormationStartIndex: number = 0;
   dragFormationOverIndex: number | null = null;
+
+  // Add cursor drag properties
+  isDraggingCursor = false;
+  cursorDragStartX = 0;
+  cursorDragStartTime = 0;
 
   stageGridHeightPx: number = 0;
 
@@ -393,6 +402,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // Throttle live updating of formation tips while dragging performers
   private lastTipUpdateTime = 0;
   private readonly TIP_UPDATE_THROTTLE_MS = 300;
+
+  isHoveringSeekBar = false;
+
+  onSeekBarMouseEnter() {
+    this.isHoveringSeekBar = true;
+  }
+
+  onSeekBarMouseLeave() {
+    this.isHoveringSeekBar = false;
+    this.hoveredTimelineX = null;
+    this.hoveredTimelineTime = null;
+  }
 
   constructor(
     private route: ActivatedRoute,
@@ -940,6 +961,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     } else {
       console.error('Stage reference not available in ngAfterViewInit');
     }
+    setTimeout(() => this.updateMinTimelineZoom(), 100);
+    window.addEventListener('resize', this.updateMinTimelineZoom.bind(this));
   }
 
   private setupSliderDebug() {
@@ -1035,29 +1058,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   goToFormation(index: number) {
     this.currentFormationIndex = index;
     this.playingFormationIndex = index;
-    
-    // Don't clear the previous position display when navigating between formations
-    // This allows the selected performer's previous position to persist across formation changes
-    // this.selectedPerformerForPreviousPosition = null;
-    
-    // Simply add up all formation and transition times before this index
-    let t = 0;
-    for (let i = 0; i < index; i++) {
-      t += (this.formationDurations[i] || 4);
-      if (i < this.animationDurations.length) {
-        t += (this.animationDurations[i] || 1);
-      }
-    }
-    
-    this.playbackTime = t;
-    if (this.waveSurfer && this.waveSurfer.getDuration()) {
-      this.waveSurfer.seekTo(t / this.waveSurfer.getDuration());
-      this.isPlaying = this.waveSurfer.isPlaying();
-    }
-    // Always update performer tips when changing formation
+    // Do NOT update playbackTime or seek audio here
+    // Only update performer tips and selection rectangle
     this.checkFormationPositioningTips();
-    
-    // Recalculate selection rectangle for selected performers in the new formation
     if (this.selectedPerformerIds.size > 0) {
       this.calculateSelectionRectangle();
     }
@@ -1065,7 +1068,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   jumpToFormation(index: number) {
     this.goToFormation(index);
-    // No need to call checkFormationPositioningTips here, as goToFormation already does
   }
 
   async prevFormation() {
@@ -2808,10 +2810,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         container: '#waveform',
         waveColor: '#3b82f6',
         progressColor: '#ffd700',
-        cursorColor: '#ffd700',
+        cursorColor: 'transparent', // Hide WaveSurfer's built-in cursor
+        cursorWidth: 0, // Hide WaveSurfer's built-in cursor
         barWidth: 2,
         barRadius: 3,
-        cursorWidth: 2,
         height: 40,
         barGap: 2,
         normalize: true,
@@ -2860,6 +2862,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     } catch (error) {
 
     }
+    setTimeout(() => this.updateMinTimelineZoom(), 200);
   }
 
   togglePlay() {
@@ -2904,6 +2907,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         
         // Force change detection for playhead update
         this.cdr.detectChanges();
+        
+        // Auto-scroll to keep playhead visible during playback
+        this.autoScrollToPlayhead();
         
         // Update video if needed
         const videoElement = this.videoElement;
@@ -3004,6 +3010,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.playbackTimer = setInterval(() => {
       this.playbackTime += 0.1;
       const currentTime = this.playbackTime;
+      
+      // Auto-scroll to keep playhead visible during playback
+      this.autoScrollToPlayhead();
+      
       let t = 0;
       let found = false;
       for (let i = 0; i < this.formations.length; i++) {
@@ -3172,6 +3182,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     document.removeEventListener('mousemove', this.onTransitionResizeMove);
     document.removeEventListener('mouseup', this.onTransitionResizeEnd);
     
+    // Remove cursor drag event listeners
+    document.removeEventListener('mousemove', this.onCursorDragMove);
+    document.removeEventListener('mouseup', this.onCursorDragEnd);
+    
     // Clean up 3D scene
     this.cleanup3DScene();
     
@@ -3236,9 +3250,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.stageMouseUpListener();
       this.stageMouseUpListener = null;
     }
+    window.removeEventListener('resize', this.updateMinTimelineZoom.bind(this));
   }
 
   getTimelineTotalDuration(): number {
+    // Use audio duration as the source of truth if available
+    if (this.waveSurfer && this.waveSurfer.getDuration && this.waveSurfer.getDuration() > 0) {
+      return this.waveSurfer.getDuration();
+    }
+    // Fallback to sum of formation and transition durations
     let total = 0;
     for (let i = 0; i < this.formations.length; i++) {
       total += this.formationDurations[i] || 4;
@@ -3251,14 +3271,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   getFormationPercent(i: number): number {
     if (!this.waveSurfer || !this.waveSurfer.getDuration()) return 0;
-    const duration = this.formationDurations[i] || 5;
-    return (duration / this.waveSurfer.getDuration()) * 100;
+    const duration = this.formationDurations[i] || 4;
+    const totalTimelineDuration = this.getTimelineTotalDuration();
+    return (duration / totalTimelineDuration) * 100;
   }
 
   getTransitionPercent(i: number): number {
     if (!this.waveSurfer || !this.waveSurfer.getDuration()) return 0;
     const duration = this.animationDurations[i] || 1;
-    return (duration / this.waveSurfer.getDuration()) * 100;
+    const totalTimelineDuration = this.getTimelineTotalDuration();
+    return (duration / totalTimelineDuration) * 100;
   }
 
   getPlayheadPercent(): number {
@@ -3308,14 +3330,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const dx = event.clientX - this.resizingStartX;
     const totalTimelineDuration = this.getTimelineTotalDuration();
     
-    // Account for zoom level in the calculation
+    // Account for zoom level in the calculation using full audio timeline
     const pixelsToDuration = totalTimelineDuration / (this.waveformWidthPx * this.timelineZoom);
     
     let newDuration = this.resizingStartDuration + (dx * pixelsToDuration);
     newDuration = Math.max(1, Math.min(100, newDuration));
     
     if (isNaN(newDuration)) {
-
       return;
     }
     
@@ -3360,14 +3381,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const dx = event.clientX - this.resizingTransitionStartX;
     const totalTimelineDuration = this.getTimelineTotalDuration();
     
-    // Account for zoom level in the calculation
+    // Account for zoom level in the calculation using full audio timeline
     const pixelsToDuration = totalTimelineDuration / (this.waveformWidthPx * this.timelineZoom);
     
     let newDuration = this.resizingTransitionStartDuration + (dx * pixelsToDuration);
     newDuration = Math.max(0.2, newDuration);
     
     if (isNaN(newDuration)) {
-
       return;
     }
     
@@ -3382,23 +3402,48 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   };
 
   getTimelinePixelWidth(): number {
-    // Calculate total width based on all formations and transitions
-    let totalWidth = 0;
-    for (let i = 0; i < this.formations.length; i++) {
-      totalWidth += this.getFormationPixelWidth(i);
-      if (i < this.animationDurations.length) {
-        totalWidth += this.getTransitionPixelWidth(i);
-      }
+    // Get the container width dynamically
+    const container = this.timelineBarRef?.nativeElement;
+    if (!container) {
+      return this.waveformWidthPx * this.timelineZoom; // Fallback to old behavior
     }
-    return totalWidth;
+    
+    const containerWidth = container.offsetWidth;
+    this.timelineContainerWidth = containerWidth;
+    
+    // Get the audio duration
+    const audioDuration = this.waveSurfer?.getDuration() || this.getTimelineTotalDuration();
+    this.audioDuration = audioDuration;
+    
+    if (audioDuration <= 0) {
+      return containerWidth * this.timelineZoom; // Fallback
+    }
+    
+    // At 100% zoom (timelineZoom = 1), the audio should fill the container width
+    // Calculate base width: container width represents the full audio duration
+    const baseWidth = containerWidth;
+    
+    // Apply zoom: timelineZoom = 1 means audio fills container, > 1 means zoomed in, < 1 means zoomed out
+    return baseWidth * this.timelineZoom;
   }
 
   getFormationPixelWidth(i: number): number {
     const duration = this.formationDurations[i] || 4;
     const totalTimelineDuration = this.getTimelineTotalDuration();
     
-    // Calculate the width based on the formation's proportion of the total timeline
-    const baseWidth = (duration / totalTimelineDuration) * this.waveformWidthPx;
+    // Get the container width for base calculation
+    const container = this.timelineBarRef?.nativeElement;
+    if (!container) {
+      // Fallback to old behavior
+      const baseWidth = (duration / totalTimelineDuration) * this.waveformWidthPx;
+      return baseWidth * this.timelineZoom;
+    }
+    
+    const containerWidth = container.offsetWidth;
+    
+    // Calculate the width based on the formation's proportion of the total audio duration
+    // At 100% zoom, the container width represents the full audio duration
+    const baseWidth = (duration / totalTimelineDuration) * containerWidth;
     
     return baseWidth * this.timelineZoom;
   }
@@ -3407,53 +3452,71 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const duration = this.animationDurations[i] || 1;
     const totalTimelineDuration = this.getTimelineTotalDuration();
     
-    // Calculate the width based on the transition's proportion of the total timeline
-    const baseWidth = (duration / totalTimelineDuration) * this.waveformWidthPx;
+    // Get the container width for base calculation
+    const container = this.timelineBarRef?.nativeElement;
+    if (!container) {
+      // Fallback to old behavior
+      const baseWidth = (duration / totalTimelineDuration) * this.waveformWidthPx;
+      return baseWidth * this.timelineZoom;
+    }
+    
+    const containerWidth = container.offsetWidth;
+    
+    // Calculate the width based on the transition's proportion of the total audio duration
+    // At 100% zoom, the container width represents the full audio duration
+    const baseWidth = (duration / totalTimelineDuration) * containerWidth;
     
     return baseWidth * this.timelineZoom;
   }
 
   getPlayheadPixel(): number {
-    // Calculate position based on playback time and zoom level
+    let currentTime = this.playbackTime;
+    if (this.waveSurfer && typeof this.waveSurfer.getCurrentTime === 'function') {
+      currentTime = this.waveSurfer.getCurrentTime();
+    }
     const totalWidth = this.getTimelinePixelWidth();
     const totalDuration = this.getTimelineTotalDuration();
-    
-    // Calculate the base position without zoom
-    const basePosition = (this.playbackTime / totalDuration) * totalWidth;
-    
-    // Calculate the scroll offset
-    const scrollLeft = this.timelineBarRef?.nativeElement?.scrollLeft || 0;
-    
-    // Calculate the final position, maintaining consistent speed regardless of zoom
-    const finalPosition = basePosition - scrollLeft;
-    
-    // Ensure the position is within bounds
-    return Math.max(0, Math.min(finalPosition, totalWidth));
+    const basePosition = (currentTime / totalDuration) * totalWidth;
+    return Math.max(0, Math.min(basePosition, totalWidth));
   }
 
   getHoveredPlayheadPixel(): number {
     if (this.isPlaying) {
-      // During playback, use the current playback time
+      // During playback, use the current playback time from audio
       return this.getPlayheadPixel();
     }
-    
-    // When not playing, use hover position if available, otherwise use current playback time
     if (this.hoveredTimelineX !== null) {
       const totalWidth = this.getTimelinePixelWidth();
       const totalDuration = this.getTimelineTotalDuration();
-      
-      // Calculate position based on hovered time
       if (this.hoveredTimelineTime !== null) {
         const timePercent = this.hoveredTimelineTime / totalDuration;
         return timePercent * totalWidth;
       }
-      
-      // Fallback to direct x position if time is not available
       return Math.max(0, Math.min(this.hoveredTimelineX, totalWidth));
     }
-    
-    // When not playing and not hovering, use current playback time
     return this.getPlayheadPixel();
+  }
+
+  // Add method to get seek bar circle position (only visible when in view)
+  getSeekBarCirclePosition(): number | null {
+    const playheadPixel = this.getPlayheadPixel();
+    const container = this.timelineBarRef?.nativeElement;
+    if (!container) return null;
+    
+    const containerWidth = container.offsetWidth;
+    const scrollLeft = container.scrollLeft || 0;
+    
+    // Calculate the playhead position relative to the visible area
+    const visiblePosition = playheadPixel + scrollLeft;
+    
+    // Only show the circle if it's in the visible area (with some padding)
+    const padding = 20; // pixels of padding
+    if (visiblePosition >= -padding && visiblePosition <= containerWidth + padding) {
+      return visiblePosition;
+    }
+    
+    // Return null to hide the circle when out of view
+    return null;
   }
 
   async selectPerformer(performer: Performer) {
@@ -3654,23 +3717,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     return t;
   }
 
+  // Prevent playhead from moving when hovering or clicking on formations
   onTimelineMouseMove(event: MouseEvent) {
     const bar = this.timelineBarRef?.nativeElement;
-    if (!bar || !this.waveSurfer || !this.waveSurfer.getDuration()) return;
-    
+    if (!bar) return;
+    // If hovering over a formation or transition (or any of their children), do nothing
+    const target = event.target as HTMLElement;
+    if (target.closest('.formation-timeline-box') || target.closest('.timeline-transition-bar')) return;
     const rect = bar.getBoundingClientRect();
     const x = event.clientX - rect.left + bar.scrollLeft;
     this.hoveredTimelineX = x;
-    
-    // Calculate total timeline width
     const totalWidth = this.getTimelinePixelWidth();
     const totalDuration = this.getTimelineTotalDuration();
-    
-    // Calculate time based on position relative to total width
     const timePercent = Math.max(0, Math.min(1, x / totalWidth));
     this.hoveredTimelineTime = timePercent * totalDuration;
-    
-    // Update formation index based on time
     let currentTime = 0;
     for (let i = 0; i < this.formations.length; i++) {
       const formationDuration = this.formationDurations[i] || 4;
@@ -3685,41 +3745,100 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
   }
 
-  onTimelineMouseLeave() {
-    this.hoveredTimelineX = null;
-    this.hoveredTimelineTime = null;
-    this.hoveredFormationIndex = null;
-  }
-
+  // Prevent playhead from moving when clicking on formations
   onTimelineClick(event: MouseEvent) {
     const bar = this.timelineBarRef?.nativeElement;
     if (!bar) return;
-
+    // If clicking on a formation box or any of its children, do not move the playhead
+    if ((event.target as HTMLElement).closest('.formation-timeline-box')) return;
+    
     const rect = bar.getBoundingClientRect();
-    const x = event.clientX - rect.left;
+    const scrollLeft = bar.scrollLeft || 0;
+    const x = event.clientX - rect.left + scrollLeft; // Add scroll offset to get correct position
     const timelineTime = (x / this.getTimelinePixelWidth()) * this.getTimelineTotalDuration();
-
-
-
-    if (timelineTime !== null && this.waveSurfer && this.waveSurfer.getDuration()) {
-      // Initialize mobile audio context on timeline interaction
-      if (this.isMobile) {
-        this.initializeMobileAudioContext();
+    
+    if (timelineTime !== null) {
+      // Handle audio seeking if available
+      if (this.waveSurfer && this.waveSurfer.getDuration()) {
+        if (this.isMobile) {
+          this.initializeMobileAudioContext();
+        }
+        const audioDuration = this.waveSurfer.getDuration();
+        const audioTime = Math.max(0, Math.min(timelineTime, audioDuration));
+        this.waveSurfer.seekTo(audioTime / audioDuration);
+        this.isPlaying = this.waveSurfer.isPlaying();
+        this.playbackTime = audioTime;
+        this.hoveredTimelineTime = audioTime;
+      } else {
+        // No audio: just update playback time and formation position
+        this.playbackTime = Math.max(0, Math.min(timelineTime, this.getTimelineTotalDuration()));
+        this.hoveredTimelineTime = this.playbackTime;
       }
       
-      const audioDuration = this.waveSurfer.getDuration();
-      // Clamp to audio duration
-      const audioTime = Math.max(0, Math.min(timelineTime, audioDuration));
-      this.waveSurfer.seekTo(audioTime / audioDuration);
-      this.isPlaying = this.waveSurfer.isPlaying();
-      this.playbackTime = audioTime;
-      this.hoveredTimelineTime = audioTime;
+      // Update video if it exists
+      const videoElement = this.videoElement;
+      if (videoElement) {
+        if (this.playbackTime <= videoElement.duration) {
+          videoElement.currentTime = this.playbackTime;
+        } else {
+          videoElement.currentTime = videoElement.duration;
+          videoElement.pause();
+        }
+      }
+      
+      // Update formation position
+      let t = 0;
+      for (let i = 0; i < this.formations.length; i++) {
+        const formationDuration = this.formationDurations[i] || 4;
+        if (this.playbackTime < t + formationDuration) {
+          this.playingFormationIndex = i;
+          this.inTransition = false;
+          this.animatedPositions = {};
+          break;
+        }
+        t += formationDuration;
+        if (i < this.animationDurations.length) {
+          t += this.animationDurations[i] || 1;
+        }
+      }
+    }
+  }
+
+  onTimelineSeekBarClick(event: MouseEvent) {
+    const seekBar = event.currentTarget as HTMLElement;
+    if (!seekBar) return;
+
+    const rect = seekBar.getBoundingClientRect();
+    const scrollLeft = this.timelineBarRef?.nativeElement?.scrollLeft || 0;
+    const x = event.clientX - rect.left + scrollLeft; // Add scroll offset to get correct position
+    const timelineTime = (x / this.getTimelinePixelWidth()) * this.getTimelineTotalDuration();
+
+    if (timelineTime !== null) {
+      // Handle audio seeking if available
+      if (this.waveSurfer && this.waveSurfer.getDuration()) {
+        // Initialize mobile audio context on timeline interaction
+        if (this.isMobile) {
+          this.initializeMobileAudioContext();
+        }
+        
+        const audioDuration = this.waveSurfer.getDuration();
+        // Clamp to audio duration
+        const audioTime = Math.max(0, Math.min(timelineTime, audioDuration));
+        this.waveSurfer.seekTo(audioTime / audioDuration);
+        this.isPlaying = this.waveSurfer.isPlaying();
+        this.playbackTime = audioTime;
+        this.hoveredTimelineTime = audioTime;
+      } else {
+        // No audio: just update playback time and formation position
+        this.playbackTime = Math.max(0, Math.min(timelineTime, this.getTimelineTotalDuration()));
+        this.hoveredTimelineTime = this.playbackTime;
+      }
 
       // Update video position if it exists
       const videoElement = this.videoElement;
       if (videoElement) {
-        if (audioTime <= videoElement.duration) {
-          videoElement.currentTime = audioTime;
+        if (this.playbackTime <= videoElement.duration) {
+          videoElement.currentTime = this.playbackTime;
         } else {
           // If seeking past video duration, pause at last frame
           videoElement.currentTime = videoElement.duration;
@@ -3731,7 +3850,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       let t = 0;
       for (let i = 0; i < this.formations.length; i++) {
         const hold = this.formationDurations[i] || 4;
-        if (audioTime < t + hold) {
+        if (this.playbackTime < t + hold) {
           this.updateFormationAndRecalculateSelection(i);
           this.inTransition = false;
           this.animatedPositions = {};
@@ -3740,11 +3859,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         t += hold;
         if (i < this.animationDurations.length) {
           const trans = this.animationDurations[i] || 1;
-          if (audioTime < t + trans) {
+          if (this.playbackTime < t + trans) {
             // During transition, animate between i and i+1
             this.updateFormationAndRecalculateSelection(i + 1);
             this.inTransition = true;
-            const progress = (audioTime - t) / trans;
+            const progress = (this.playbackTime - t) / trans;
             this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
             break;
           }
@@ -5382,8 +5501,38 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.formationDurations = [...this.formationDurations];
     this.animationDurations = [...this.animationDurations];
     
-    // Force change detection
+    // Force change detection to update all timeline elements
     this.cdr.detectChanges();
+    
+    // Ensure WaveSurfer waveform is updated if it exists
+    if (this.waveSurfer && this.waveSurfer.getDuration()) {
+      // Trigger a small delay to ensure DOM updates are complete
+      setTimeout(() => {
+        this.cdr.detectChanges();
+      }, 10);
+    }
+  }
+
+  onControlBarZoomChange(newZoom: number) {
+    this.timelineZoom = newZoom;
+    this.onTimelineZoomChange({ target: { value: newZoom.toString() } } as any);
+  }
+
+  // Add method to handle zoom gestures (pinch-to-zoom, mouse wheel)
+  onTimelineZoomGesture(delta: number, centerX: number) {
+    const zoomFactor = delta > 0 ? 1.1 : 0.9;
+    const newZoom = Math.max(this.minTimelineZoom, Math.min(this.maxTimelineZoom, this.timelineZoom * zoomFactor));
+    
+    if (newZoom !== this.timelineZoom) {
+      this.timelineZoom = newZoom;
+      
+      // Force recalculation of timeline widths
+      this.formationDurations = [...this.formationDurations];
+      this.animationDurations = [...this.animationDurations];
+      
+      // Force change detection
+      this.cdr.detectChanges();
+    }
   }
 
   // Add method to get zoom percentage for display
@@ -6086,11 +6235,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   onControlBarNextFormation() {
     this.onNextFormationClick();
   }
-
-  onControlBarZoomChange(newZoom: number) {
-    this.timelineZoom = newZoom;
-    this.onTimelineZoomChange({ target: { value: newZoom.toString() } } as any);
-  }
+  
 
   onControlBarAddFormation() {
     this.addFormation();
@@ -6473,6 +6618,143 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.currentTranslateY = 0;
 
     this.updateStageTransform();
+  }
+
+  // Dynamically set minTimelineZoom so the timeline never gets smaller than the container
+  updateMinTimelineZoom() {
+    // Get the visible width of the timeline container
+    const container = this.timelineBarRef?.nativeElement;
+    if (!container) return;
+    const containerWidth = container.offsetWidth;
+    // The timeline width at zoom=1 is waveformWidthPx
+    // minZoom = containerWidth / (waveformWidthPx)
+    const minZoom = containerWidth / this.waveformWidthPx;
+    this.minTimelineZoom = Math.min(1, Math.max(0.01, minZoom));
+    // Clamp current zoom if needed
+    if (this.timelineZoom < this.minTimelineZoom) {
+      this.timelineZoom = this.minTimelineZoom;
+    }
+  }
+
+  // Cursor drag methods
+  onCursorDragStart(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    this.isDraggingCursor = true;
+    this.cursorDragStartX = event.clientX;
+    this.cursorDragStartTime = this.playbackTime;
+    
+    // Add global event listeners
+    document.addEventListener('mousemove', this.onCursorDragMove);
+    document.addEventListener('mouseup', this.onCursorDragEnd);
+    
+    // Prevent text selection during drag
+    document.body.style.userSelect = 'none';
+  }
+
+  onCursorDragMove = (event: MouseEvent) => {
+    if (!this.isDraggingCursor) return;
+    
+    const seekBar = document.querySelector('.timeline-seek-bar') as HTMLElement;
+    if (!seekBar) return;
+    
+    const rect = seekBar.getBoundingClientRect();
+    const scrollLeft = this.timelineBarRef?.nativeElement?.scrollLeft || 0;
+    const x = event.clientX - rect.left + scrollLeft; // Add scroll offset to match getPlayheadPixel logic
+    const totalWidth = this.getTimelinePixelWidth();
+    const totalDuration = this.getTimelineTotalDuration();
+    
+    // Calculate new time based on mouse position
+    const timePercent = Math.max(0, Math.min(1, x / totalWidth));
+    const newTime = timePercent * totalDuration;
+    
+    // Update playback time
+    this.playbackTime = newTime;
+    
+    // Seek in WaveSurfer if available
+    if (this.waveSurfer && this.waveSurfer.getDuration()) {
+      const audioDuration = this.waveSurfer.getDuration();
+      const audioTime = Math.max(0, Math.min(newTime, audioDuration));
+      this.waveSurfer.seekTo(audioTime / audioDuration);
+    }
+    
+    // Update video if it exists
+    const videoElement = this.videoElement;
+    if (videoElement) {
+      if (newTime <= videoElement.duration) {
+        videoElement.currentTime = newTime;
+      } else {
+        videoElement.currentTime = videoElement.duration;
+        videoElement.pause();
+      }
+    }
+    
+    // Update formation position
+    let t = 0;
+    for (let i = 0; i < this.formations.length; i++) {
+      const hold = this.formationDurations[i] || 4;
+      if (newTime < t + hold) {
+        this.playingFormationIndex = i;
+        this.inTransition = false;
+        this.animatedPositions = {};
+        break;
+      }
+      t += hold;
+      if (i < this.animationDurations.length) {
+        const trans = this.animationDurations[i] || 1;
+        if (newTime < t + trans) {
+          this.playingFormationIndex = i + 1;
+          this.inTransition = true;
+          const progress = (newTime - t) / trans;
+          this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+          break;
+        }
+        t += trans;
+      }
+    }
+    
+    // Force change detection
+    this.cdr.detectChanges();
+  }
+
+  onCursorDragEnd = () => {
+    if (!this.isDraggingCursor) return;
+    
+    this.isDraggingCursor = false;
+    
+    // Remove global event listeners
+    document.removeEventListener('mousemove', this.onCursorDragMove);
+    document.removeEventListener('mouseup', this.onCursorDragEnd);
+    
+    // Restore text selection
+    document.body.style.userSelect = '';
+  }
+
+  // Add method to auto-scroll timeline to keep playhead visible during playback
+  private autoScrollToPlayhead() {
+    // Disable auto-scroll to prevent forced screen movement
+    return;
+    
+    if (!this.isPlaying || !this.timelineBarRef?.nativeElement) return;
+    
+    const container = this.timelineBarRef.nativeElement;
+    const playheadPixel = this.getPlayheadPixel();
+    const containerWidth = container.offsetWidth;
+    const scrollLeft = container.scrollLeft;
+    
+    // Check if playhead is out of view (with some padding)
+    const padding = 50; // pixels of padding
+    const playheadLeft = playheadPixel;
+    const playheadRight = playheadPixel + 4; // playhead width
+    
+    if (playheadLeft < scrollLeft + padding) {
+      // Playhead is too far left, scroll left
+      container.scrollLeft = Math.max(0, playheadLeft - padding);
+    } else if (playheadRight > scrollLeft + containerWidth - padding) {
+      // Playhead is too far right, scroll right
+      container.scrollLeft = playheadRight - containerWidth + padding;
+    }
   }
 }
  

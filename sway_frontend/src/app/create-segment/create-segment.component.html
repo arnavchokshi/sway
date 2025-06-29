@@ -503,13 +503,38 @@
         (transitionsToggle)="toggleShowTransitions()">
       </app-control-bar>
       <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl }">
-        <div class="timeline-audio-stack">
+        <div class="timeline-audio-stack" style="position: relative;">
+          <!-- Playhead container now overlays the timeline content exactly -->
           <div class="formation-timeline-bar simplified-timeline"
                #timelineBarRef
                style="overflow-x: auto; position: relative;"
                (mousemove)="onTimelineMouseMove($event)"
-               (mouseleave)="onTimelineMouseLeave()"
                (click)="onTimelineClick($event)">
+            
+            <!-- Clickable seek bar inside the scrollable container -->
+            <div class="timeline-seek-bar" 
+                 [style.width.px]="getTimelinePixelWidth()"
+                 (mousemove)="onTimelineMouseMove($event)"
+                 (click)="onTimelineClick($event)"
+                 (mouseenter)="onSeekBarMouseEnter()"
+                 (mouseleave)="onSeekBarMouseLeave()"
+                 title="Click to seek to position">
+            </div>
+            
+            <!-- Draggable triangle cursor positioned directly in timeline container -->
+            <div class="timeline-cursor-triangle"
+                 [style.left.px]="getPlayheadPixel()"
+                 (mousedown)="onCursorDragStart($event)"
+                 title="Drag to move cursor">
+            </div>
+            
+            <div class="timeline-playhead-container">
+              <!-- Main playhead (actual playback position) -->
+              <div class="timeline-playhead" [style.left.px]="getPlayheadPixel()"></div>
+              <!-- Ghost playhead (hover preview) -->
+              <div *ngIf="isHoveringSeekBar && hoveredTimelineX !== null && !isPlaying" class="timeline-playhead ghost" [style.left.px]="getHoveredPlayheadPixel()"></div>
+            </div>
+            
             <div class="formation-timeline-row" [style.width.px]="getTimelinePixelWidth()">
               <ng-container *ngFor="let formation of formations; let i = index">
                 <div class="formation-timeline-box"
@@ -520,7 +545,7 @@
                      [style.width.px]="getFormationPixelWidth(i)">
                   <div class="formation-label">F {{ i + 1 }}</div>
                   <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
-                  <div *ngIf="isCaptain && (formations.length === 1 || i < formations.length - 1)" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
+                  <div *ngIf="isCaptain" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
                 </div>
                 <ng-container *ngIf="i < formations.length - 1">
                   <div class="timeline-transition-bar" [style.width.px]="getTransitionPixelWidth(i)">
@@ -529,7 +554,6 @@
                   </div>
                 </ng-container>
               </ng-container>
-              
               <!-- Add Formation Button at end of timeline -->
               <div *ngIf="isCaptain" class="add-formation-btn-timeline" 
                    (click)="addFormation()" 
@@ -537,29 +561,10 @@
                 <span class="material-icons">add</span>
               </div>
             </div>
-            <div class="timeline-playhead-container">
-              <div class="timeline-playhead" [style.left.px]="getHoveredPlayheadPixel()"></div>
-            </div>
-          </div>
-          <div *ngIf="signedMusicUrl" class="audio-player-bar stage-audio-bar">
-            <div class="waveform-container" style="display: flex; align-items: center; gap: 12px;">
-              <div style="flex: 1; position: relative;">
-                <div class="formation-tracker">
-                  <ng-container *ngFor="let formation of formations; let i = index">
-                    <div class="formation-tracker-segment"
-                         [style.left.%]="getFormationStartPercent(i)"
-                         [style.width.%]="getFormationPercent(i)"
-                         [class.transition]="false">
-                    </div>
-                    <div class="formation-tracker-segment transition"
-                         *ngIf="i < animationDurations.length"
-                         [style.left.%]="getTransitionStartPercent(i)"
-                         [style.width.%]="getTransitionPercent(i)">
-                    </div>
-                  </ng-container>
-                </div>
-                <div id="waveform"></div>
-              </div>
+            
+            <!-- Audio waveform inside the same scrollable container -->
+            <div *ngIf="signedMusicUrl" class="audio-waveform-container" [style.width.px]="getTimelinePixelWidth()">
+              <div id="waveform" [style.width.px]="getTimelinePixelWidth()"></div>
             </div>
           </div>
         </div>

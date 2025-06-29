@@ -724,13 +724,13 @@
   display: flex;
   align-items: stretch;
   padding: 0;
-  min-height: 60px;
+  min-height: 50px; /* Reduced from 60px */
   height: auto;
   overflow-y: visible;
   margin-top: 0;
 
   &.has-audio {
-    min-height: 80px;
+    min-height: 65px; /* Reduced from 80px */
     height: auto;
   }
 
@@ -739,30 +739,34 @@
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    gap: 0.3rem;
+    gap: 0.2rem; /* Reduced from 0.3rem */
     height: auto;
     overflow-y: visible;
     background: transparent !important;
     margin: 0;
-    padding: 0.5rem 1.5rem;
+    padding: 0.3rem 1rem; /* Reduced from 0.5rem 1.5rem */
   }
 
   .formation-timeline-bar {
-    width: 100%;
+    width: 100% !important;
+    max-width: 100%;
+    min-width: unset;
     overflow-x: auto;
     overflow-y: hidden;
-    min-height: 40px;
+    min-height: 35px; /* Reduced from 40px */
     height: auto;
     background: rgba(35, 35, 38, 0.85);
     /* Removed border-right and border-bottom to eliminate border lines */
-    padding: 0.2rem 0.2rem 0.2rem 0.2rem;
+    padding: 0.15rem 0.15rem 0.15rem 0.15rem; /* Reduced from 0.2rem */
     box-shadow: 0 2px 8px rgba(59,130,246,0.08);
   }
 
   .formation-timeline-bar.simplified-timeline {
     background: linear-gradient(to bottom, rgba(35, 35, 38, 0.85) 0%, rgba(35, 35, 38, 0.85) 80%, transparent 100%);
-    padding: 0.2rem 0.2rem 0.2rem 0.2rem;
+    padding: 0.15rem 0.15rem 0.15rem 0.15rem; /* Reduced from 0.2rem */
     box-shadow: 0 2px 8px rgba(59,130,246,0.08);
+    min-height: 90px; /* Reduced from 120px */
+    max-height: 110px; /* Reduced from 140px */
   }
 
   .formation-timeline-row {
@@ -778,7 +782,7 @@
     margin: 0;
     padding: 0;
     position: relative;
-    height: 50px;
+    height: 40px; /* Reduced from 50px */
     overflow-y: visible !important;
     overflow-x: auto;
   }
@@ -790,18 +794,18 @@
     min-width: unset;
     overflow-x: auto;
     overflow-y: visible;
-    height: 40px;
-    max-height: 40px;
+    height: 26.25px; /* Reduced from 35px (75% scale) */
+    max-height: 26.25px; /* Reduced from 35px (75% scale) */
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 15px; /* Reduced from 12px */
   }
 
   .bottom-panel-divider {
     width: 1.5px;
     height: 60%;
     background: linear-gradient(180deg, rgba(99,102,241,0.18) 0%, rgba(255,255,255,0.10) 100%);
-    margin: 0 0 0 1.2rem;
+    margin: 0 0 0 1rem; /* Reduced from 1.2rem */
     border-radius: 2px;
     align-self: center;
     position: relative;
@@ -809,6 +813,31 @@
     top: 0;
   }
 
+  .audio-waveform-container {
+    width: 100%;
+    margin-top: 6px; /* Reduced from 8px */
+    background: rgba(15, 23, 42, 0.3);
+    border-radius: 4px;
+    position: relative;
+  }
+
+  .formation-tracker {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  #waveform {
+    width: 100%;
+    height: 26.25px; /* Reduced from 35px (75% scale) */
+    max-height: 26.25px; /* Reduced from 35px (75% scale) */
+    margin: 0; /* Remove left/right margin */
+    padding: 0; /* Remove left/right padding */
+  }
 
 }
 
@@ -1610,6 +1639,7 @@
 
 .formation-timeline-row {
   display: flex;
+  overflow-y: hidden;
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: stretch;
@@ -1629,9 +1659,9 @@
   position: relative;
   background: rgba(59, 130, 246, 0.1);
   border: 1px solid rgba(59, 130, 246, 0.2);
-  border-radius: 6px;
-  padding: 8px;
-  padding-right: 20px; // Add padding for the drag handle
+  border-radius: 0px 0 0 0px !important; /* Only left side rounded, right side straight */
+  padding: 6px; /* Reduced from 8px */
+  padding-right: 16px; /* Reduced from 20px */
   cursor: grab;
   user-select: none;
   transition: all 0.2s ease;
@@ -1652,14 +1682,14 @@
   }
 
   .formation-label {
-    font-size: 0.9rem;
+    font-size: 0.85rem; /* Reduced from 0.9rem */
     font-weight: 600;
     color: #e2e8f0;
-    margin-bottom: 4px;
+    margin-bottom: 3px; /* Reduced from 4px */
   }
 
   .formation-duration {
-    font-size: 0.8rem;
+    font-size: 0.75rem; /* Reduced from 0.8rem */
     color: #94a3b8;
   }
 }
@@ -1668,48 +1698,70 @@
   position: absolute;
   right: 0;
   top: 0;
-  width: 12px;
+  width: 16px; /* Increased from 10px */
   height: 100%;
-  background: #ffd700 !important;
-  opacity: 0.7 !important;
+  background: rgba(255, 217, 0, 0.051) !important; /* More transparent yellow */
+  backdrop-filter: blur(8px) saturate(180%);
+  -webkit-backdrop-filter: blur(8px) saturate(180%);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  opacity: 0.9 !important; /* Increased transparency */
   cursor: ew-resize;
   z-index: 3;
-  border-radius: 0 6px 6px 0; // Match parent border radius
+  border-radius: 1px 0 0 1px; // Match parent border radius
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box; // Ensure handle is included in parent width
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(255, 215, 0, 0.4) !important;
+    backdrop-filter: blur(12px) saturate(200%);
+    -webkit-backdrop-filter: blur(12px) saturate(200%);
+    border-color: rgba(255, 215, 0, 0.3);
+  }
 }
 
 .formation-drag-handle::after {
+  display: none;
+}
+
+.formation-drag-handle::before, .formation-drag-handle::after {
   content: '';
-  display: block;
-  width: 4px;
-  height: 40px;
-  background: #ffd700;
+  position: absolute;
+  top: 25%;
+  width: 2px;
+  height: 50%;
+  background: rgba(255, 215, 0, 0.55);
   border-radius: 2px;
-  margin: auto;
+}
+.formation-drag-handle::before {
+  left: 35%;
+}
+.formation-drag-handle::after {
+  left: 65%;
 }
 
 .timeline-transition-bar {
-  background: linear-gradient(90deg, rgba(255, 215, 0, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%);
+  background: linear-gradient(90deg,  rgba(59, 130, 246, 0.2) 15%,rgba(255, 215, 0, 0.2)100%);
   opacity: 0.8;
-  height: 100%;
+  height: 90%;
+  top:1px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   position: relative;
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 215, 0, 0.2);
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 10px 10px 0; /* Changed to oval shape */
 }
 
 .transition-label {
   color: #e2e8f0;
-  font-size: 0.95rem;
+  font-size: 0.85rem; /* Reduced from 0.95rem */
   font-weight: 500;
   position: absolute;
-  bottom: 8px;
+  bottom: 6px; /* Reduced from 8px */
   left: 50%;
   transform: translateX(-50%);
   pointer-events: none;
@@ -1721,64 +1773,158 @@
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* Set height to cover both formation and audio bars */
+  height: 100%;
   pointer-events: none;
-  z-index: 10;
+  z-index: 20; /* Ensure it overlays both bars */
 }
 
 .timeline-playhead {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 3px;
-  background: #3b82f6;
-  box-shadow: 0 0 12px 2px #3b82f6cc;
-  z-index: 10;
+  width: 4px;
+  background: linear-gradient(to bottom, #fff 0%, #3b82f6 60%, #fff 100%);
+  box-shadow: 0 0 16px 2px #3b82f6cc;
+  z-index: 21;
   border-radius: 2px;
   pointer-events: none;
-  transition: none; // Remove transition for smoother movement
+  transition: none;
   will-change: transform;
-  transform: translateZ(0); // Force GPU acceleration
+  transform: translateZ(0);
+  opacity: 0.95;
+}
+
+.timeline-seek-bar {
+  width: 100%;
+  height: 6px; /* Reduced from 8px */
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 3px; /* Reduced from 4px */
+  transition: background-color 0.2s ease;
+  position: relative;
+  z-index: 10;
+
+  &:hover {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.4);
+  }
+
+  &:active {
+    background: rgba(59, 130, 246, 0.3);
+  }
+}
+
+.timeline-cursor-triangle {
+  position: absolute;
+  top: -6px;
+  width: 14.5px;
+  height: 14.5px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  cursor: grab;
+  z-index: 25; // Increased from 15 to 25 to be above the playhead (z-index: 21)
+  transform: translateX(-40%);
+  box-shadow: 
+    0 4px 12px rgba(59, 130, 246, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+
+  &:hover {
+    transform: scale(1.15) translateX(-40%);
+    box-shadow: 
+      0 6px 20px rgba(59, 130, 246, 0.6),
+      0 4px 8px rgba(0, 0, 0, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+  }
+
+  &:active {
+    cursor: grabbing;
+    transform: scale(1.1) translateX(-40%);
+    box-shadow: 
+      0 2px 8px rgba(59, 130, 246, 0.5),
+      0 1px 3px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
 }
 
 .transition-drag-handle {
   position: absolute;
   right: 0;
   top: 0;
-  width: 12px;
-  height: 100%;
-  background: linear-gradient(90deg, transparent 60%, #ffd700 100%);
+  width: 12px; /* Increased from 12px */
+  height: 95%;
+  background: rgba(0, 0, 0, 0.172); /* More transparent yellow */
+  backdrop-filter: blur(8px) saturate(180%);
+  -webkit-backdrop-filter: blur(8px) saturate(180%);
+  border: 1px solid rgba(255, 215, 0, 0.2);
   cursor: ew-resize;
   z-index: 2;
-  border-radius: 0 10px 10px 0;
+  border-radius: 0 10px 10px 0; /* Changed to oval shape */
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(255, 215, 0, 0.4);
+    backdrop-filter: blur(12px) saturate(200%);
+    -webkit-backdrop-filter: blur(12px) saturate(200%);
+    border-color: rgba(255, 215, 0, 0.3);
+  }
 }
 
 .transition-drag-handle::after {
+  display: none;
+}
+
+.transition-drag-handle::before, .transition-drag-handle::after {
   content: '';
-  display: block;
-  width: 4px;
-  height: 40px;
-  background: #ffd700;
+  position: absolute;
+  top: 25%;
+  width: 2px;
+  height: 50%;
+  background: rgba(255, 215, 0, 0.55);
   border-radius: 2px;
-  margin: auto;
+}
+.transition-drag-handle::before {
+  left: 35%;
+}
+.transition-drag-handle::after {
+  left: 65%;
 }
 
 .add-formation-btn-timeline {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 60px;
-  height: 30px;
+  min-width: 50px; /* Reduced from 60px */
+  height: 25px; /* Reduced from 30px */
   background: rgba(34, 197, 194, 0.1);
   border: 2px dashed rgba(34, 154, 197, 0.3);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-left: 8px;
-  margin-top: 7.5px;
+  margin-left: 6px; /* Reduced from 8px */
+  margin-top: 6px; /* Reduced from 7.5px */
   flex-shrink: 0;
 
   &:hover {
@@ -1789,7 +1935,7 @@
 
   .material-icons {
     color: #228cc5;
-    font-size: 24px;
+    font-size: 20px; /* Reduced from 24px */
     font-weight: bold;
   }
 }
@@ -1804,8 +1950,10 @@
 
 #waveform {
   width: 100%;
-  height: 40px;
-  max-height: 40px;
+  height: 26.25px; /* Reduced from 35px (75% scale) */
+  max-height: 26.25px; /* Reduced from 35px (75% scale) */
+  margin: 0; /* Remove left/right margin */
+  padding: 0; /* Remove left/right padding */
 }
 
 .formation-tracker {
@@ -3677,32 +3825,27 @@
     padding-bottom: env(safe-area-inset-bottom, 0) !important;
     
     &.has-audio {
-      min-height: 100px !important;
+      min-height: 85px !important; /* Reduced from 100px */
     }
     
     .timeline-audio-stack {
-      padding: 0.8rem 1rem !important;
+      padding: 1rem 1rem !important; /* Reduced from 0.8rem 1rem */
       overflow-x: auto !important;
       -webkit-overflow-scrolling: touch !important;
     }
     
     .formation-timeline-bar {
-      min-height: 50px !important;
+      min-height: 90px !important; /* Reduced from 120px */
+      max-height: 110px !important; /* Reduced from 140px */
       overflow-x: auto !important;
       -webkit-overflow-scrolling: touch !important;
     }
     
-    .audio-player-bar {
-      min-height: 40px !important;
-      max-height: 40px !important;
-      height: 40px !important;
-      overflow-x: auto !important;
-      -webkit-overflow-scrolling: touch !important;
-    }
+    // audio-player-bar styles removed - now using unified timeline
   }
   
   .content-area {
-    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0)) !important; /* Add padding to prevent content from being hidden behind fixed bottom panel */
+    padding-bottom: calc(110px + env(safe-area-inset-bottom, 0)) !important; /* Reduced from 140px */
   }
 }
 
@@ -3968,5 +4111,14 @@
   .stage-area {
     transform-origin: top left !important; /* keep origin consistent with TS logic */
   }
+}
+
+.timeline-playhead.ghost {
+  background: linear-gradient(to bottom, #e0eaff 0%, #60a5fa 60%, #e0eaff 100%);
+  box-shadow: 0 0 12px 2px #60a5fa88;
+  opacity: 0.5;
+  z-index: 22;
+  pointer-events: none;
+  transition: none;
 }
 
