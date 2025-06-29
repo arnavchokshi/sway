@@ -244,6 +244,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private lastTouchY = 0;
   private currentTranslateX = 0;
   private currentTranslateY = 0;
+  
+  // Add touch gesture throttling properties
+  private lastTouchEventTime = 0;
+  private touchEventThrottle = 16; // ~60fps (16ms between events)
+  private touchTransformPending = false;
+  private isIntensiveTouchGesture = false;
 
   // 3D View Properties
   is3DView = false;
@@ -2905,11 +2911,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
         const currentTime = this.playbackTime;
         
-        // Force change detection for playhead update
-        this.cdr.detectChanges();
-        
-        // Auto-scroll to keep playhead visible during playback
-        this.autoScrollToPlayhead();
+        // Reduce intensive operations during touch gestures to prevent lag
+        if (!this.isIntensiveTouchGesture) {
+          // Force change detection for playhead update (only when not touching)
+          this.cdr.detectChanges();
+          
+          // Auto-scroll to keep playhead visible during playback (disabled during touch)
+          this.autoScrollToPlayhead();
+        } else {
+          // During intensive touch gestures, only update time sparingly
+          if (Math.floor(currentTime * 4) !== Math.floor((currentTime - 0.016) * 4)) {
+            // Update only 4 times per second during touch gestures
+            this.cdr.detectChanges();
+          }
+        }
         
         // Update video if needed
         const videoElement = this.videoElement;
@@ -5281,13 +5296,29 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         // Two-finger scroll → pan (look around) instead of scrolling the whole page.
         event.preventDefault();
 
+        // Mark as intensive gesture for pan operations
+        this.isIntensiveTouchGesture = true;
+        
         // Apply sensitivity factors and normalize by current zoom so feel is consistent.
         const scale = this.currentZoom || 1;
         this.currentTranslateX -= (event.deltaX * this.panSensitivityX) / scale;
         this.currentTranslateY -= (event.deltaY * this.panSensitivityY) / scale;
 
         this.enforcePanBounds();
-        this.updateStageTransform();
+        
+        // Use requestAnimationFrame to batch transform updates for pan gestures too
+        if (!this.touchTransformPending) {
+          this.touchTransformPending = true;
+          requestAnimationFrame(() => {
+            this.updateStageTransform();
+            this.touchTransformPending = false;
+          });
+        }
+        
+        // Reset intensive gesture flag after a delay
+        setTimeout(() => {
+          this.isIntensiveTouchGesture = false;
+        }, 100);
       }
     }, { passive: false });
 
@@ -5305,12 +5336,30 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       if (!this.isPinching || event.touches.length !== 2) return;
       event.preventDefault();
 
+      // Throttle touch events to prevent performance issues
+      const now = Date.now();
+      if (now - this.lastTouchEventTime < this.touchEventThrottle) {
+        return;
+      }
+      this.lastTouchEventTime = now;
+
+      // Mark as intensive gesture when moving rapidly
+      this.isIntensiveTouchGesture = true;
+      
       const currentDistance = this.getTouchDistance(event.touches);
       const currentX = (event.touches[0].clientX + event.touches[1].clientX) / 2;
       const currentY = (event.touches[0].clientY + event.touches[1].clientY) / 2;
 
       const zoomDelta = (currentDistance - this.touchStartDistance) * 0.01;
-      this.zoomAtPoint(currentX, currentY, zoomDelta);
+      
+      // Use requestAnimationFrame to batch transform updates
+      if (!this.touchTransformPending) {
+        this.touchTransformPending = true;
+        requestAnimationFrame(() => {
+          this.zoomAtPoint(currentX, currentY, zoomDelta);
+          this.touchTransformPending = false;
+        });
+      }
 
       this.touchStartDistance = currentDistance;
       this.touchStartX = currentX;
@@ -5319,6 +5368,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
     stageArea.addEventListener('touchend', () => {
       this.isPinching = false;
+      // Reset intensive gesture flag after a delay
+      setTimeout(() => {
+        this.isIntensiveTouchGesture = false;
+      }, 100);
     }, { passive: false });
   }
 
@@ -6733,7 +6786,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Add method to auto-scroll timeline to keep playhead visible during playback
   private autoScrollToPlayhead() {
-    // Disable auto-scroll to prevent forced screen movement
+    // Disable auto-scroll to prevent forced screen movement during touch gestures
+    if (this.isIntensiveTouchGesture) return;
+    
+    // Disable auto-scroll to prevent forced screen movement (currently disabled)
     return;
     
     if (!this.isPlaying || !this.timelineBarRef?.nativeElement) return;
