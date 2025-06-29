@@ -5,10 +5,14 @@ html, body {
   padding: 0;
   /* Prevent white flash by setting background immediately */
   background: linear-gradient(135deg, #5303a4 0%, #6f5d1d 100%);
+  /* Prevent overscroll bounce */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 html {
   scroll-behavior: smooth;
+  overscroll-behavior: none;
 }
 
 body {
@@ -20,6 +24,8 @@ body {
   background-attachment: fixed;
   background-size: cover;
   background-repeat: no-repeat;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Prevent any white flashes during page transitions */
@@ -32,4 +38,10 @@ app-root {
   display: block;
   min-height: 100vh;
   background: linear-gradient(135deg, #5303a4 0%, #6f5d1d 100%);
+  overscroll-behavior: none;
+}
+
+/* Global overscroll prevention for all elements */
+* {
+  overscroll-behavior: none;
 }

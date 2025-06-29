@@ -1,19 +1,28 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-interface DummyTemplate {
-  id: string;
-  name: string;
-  skillLevels: { [styleName: string]: number };
-  height?: number;
-  customColor?: string;
-}
-
-interface Position {
+export interface Position {
   x: number;
   y: number;
   user?: mongoose.Types.ObjectId; // Real user reference
   dummyTemplateId?: string; // Reference to dummy template instead of user
   customColor?: string;
+}
+
+export interface DummyTemplate {
+  id: string;
+  name: string;
+  skillLevels: Map<string, number>;
+  height?: number;
+  customColor?: string;
+}
+
+// Add interface for formation drafts
+export interface FormationDraft {
+  id: string;
+  formation: Position[];
+  createdAt: Date;
+  isMain: boolean; // Only one draft per formation position can be main (shown to members)
+  name?: string; // Optional name for the draft
 }
 
 interface Segment extends Document {
@@ -22,6 +31,8 @@ interface Segment extends Document {
   segmentSet?: mongoose.Types.ObjectId; // Reference to the Set this segment belongs to
   roster: mongoose.Types.ObjectId[];
   formations: Position[][];
+  // Add draft support - optional for backward compatibility (single draft per formation)
+  formationDrafts?: { [formationIndex: number]: FormationDraft };
   dummyTemplates: DummyTemplate[]; // Store dummy templates within segment
   depth: number;
   width: number;
@@ -53,12 +64,21 @@ const PositionSchema = new Schema<Position>({
   customColor: { type: String, required: false }
 });
 
+const FormationDraftSchema = new Schema<FormationDraft>({
+  id: { type: String, required: true },
+  formation: [PositionSchema],
+  createdAt: { type: Date, default: Date.now },
+  isMain: { type: Boolean, default: false },
+  name: { type: String, required: false }
+});
+
 const SegmentSchema = new Schema<Segment>({
   name: { type: String, required: true },
   team: { type: Schema.Types.ObjectId, ref: 'Team', required: true },
   segmentSet: { type: Schema.Types.ObjectId, ref: 'Set', required: false },
   roster: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   formations: [[PositionSchema]],
+  formationDrafts: { type: Map, of: FormationDraftSchema, required: false },
   dummyTemplates: [DummyTemplateSchema], // Add dummy templates array
   depth: { type: Number, default: 24 },
   width: { type: Number, default: 32 },

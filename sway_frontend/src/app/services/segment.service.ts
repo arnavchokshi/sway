@@ -3,6 +3,14 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
+export interface FormationDraft {
+  id: string;
+  formation: any[];
+  createdAt: Date;
+  isMain: boolean;
+  name?: string;
+}
+
 export interface ISegment {
   _id: string;
   name: string;
@@ -10,6 +18,7 @@ export interface ISegment {
   segmentSet?: string;
   roster: string[];
   formations: any[][];
+  formationDrafts?: { [formationIndex: number]: FormationDraft };
   dummyTemplates: any[];
   depth: number;
   width: number;

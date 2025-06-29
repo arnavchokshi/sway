@@ -496,6 +496,7 @@
         (addFormation)="onControlBarAddFormation()"
         (duplicateFormation)="onControlBarDuplicateFormation()"
         (deleteFormation)="onControlBarDeleteFormation()"
+        (createDraft)="onControlBarCreateDraft()"
         (undo)="onControlBarUndo()"
         (redo)="onControlBarRedo()"
         (quickSwap)="onControlBarQuickSwap()"
@@ -503,9 +504,12 @@
         (transitionsToggle)="toggleShowTransitions()">
       </app-control-bar>
       <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl }">
-        <div class="timeline-audio-stack" style="position: relative;">
+        <div class="timeline-audio-stack" 
+             [class.no-audio]="!signedMusicUrl"
+             style="position: relative;">
           <!-- Playhead container now overlays the timeline content exactly -->
           <div class="formation-timeline-bar simplified-timeline"
+               [class.has-drafts]="hasAnyDrafts()"
                #timelineBarRef
                style="overflow-x: auto; position: relative;"
                (mousemove)="onTimelineMouseMove($event)"
@@ -535,22 +539,75 @@
               <div *ngIf="isHoveringSeekBar && hoveredTimelineX !== null && !isPlaying" class="timeline-playhead ghost" [style.left.px]="getHoveredPlayheadPixel()"></div>
             </div>
             
-            <div class="formation-timeline-row" [style.width.px]="getTimelinePixelWidth()">
+            <div class="formation-timeline-row" 
+                 [class.has-drafts]="hasAnyDrafts()" 
+                 [style.width.px]="getTimelinePixelWidth()">
               <ng-container *ngFor="let formation of formations; let i = index">
-                <div class="formation-timeline-box"
-                     [class.active]="currentFormationIndex === i"
-                     (click)="jumpToFormation(i)"
-                     (mouseenter)="hoveredFormationIndex = i"
-                     (mouseleave)="hoveredFormationIndex = null"
-                     [style.width.px]="getFormationPixelWidth(i)">
-                  <div class="formation-label">F {{ i + 1 }}</div>
-                  <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
-                  <div *ngIf="isCaptain" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
+                <div class="formation-timeline-column" [style.width.px]="getFormationPixelWidth(i)">
+                  <!-- Draft formation (stacked above main) -->
+                  <div *ngIf="hasDraft(i)" 
+                       class="formation-timeline-box"
+                       [class.draft-formation]="isDraftFormationDraftColored(i)"
+                       [class.main-formation-colored-as-draft]="!isDraftFormationDraftColored(i)"
+                       [class.active]="currentFormationIndex === i && isViewingDraft"
+                       (click)="jumpToFormation(i, true)"
+                       (mouseenter)="hoveredFormationIndex = i"
+                       (mouseleave)="hoveredFormationIndex = null">
+                    <div class="formation-label">F {{ i + 1 }} Draft</div>
+                    <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
+                    
+                    <!-- Draft controls - TEMPORARILY HIDDEN -->
+                    <!-- <div *ngIf="isCaptain" class="draft-controls">
+                      <button class="draft-control-btn make-main-btn" 
+                              (click)="makeMainDraft(i, $event)" 
+                              title="Make This Draft the Main Formation">
+                        <span class="material-icons">keyboard_arrow_up</span>
+                      </button>
+                      <button class="draft-control-btn delete-draft" 
+                              (click)="deleteDraft(i, $event)" 
+                              title="Delete Draft">
+                        <span class="material-icons">close</span>
+                      </button>
+                    </div> -->
+                  </div>
+                  
+                  <!-- Main formation box -->
+                  <div class="formation-timeline-box main-formation"
+                       [class.main-formation-colored-as-draft]="isMainFormationDraftColored(i)"
+                       [class.active]="currentFormationIndex === i && !isViewingDraft"
+                       [class.has-draft]="hasDraft(i)"
+                       (click)="jumpToFormation(i, false)"
+                       (contextmenu)="onFormationRightClick($event, i)"
+                       (mouseenter)="hoveredFormationIndex = i"
+                       (mouseleave)="hoveredFormationIndex = null">
+                    <div class="formation-label">F {{ i + 1 }}</div>
+                    <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
+                    <div *ngIf="isCaptain" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
+                    
+                    <!-- Create draft button - TEMPORARILY HIDDEN -->
+                    <!-- <div *ngIf="!hasDraft(i) && isCaptain" class="create-draft-btn" 
+                         (click)="createFormationDraft(i)"
+                         title="Create Draft for Formation {{ i + 1 }}">
+                      <span class="material-icons">add</span>
+                    </div> -->
+                  </div>
                 </div>
+                
                 <ng-container *ngIf="i < formations.length - 1">
-                  <div class="timeline-transition-bar" [style.width.px]="getTransitionPixelWidth(i)">
-                    <span class="transition-label">{{ animationDurations[i] | number:'1.1-1' }}s</span>
-                    <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onTransitionResizeStart($event, i)"></div>
+                  <div class="timeline-transition-column" [style.width.px]="getTransitionPixelWidth(i)">
+                    <!-- Draft transition (appears only if current and next formations have drafts) -->
+                    <div *ngIf="hasDraft(i) && hasDraft(i + 1)" 
+                         class="timeline-transition-bar draft-transition">
+                      <span class="transition-label">{{ animationDurations[i] | number:'1.1-1' }}s</span>
+                      <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onTransitionResizeStart($event, i)"></div>
+                    </div>
+                    
+                    <!-- Main transition -->
+                    <div class="timeline-transition-bar main-transition" 
+                         [class.has-draft-above]="hasDraft(i) && hasDraft(i + 1)">
+                      <span class="transition-label">{{ animationDurations[i] | number:'1.1-1' }}s</span>
+                      <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onTransitionResizeStart($event, i)"></div>
+                    </div>
                   </div>
                 </ng-container>
               </ng-container>
@@ -691,6 +748,31 @@
           </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Formation Context Menu -->
+  <div class="formation-context-menu-backdrop" *ngIf="showFormationContextMenu" (click)="closeFormationContextMenu()">
+    <div class="formation-context-menu" 
+         [style.left.px]="contextMenuPosition.x" 
+         [style.top.px]="contextMenuPosition.y"
+         (click)="$event.stopPropagation()">
+      <button class="context-menu-item" (click)="onContextMenuSplit()">
+        <span class="material-icons">content_cut</span>
+        <span>Split</span>
+      </button>
+      <button class="context-menu-item" (click)="onContextMenuDuplicate()">
+        <span class="material-icons">content_copy</span>
+        <span>Duplicate</span>
+      </button>
+      <button class="context-menu-item" (click)="onContextMenuCopy()" [disabled]="formations[selectedFormationIndex].length === 0">
+        <span class="material-icons">file_copy</span>
+        <span>Copy</span>
+      </button>
+      <button class="context-menu-item" (click)="onContextMenuPaste()" [disabled]="!hasCopiedPerformers">
+        <span class="material-icons">content_paste</span>
+        <span>Paste</span>
+      </button>
     </div>
   </div>
 </div>

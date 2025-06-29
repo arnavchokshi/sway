@@ -35,6 +35,7 @@ export class ControlBarComponent {
   @Output() addFormation = new EventEmitter<void>();
   @Output() duplicateFormation = new EventEmitter<void>();
   @Output() deleteFormation = new EventEmitter<void>();
+  @Output() createDraft = new EventEmitter<void>();
   @Output() undo = new EventEmitter<void>();
   @Output() redo = new EventEmitter<void>();
   @Output() quickSwap = new EventEmitter<void>();
@@ -80,6 +81,10 @@ export class ControlBarComponent {
 
   onDeleteFormation() {
     this.deleteFormation.emit();
+  }
+
+  onCreateDraft() {
+    this.createDraft.emit();
   }
 
   onMirrorModeToggle() {

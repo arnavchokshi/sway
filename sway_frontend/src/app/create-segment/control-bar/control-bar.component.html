@@ -33,16 +33,7 @@
       </button>
     </div>
 
-    <!-- Transitions Toggle -->
-    <div class="transitions-controls" *ngIf="isCaptain">
-      <button class="control-btn transitions-btn" 
-              (click)="onTransitionsToggle()" 
-              title="Show/Hide Transitions"
-              [class.active]="showTransitions">
-        <span class="material-icons">{{ showTransitions ? 'visibility' : 'visibility_off' }}</span>
-        <span class="transitions-label">Transitions</span>
-      </button>
-    </div>
+   
   </div>
 
   <!-- Center Section: Time Display -->
@@ -76,6 +67,13 @@
 
     <!-- Action Buttons -->
     <div class="action-controls" *ngIf="isCaptain">
+      <!-- Create Draft Button - TEMPORARILY HIDDEN -->
+      <!-- <button class="control-btn action-btn draft-btn" 
+              (click)="onCreateDraft()" 
+              title="Create Draft"
+              [disabled]="totalFormations === 0">
+        <span class="material-icons">edit_document</span>
+      </button> -->
       <button class="control-btn action-btn duplicate-btn" 
               (click)="onDuplicateFormation()" 
               title="Duplicate Formation"
