@@ -6,6 +6,7 @@ import { HttpClient } from '@angular/common/http';
 import { Login } from '../login/login';
 import { AuthService } from '../services/auth.service';
 import { environment } from '../../environments/environment';
+import { ThreeDModelsComponent } from './3d-models/3d-models.component';
 
 interface TeamMember {
   _id: string;
@@ -18,7 +19,7 @@ interface TeamMember {
   templateUrl: './home.html',
   styleUrls: ['./home.scss'],
   standalone: true,
-  imports: [CommonModule, FormsModule, Login]
+  imports: [CommonModule, FormsModule, Login, ThreeDModelsComponent]
 })
 export class HomeComponent implements OnInit {
   showSplit = false;
@@ -26,6 +27,7 @@ export class HomeComponent implements OnInit {
   showJoinTeamModal = false;
   showFeaturesModal = false;
   showContactModal = false;
+  showOnboardingModal = false;
   isAnimating = false;
   joinStep = 1;
   showScrollToTop = false;
@@ -42,6 +44,21 @@ export class HomeComponent implements OnInit {
   heightFeet: number | null = null;
   heightInches: number | null = null;
   gender = '';
+
+  currentStep: 'choice' | 'create-team' | 'join-team' | 'show-join-code' | 'edit-join-code' | 'select-member' | 'complete-profile' | 'success' = 'choice';
+  formData = {
+    name: '',
+    email: '',
+    password: '',
+    teamName: '',
+    teamCode: '',
+    heightFeet: '',
+    heightInches: '',
+    gender: ''
+  };
+
+  selectedTeam: any = null;
+  isNewUser: boolean = false;
 
   constructor(
     private router: Router, 
@@ -217,8 +234,11 @@ export class HomeComponent implements OnInit {
       });
   }
 
-  selectMember(member: TeamMember) {
+  selectMember(member: any) {
     this.selectedMember = member;
+    this.isNewUser = !member.email;
+    this.formData.name = member.name;
+    this.currentStep = 'complete-profile';
   }
 
   goToStep3() {
@@ -288,5 +308,215 @@ export class HomeComponent implements OnInit {
       top: 0,
       behavior: 'smooth'
     });
+  }
+
+  openOnboardingModal() {
+    this.currentStep = 'choice';
+    this.showOnboardingModal = true;
+  }
+
+  closeOnboardingModal() {
+    this.showOnboardingModal = false;
+    this.currentStep = 'choice';
+    this.formData = {
+      name: '', email: '', password: '', teamName: '', teamCode: '', heightFeet: '', heightInches: '', gender: ''
+    };
+    this.joinCode = '';
+    this.teamMembers = [];
+    this.selectedMember = null;
+  }
+
+  // Create team and user
+  createTeamAndUser() {
+    this.http.post(`${environment.apiUrl}/register`, {
+      email: this.formData.email,
+      password: this.formData.password,
+      name: this.formData.name,
+      captain: true
+    }).subscribe({
+      next: (userRes: any) => {
+        const userId = userRes.user._id;
+        this.http.post(`${environment.apiUrl}/teams`, {
+          name: this.formData.teamName,
+          owner: userId,
+          members: [userId]
+        }).subscribe({
+          next: (teamRes: any) => {
+            const teamId = teamRes.team._id;
+            this.http.patch(`${environment.apiUrl}/users/${userId}`, { team: teamId }).subscribe({
+              next: () => {
+                this.joinCode = teamRes.team.joinCode;
+                // Fetch the full user with populated team
+                this.http.get(`${environment.apiUrl}/users/${userId}`).subscribe({
+                  next: (fullUser: any) => {
+                    this.authService.setCurrentUser({
+                      _id: fullUser._id,
+                      name: fullUser.name,
+                      team: fullUser.team,
+                      captain: fullUser.captain
+                    });
+                    this.currentStep = 'show-join-code';
+                  },
+                  error: () => {
+                    this.currentStep = 'show-join-code';
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+
+  // Add a method to handle the Continue button after join code is shown
+  continueAfterJoinCode() {
+    this.currentStep = 'success';
+  }
+
+  // Add a method to handle the final Continue/Start Choreographing button
+  finishOnboarding() {
+    this.router.navigate(['/dashboard']);
+  }
+
+  // Update verifyJoinCode to only proceed if backend returns valid team and members
+  verifyJoinCode() {
+    console.log('Attempting to verify join code:', this.formData.teamCode);
+    this.http.get<any>(`${environment.apiUrl}/team-by-join-code/${this.formData.teamCode}`).subscribe({
+      next: (res) => {
+        console.log('Team lookup response:', res);
+        if (res && res.team && Array.isArray(res.members) && res.members.length > 0) {
+          this.teamMembers = res.members;
+          this.selectedTeam = res.team;
+          this.currentStep = 'select-member';
+        } else {
+          alert('No team or members found for this code.');
+        }
+      },
+      error: (err) => {
+        console.error('Team lookup error:', err);
+        alert('Team not found');
+      }
+    });
+  }
+
+  // Update completeProfile to only set currentUser and redirect after successful profile completion or login
+  completeProfile() {
+    const height = (parseInt(this.formData.heightFeet, 10) || 0) * 12 + (parseInt(this.formData.heightInches, 10) || 0);
+    if (this.isNewUser) {
+      // Register new user
+      this.http.post(`${environment.apiUrl}/register`, {
+        name: this.formData.name,
+        email: this.formData.email,
+        password: this.formData.password,
+        team: this.selectedTeam._id,
+        gender: this.formData.gender,
+        height,
+        captain: false
+      }).subscribe({
+        next: (userRes: any) => {
+          this.authService.setCurrentUser({
+            _id: userRes.user._id,
+            name: userRes.user.name,
+            team: userRes.user.team,
+            captain: userRes.user.captain
+          });
+          this.currentStep = 'success';
+        },
+        error: (err) => alert('User creation failed: ' + (err.error?.error || err.message))
+      });
+    } else {
+      if (this.selectedMember && this.selectedMember._id) {
+        // Login existing user
+        this.http.post(`${environment.apiUrl}/login`, {
+          email: this.selectedMember.email,
+          password: this.formData.password
+        }).subscribe({
+          next: (loginRes: any) => {
+            this.authService.setCurrentUser({
+              _id: loginRes.user._id,
+              name: loginRes.user.name,
+              team: loginRes.user.team,
+              captain: loginRes.user.captain
+            });
+            this.currentStep = 'success';
+          },
+          error: (err) => alert('Login failed: ' + (err.error?.error || err.message))
+        });
+      }
+    }
+  }
+
+  // Add method to handle editing join code
+  editJoinCode() {
+    this.formData.teamCode = this.joinCode;
+    this.currentStep = 'edit-join-code';
+  }
+
+  // Add method to validate and format team code input
+  validateTeamCodeInput(event: any) {
+    let value = event.target.value;
+    value = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    this.formData.teamCode = value;
+  }
+
+  // Add method to check if team code is valid format
+  isTeamCodeValid(): boolean {
+    return !!(this.formData.teamCode && 
+           this.formData.teamCode.length === 7 && 
+           /^[A-Z0-9]+$/.test(this.formData.teamCode));
+  }
+
+  // Add method to check if team code has correct length
+  isTeamCodeLengthValid(): boolean {
+    return !!(this.formData.teamCode && this.formData.teamCode.length === 7);
+  }
+
+  // Add method to check if team code has correct format
+  isTeamCodeFormatValid(): boolean {
+    return !!(this.formData.teamCode && /^[A-Z0-9]+$/.test(this.formData.teamCode));
+  }
+
+  // Add method to update join code
+  updateJoinCode() {
+    if (!this.formData.teamCode || this.formData.teamCode.length !== 7) {
+      alert('Please enter a 7-character join code');
+      return;
+    }
+
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser || !currentUser.team) {
+      alert('No team found');
+      return;
+    }
+
+    this.http.patch(`${environment.apiUrl}/teams/${currentUser.team._id}/join-code`, {
+      joinCode: this.formData.teamCode
+    }).subscribe({
+      next: (res: any) => {
+        this.joinCode = this.formData.teamCode;
+        this.currentStep = 'show-join-code';
+      },
+      error: (err) => {
+        alert('Failed to update join code: ' + (err.error?.error || err.message));
+      }
+    });
+  }
+
+  // Add method to generate a new join code
+  generateNewJoinCode() {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser || !currentUser.team) {
+      alert('No team found');
+      return;
+    }
+
+    // Generate a new code based on team name
+    const teamName = currentUser.team.name || 'team';
+    const teamNamePrefix = teamName.replace(/\s+/g, '').toLowerCase().substring(0, 4).padEnd(4, 'a');
+    const randomDigits = Math.floor(100 + Math.random() * 900); // 3 digits (100-999)
+    const newCode = `${teamNamePrefix}${randomDigits}`;
+    
+    this.formData.teamCode = newCode.toUpperCase();
   }
 }
