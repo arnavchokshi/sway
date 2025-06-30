@@ -71,8 +71,14 @@
                   <div class="segment-grid-bg"></div>
                   <div class="segment-number">{{ segIndex + 1 }}</div>
                   
+                  <!-- User in segment indicator -->
+                  <div class="user-in-segment-indicator" *ngIf="isUserInSegment(segment)" title="You are in this segment">
+                    <i class="fas fa-user"></i>
+                  </div>
+                  
                   <!-- Privacy toggle eye icon next to number -->
                   <button class="privacy-toggle-btn" 
+                          *ngIf="isCaptain"
                           (click)="toggleSegmentPrivacy(segment._id, segment.isPublic); $event.stopPropagation()" 
                           [title]="segment.isPublic ? 'Make segment private' : 'Make segment public'">
                     <i class="fas" [class.fa-eye]="segment.isPublic" [class.fa-eye-slash]="!segment.isPublic"></i>

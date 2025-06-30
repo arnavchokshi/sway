@@ -101,12 +101,25 @@ export class DashboardComponent implements OnInit {
   loadSegments() {
     const currentUser = this.authService.getCurrentUser();
     if (currentUser?.team?._id) {
-      this.segmentService.getSegmentsForTeam(currentUser.team._id).subscribe({
+      this.segmentService.getVisibleSegmentsForTeam(currentUser.team._id, currentUser._id).subscribe({
         next: (res) => {
           this.segments = res.segments;
         },
         error: (err) => {
           console.error('Failed to load segments:', err);
+          // Fallback to the old method if the new endpoint fails
+          this.segmentService.getSegmentsForTeam(currentUser.team._id).subscribe({
+            next: (fallbackRes) => {
+              if (this.isCaptain) {
+                this.segments = fallbackRes.segments;
+              } else {
+                this.segments = fallbackRes.segments.filter(segment => segment.isPublic === true);
+              }
+            },
+            error: (fallbackErr) => {
+              console.error('Failed to load segments with fallback:', fallbackErr);
+            }
+          });
         }
       });
     }
@@ -400,74 +413,31 @@ export class DashboardComponent implements OnInit {
   }
 
   getStyleColor(styleName: string): string {
-    // Map style names to vibrant colors
-    const styleColors: { [key: string]: string } = {
-      // Hip Hop variations
-      'hip hop': '#FF6B35',        // Vibrant orange
-      'hiphop': '#FF6B35',         // Vibrant orange
-      'HH': '#FF6B35',             // Vibrant orange
-      'hip-hop': '#FF6B35',        // Vibrant orange
-      
-      // Bhangra variations
-      'bhangra': '#F7931E',        // Golden orange
-      'punjabi': '#F7931E',        // Golden orange
-      
-      // Contemporary/Modern
-      'contemporary': '#9B59B6',   // Purple
-      'modern': '#8E44AD',         // Dark purple
-      'lyrical': '#BB8FCE',        // Light purple
-      
-      // Jazz styles
-      'jazz': '#E74C3C',           // Red
-      'jazz funk': '#C0392B',      // Dark red
-      'commercial': '#EC7063',     // Light red
-      
-      // Latin styles
-      'latin': '#F39C12',          // Orange
-      'salsa': '#E67E22',          // Dark orange
-      'bachata': '#F8C471',        // Light orange
-      'reggaeton': '#D68910',      // Amber
-      
-      // Bollywood styles
-      'bollywood': '#E91E63',      // Pink
-      'classical': '#AD1457',      // Dark pink
-      'folk': '#F06292',           // Light pink
-      
-      // Street styles
-      'breaking': '#2ECC71',       // Green
-      'bboy': '#27AE60',           // Dark green
-      'bgirl': '#58D68D',          // Light green
-      'popping': '#16A085',        // Teal
-      'locking': '#48C9B0',        // Light teal
-      
-      // Ballroom
-      'ballroom': '#3498DB',       // Blue
-      'waltz': '#2980B9',          // Dark blue
-      'tango': '#5DADE2',          // Light blue
-      
-      // Cultural styles
-      'african': '#A569BD',        // Violet
-      'caribbean': '#52C0F5',      // Sky blue
-      'korean': '#FF5722',         // Deep orange
-      'kpop': '#FF8A65',           // Light orange
-      
-      // Other popular styles
-      'acro': '#795548',           // Brown
-      'musical theatre': '#607D8B', // Blue grey
-      'tap': '#455A64',            // Dark blue grey
-      'ballet': '#FCE4EC',         // Very light pink
-      'lyra': '#4CAF50',           // Light green
-      'pole': '#9C27B0',           // Deep purple
-      
-      // Default categories
-      'fusion': '#FF9800',         // Amber
-      'experimental': '#00BCD4',   // Cyan
-      'freestyle': '#CDDC39',      // Lime
-    };
+    if (this.team?.styles) {
+      const style = this.team.styles.find((s: any) => s.name === styleName);
+      return style ? style.color : '#6366f1';
+    }
+    return '#6366f1';
+  }
+
+  // Check if current user is in a segment
+  isUserInSegment(segment: any): boolean {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?._id || !segment) return false;
     
-    // Convert to lowercase for case-insensitive matching
-    const lowerStyleName = styleName.toLowerCase();
-    return styleColors[lowerStyleName] || '#6366F1'; // Default to indigo if not found
+    // Check if user is in the roster
+    const inRoster = segment.roster?.some((id: any) => 
+      id === currentUser._id || id?._id === currentUser._id
+    );
+    
+    // Check if user is in any formation
+    const inFormation = segment.formations?.some((formation: any[]) =>
+      formation.some((performer: any) =>
+        performer.user === currentUser._id || performer.user?._id === currentUser._id
+      )
+    );
+    
+    return inRoster || inFormation;
   }
 
   getSetVisibilityStatus(setId: string): boolean {

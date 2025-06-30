@@ -76,8 +76,27 @@ export class JoinTeam implements OnInit {
 
   submitProfile() {
     const height = (parseInt(this.profileForm.heightFeet, 10) || 0) * 12 + (parseInt(this.profileForm.heightInches, 10) || 0);
-    if (this.isNewUser) {
-      // Create a new user in the team
+    
+    if (this.selectedMember && this.selectedMember._id) {
+      this.http.patch(`${environment.apiUrl}/users/${this.selectedMember._id}`, {
+        name: this.profileForm.name,
+        email: this.profileForm.email,
+        password: this.profileForm.password,
+        gender: this.profileForm.gender,
+        height
+      }).subscribe({
+        next: (userRes: any) => {
+          this.authService.setCurrentUser({
+            _id: userRes.user._id,
+            name: userRes.user.name,
+            team: userRes.user.team,
+            captain: userRes.user.captain
+          });
+          this.router.navigate(['/dashboard']);
+        },
+        error: (err) => alert('User update failed: ' + (err.error?.error || err.message))
+      });
+    } else if (this.isNewUser && this.teamId) {
       this.http.post(`${environment.apiUrl}/register`, {
         name: this.profileForm.name,
         email: this.profileForm.email,
@@ -99,25 +118,7 @@ export class JoinTeam implements OnInit {
         error: (err) => alert('User creation failed: ' + (err.error?.error || err.message))
       });
     } else {
-      // Update the selected user
-      this.http.patch(`${environment.apiUrl}/users/${this.selectedMember._id}`, {
-        name: this.profileForm.name,
-        email: this.profileForm.email,
-        password: this.profileForm.password,
-        gender: this.profileForm.gender,
-        height
-      }).subscribe({
-        next: (userRes: any) => {
-          this.authService.setCurrentUser({
-            _id: userRes._id,
-            name: userRes.name,
-            team: userRes.team,
-            captain: userRes.captain
-          });
-          this.router.navigate(['/dashboard']);
-        },
-        error: (err) => alert('User update failed: ' + (err.error?.error || err.message))
-      });
+      alert('No user selected or team not found');
     }
   }
 }

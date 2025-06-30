@@ -49,10 +49,10 @@ export class SignIn implements OnInit {
       next: (response: any) => {
         // Store the complete user data in AuthService
         this.authService.setCurrentUser({
-          _id: response._id,
-          name: response.name,
-          team: response.team,
-          captain: response.captain
+          _id: response.user._id,
+          name: response.user.name,
+          team: response.user.team,
+          captain: response.user.captain
         });
         alert('User updated and signed in!');
         this.router.navigate(['/dashboard']);

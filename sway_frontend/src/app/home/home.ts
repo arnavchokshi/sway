@@ -409,8 +409,29 @@ export class HomeComponent implements OnInit {
   // Update completeProfile to only set currentUser and redirect after successful profile completion or login
   completeProfile() {
     const height = (parseInt(this.formData.heightFeet, 10) || 0) * 12 + (parseInt(this.formData.heightInches, 10) || 0);
-    if (this.isNewUser) {
-      // Register new user
+    
+    // If we have a selected member (from team roster), always update that existing user
+    if (this.selectedMember && this.selectedMember._id) {
+      // Update existing user
+      this.http.patch(`${environment.apiUrl}/users/${this.selectedMember._id}`, {
+        email: this.formData.email,
+        password: this.formData.password,
+        gender: this.formData.gender,
+        height
+      }).subscribe({
+        next: (userRes: any) => {
+          this.authService.setCurrentUser({
+            _id: userRes.user._id,
+            name: userRes.user.name,
+            team: userRes.user.team,
+            captain: userRes.user.captain
+          });
+          this.currentStep = 'success';
+        },
+        error: (err) => alert('User update failed: ' + (err.error?.error || err.message))
+      });
+    } else if (this.isNewUser && this.selectedTeam) {
+      // Only create new user if no member was selected and we're in new user mode
       this.http.post(`${environment.apiUrl}/register`, {
         name: this.formData.name,
         email: this.formData.email,
@@ -432,26 +453,7 @@ export class HomeComponent implements OnInit {
         error: (err) => alert('User creation failed: ' + (err.error?.error || err.message))
       });
     } else {
-      if (this.selectedMember && this.selectedMember._id) {
-        // Update existing user
-        this.http.patch(`${environment.apiUrl}/users/${this.selectedMember._id}`, {
-          email: this.formData.email,
-          password: this.formData.password,
-          gender: this.formData.gender,
-          height
-        }).subscribe({
-          next: (userRes: any) => {
-            this.authService.setCurrentUser({
-              _id: userRes.user._id,
-              name: userRes.user.name,
-              team: userRes.user.team,
-              captain: userRes.user.captain
-            });
-            this.currentStep = 'success';
-          },
-          error: (err) => alert('User update failed: ' + (err.error?.error || err.message))
-        });
-      }
+      alert('No user selected or team not found');
     }
   }
 

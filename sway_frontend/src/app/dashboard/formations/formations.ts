@@ -54,29 +54,10 @@ export class FormationsComponent implements OnInit {
   loadSegments() {
     const currentUser = this.authService.getCurrentUser();
     if (currentUser?.team?._id) {
-      this.segmentService.getSegmentsForTeam(currentUser.team._id).subscribe({
+      this.segmentService.getVisibleSegmentsForTeam(currentUser.team._id, currentUser._id).subscribe({
         next: (res) => {
-          let segments = [];
-          if (this.isCaptain) {
-            // Captains can see all segments
-            segments = res.segments;
-          } else {
-            // Non-captains can only see segments they're in
-            segments = res.segments.filter(segment => {
-              // Check if user is in the roster OR in any formation
-              const inRoster = segment.roster?.some((id: any) =>
-                id === currentUser._id || id?._id === currentUser._id
-              );
-              const inFormation = segment.formations?.some((formation: any[]) =>
-                formation.some((performer: any) =>
-                  performer.user === currentUser._id || performer.user?._id === currentUser._id
-                )
-              );
-              return inRoster || inFormation;
-            });
-          }
           // Sort by segmentOrder (ascending, fallback to _id for undefined)
-          this.segments = segments.sort((a, b) => {
+          this.segments = res.segments.sort((a, b) => {
             if (a.segmentOrder !== undefined && b.segmentOrder !== undefined) {
               return a.segmentOrder - b.segmentOrder;
             } else if (a.segmentOrder !== undefined) {
@@ -90,6 +71,32 @@ export class FormationsComponent implements OnInit {
         },
         error: (err) => {
           console.error('Failed to load segments:', err);
+          // Fallback to the old method if the new endpoint fails
+          this.segmentService.getSegmentsForTeam(currentUser.team._id).subscribe({
+            next: (fallbackRes) => {
+              let segments = [];
+              if (this.isCaptain) {
+                segments = fallbackRes.segments;
+              } else {
+                segments = fallbackRes.segments.filter(segment => segment.isPublic === true);
+              }
+              // Sort by segmentOrder (ascending, fallback to _id for undefined)
+              this.segments = segments.sort((a, b) => {
+                if (a.segmentOrder !== undefined && b.segmentOrder !== undefined) {
+                  return a.segmentOrder - b.segmentOrder;
+                } else if (a.segmentOrder !== undefined) {
+                  return -1;
+                } else if (b.segmentOrder !== undefined) {
+                  return 1;
+                } else {
+                  return a._id.localeCompare(b._id);
+                }
+              });
+            },
+            error: (fallbackErr) => {
+              console.error('Failed to load segments with fallback:', fallbackErr);
+            }
+          });
         }
       });
     }
@@ -183,15 +190,8 @@ export class FormationsComponent implements OnInit {
   }
 
   getStyleColor(styleName: string): string {
-    // Try to find the style in teamStyles (which has color info)
-    const style = this.teamStyles.find(s => s.name === styleName);
-    if (style && style.color) return style.color;
-    // Fallback colors for common styles
-    const fallback: { [key: string]: string } = {
-
-      // Add more as needed
-    };
-    return fallback[styleName] || '#E6E6FA';
+    const style = this.teamStyles.find((s: any) => s.name === styleName);
+    return style ? style.color : '#6366f1';
   }
 
   onDragStart(event: DragEvent, index: number) {
@@ -312,5 +312,25 @@ export class FormationsComponent implements OnInit {
       this.router.navigate(['/create-segment'], { queryParams: { id: this.pendingSegmentId, viewAsMemeber: 'true' } });
       this.pendingSegmentId = null;
     }
+  }
+
+  // Check if current user is in a segment
+  isUserInSegment(segment: any): boolean {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?._id || !segment) return false;
+    
+    // Check if user is in the roster
+    const inRoster = segment.roster?.some((id: any) => 
+      id === currentUser._id || id?._id === currentUser._id
+    );
+    
+    // Check if user is in any formation
+    const inFormation = segment.formations?.some((formation: any[]) =>
+      formation.some((performer: any) =>
+        performer.user === currentUser._id || performer.user?._id === currentUser._id
+      )
+    );
+    
+    return inRoster || inFormation;
   }
 } 

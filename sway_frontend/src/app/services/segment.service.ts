@@ -52,8 +52,8 @@ export class SegmentService {
   }
 
   // Get segments that are visible to the current user based on their role and privacy settings
-  getVisibleSegmentsForTeam(teamId: string): Observable<{ segments: ISegment[] }> {
-    return this.http.get<{ segments: ISegment[] }>(`${environment.apiUrl}/segments/${teamId}/visible`);
+  getVisibleSegmentsForTeam(teamId: string, userId: string): Observable<{ segments: ISegment[] }> {
+    return this.http.get<{ segments: ISegment[] }>(`${environment.apiUrl}/segments/${teamId}/visible?userId=${userId}`);
   }
 
   // Get segments for a specific set (privacy-aware)

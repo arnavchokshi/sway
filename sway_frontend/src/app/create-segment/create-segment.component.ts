@@ -2935,6 +2935,43 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.isPlaying = false;
       this.hoveredTimelineTime = null;
 
+      // Update formation index and transition state to match current playback time when paused
+      let t = 0;
+      let found = false;
+      for (let i = 0; i < this.formations.length; i++) {
+        const hold = this.formationDurations[i] || 4;
+        if (this.playbackTime < t + hold) {
+          this.playingFormationIndex = i;
+          this.currentFormationIndex = i; // Update the displayed formation
+          this.inTransition = false;
+          this.animatedPositions = {};
+          found = true;
+          break;
+        }
+        t += hold;
+        if (i < this.animationDurations.length) {
+          const trans = this.animationDurations[i] || 1;
+          if (this.playbackTime < t + trans) {
+            this.playingFormationIndex = i + 1;
+            this.currentFormationIndex = i + 1; // Update the displayed formation
+            this.inTransition = true;
+            const progress = (this.playbackTime - t) / trans;
+            this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+            found = true;
+            break;
+          }
+          t += trans;
+        }
+      }
+      if (!found) {
+        // If past all, show last formation
+        this.playingFormationIndex = this.formations.length - 1;
+        this.currentFormationIndex = this.formations.length - 1; // Update the displayed formation
+        this.inTransition = false;
+        this.animatedPositions = {};
+      }
+      this.cdr.detectChanges();
+
     } else {
       // Start playback - with mobile audio context handling
       if (this.isMobile && this.waveSurfer) {
@@ -3394,10 +3431,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     event.preventDefault();
     
     const dx = event.clientX - this.resizingStartX;
-    const totalTimelineDuration = this.getTimelineTotalDuration();
     
-    // Account for zoom level in the calculation using full audio timeline
-    const pixelsToDuration = totalTimelineDuration / (this.waveformWidthPx * this.timelineZoom);
+    // Account for zoom level in the calculation using pixels per second
+    const pixelsToDuration = 1 / (this.pixelsPerSecond * this.timelineZoom);
     
     let newDuration = this.resizingStartDuration + (dx * pixelsToDuration);
     newDuration = Math.max(1, Math.min(100, newDuration));
@@ -3460,10 +3496,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     event.preventDefault();
     
     const dx = event.clientX - this.resizingTransitionStartX;
-    const totalTimelineDuration = this.getTimelineTotalDuration();
     
-    // Account for zoom level in the calculation using full audio timeline
-    const pixelsToDuration = totalTimelineDuration / (this.waveformWidthPx * this.timelineZoom);
+    // Account for zoom level in the calculation using pixels per second
+    const pixelsToDuration = 1 / (this.pixelsPerSecond * this.timelineZoom);
     
     let newDuration = this.resizingTransitionStartDuration + (dx * pixelsToDuration);
     newDuration = Math.max(0.2, newDuration);
@@ -3502,19 +3537,19 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const containerWidth = container.offsetWidth;
     this.timelineContainerWidth = containerWidth;
     
-    // Get the audio duration
-    const audioDuration = this.waveSurfer?.getDuration() || this.getTimelineTotalDuration();
-    this.audioDuration = audioDuration;
+    // Get the total timeline duration (audio duration or formation durations)
+    const totalDuration = this.getTimelineTotalDuration();
+    this.audioDuration = totalDuration;
     
-    if (audioDuration <= 0) {
+    if (totalDuration <= 0) {
       return containerWidth * this.timelineZoom; // Fallback
     }
     
-    // At 100% zoom (timelineZoom = 1), the audio should fill the container width
-    // Calculate base width: container width represents the full audio duration
-    const baseWidth = containerWidth;
+    // Calculate the base width based on the total duration
+    // Use pixels per second to determine the base width
+    const baseWidth = totalDuration * this.pixelsPerSecond;
     
-    // Apply zoom: timelineZoom = 1 means audio fills container, > 1 means zoomed in, < 1 means zoomed out
+    // Apply zoom: timelineZoom = 1 means normal scale, > 1 means zoomed in, < 1 means zoomed out
     return baseWidth * this.timelineZoom;
   }
 
@@ -3522,19 +3557,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const duration = this.formationDurations[i] || 4;
     const totalTimelineDuration = this.getTimelineTotalDuration();
     
-    // Get the container width for base calculation
-    const container = this.timelineBarRef?.nativeElement;
-    if (!container) {
-      // Fallback to old behavior
-      const baseWidth = (duration / totalTimelineDuration) * this.waveformWidthPx;
-      return baseWidth * this.timelineZoom;
-    }
-    
-    const containerWidth = container.offsetWidth;
-    
-    // Calculate the width based on the formation's proportion of the total audio duration
-    // At 100% zoom, the container width represents the full audio duration
-    const baseWidth = (duration / totalTimelineDuration) * containerWidth;
+    // Calculate the width based on the formation's proportion of the total timeline duration
+    // Use pixels per second to determine the base width
+    const baseWidth = duration * this.pixelsPerSecond;
     
     return baseWidth * this.timelineZoom;
   }
@@ -3543,19 +3568,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const duration = this.animationDurations[i] || 1;
     const totalTimelineDuration = this.getTimelineTotalDuration();
     
-    // Get the container width for base calculation
-    const container = this.timelineBarRef?.nativeElement;
-    if (!container) {
-      // Fallback to old behavior
-      const baseWidth = (duration / totalTimelineDuration) * this.waveformWidthPx;
-      return baseWidth * this.timelineZoom;
-    }
-    
-    const containerWidth = container.offsetWidth;
-    
-    // Calculate the width based on the transition's proportion of the total audio duration
-    // At 100% zoom, the container width represents the full audio duration
-    const baseWidth = (duration / totalTimelineDuration) * containerWidth;
+    // Calculate the width based on the transition's proportion of the total timeline duration
+    // Use pixels per second to determine the base width
+    const baseWidth = duration * this.pixelsPerSecond;
     
     return baseWidth * this.timelineZoom;
   }
@@ -4042,6 +4057,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         const hold = this.formationDurations[i] || 4;
         if (this.playbackTime < t + hold) {
           this.playingFormationIndex = i;
+          this.currentFormationIndex = i; // Update the displayed formation
           this.inTransition = false;
           this.animatedPositions = {};
           found = true;
@@ -4052,6 +4068,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           const trans = this.animationDurations[i] || 1;
           if (this.playbackTime < t + trans) {
             this.playingFormationIndex = i + 1;
+            this.currentFormationIndex = i + 1; // Update the displayed formation
             this.inTransition = true;
             const progress = (this.playbackTime - t) / trans;
             this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
@@ -4064,6 +4081,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       if (!found) {
         // If past all, show last formation
         this.playingFormationIndex = this.formations.length - 1;
+        this.currentFormationIndex = this.formations.length - 1; // Update the displayed formation
         this.inTransition = false;
         this.animatedPositions = {};
       }
@@ -6232,7 +6250,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Sort by distance from center (closest first)
     allGridPositions.sort((a, b) => a.distance - b.distance);
 
-    // NEW LOGIC: Prioritize offstage (side‐stage) spots for new performers
+    // NEW LOGIC: Prioritize offstage (side-stage) spots for new performers
     const isOffstage = (p: { x: number; y: number }) => p.x < 0 || p.x > this.width;
     const offstagePositions = allGridPositions.filter(isOffstage);
     const onstagePositions = allGridPositions.filter(p => !isOffstage(p));
@@ -7088,10 +7106,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const container = this.timelineBarRef?.nativeElement;
     if (!container) return;
     const containerWidth = container.offsetWidth;
-    // The timeline width at zoom=1 is waveformWidthPx
-    // minZoom = containerWidth / (waveformWidthPx)
-    const minZoom = containerWidth / this.waveformWidthPx;
+    
+    // Calculate the timeline width at zoom=1 using the new logic
+    const totalDuration = this.getTimelineTotalDuration();
+    const timelineWidthAtZoom1 = totalDuration * this.pixelsPerSecond;
+    
+    // minZoom = containerWidth / timelineWidthAtZoom1
+    const minZoom = containerWidth / timelineWidthAtZoom1;
     this.minTimelineZoom = Math.min(1, Math.max(0.01, minZoom));
+    
     // Clamp current zoom if needed
     if (this.timelineZoom < this.minTimelineZoom) {
       this.timelineZoom = this.minTimelineZoom;

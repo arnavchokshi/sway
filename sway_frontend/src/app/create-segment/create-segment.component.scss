@@ -1704,6 +1704,9 @@ body {
   flex-direction: column-reverse; /* Stack drafts above main formation */
   align-items: stretch;
   box-sizing: border-box;
+  /* Ensure the column width is exactly what's calculated */
+  min-width: 0;
+  flex-shrink: 0;
 }
 
 .formation-timeline-box {
@@ -1718,6 +1721,10 @@ body {
   transition: all 0.2s ease;
   box-sizing: border-box; // Ensure padding is included in width
   margin-bottom: 2px; /* Small gap between formations */
+  /* Ensure the box fits within its container column */
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 
   &:hover {
     background: rgba(59, 130, 246, 0.15);
@@ -1987,6 +1994,9 @@ body {
   flex-direction: column-reverse;
   align-items: stretch;
   position: relative;
+  /* Ensure the column width is exactly what's calculated */
+  min-width: 0;
+  flex-shrink: 0;
 }
 
 .timeline-transition-bar {
@@ -2001,6 +2011,10 @@ body {
   border: 1px solid rgba(255, 215, 0, 0.2);
   border-radius: 0 10px 10px 0;
   transition: height 0.3s ease;
+  /* Ensure the bar fits within its container column */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   
   &.main-transition {
     margin-bottom: 0;

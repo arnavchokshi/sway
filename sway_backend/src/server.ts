@@ -248,6 +248,37 @@ app.get('/api/segments/:teamId', async (req: Request, res: Response) => {
   }
 });
 
+// New endpoint for privacy-aware segment fetching
+app.get('/api/segments/:teamId/visible', async (req: Request, res: Response) => {
+  try {
+    const { teamId } = req.params;
+    const { userId } = req.query; // Get user ID from query parameter
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    
+    // Get user to check if they're a captain
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    let segments;
+    if (user.captain) {
+      // Captains can see all segments
+      segments = await Segment.find({ team: teamId });
+    } else {
+      // Non-captains can only see public segments
+      segments = await Segment.find({ team: teamId, isPublic: true });
+    }
+    
+    res.json({ segments });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch segments' });
+  }
+});
+
 app.get('/api/teams/:id', async (req: Request, res: Response) => {
   try {
     const team = await Team.findById(req.params.id).populate('members');

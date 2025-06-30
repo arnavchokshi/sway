@@ -18,7 +18,10 @@
           {{ i + 1 }}
         </div>
 
-
+        <!-- User in segment indicator -->
+        <div class="user-in-segment-indicator" *ngIf="isUserInSegment(segment)" title="You are in this segment">
+          <i class="fas fa-user"></i>
+        </div>
 
         <button class="delete-segment-btn" *ngIf="isCaptain" (click)="deleteSegment(segment._id); $event.stopPropagation()">
           <span class="material-icons">delete</span>
