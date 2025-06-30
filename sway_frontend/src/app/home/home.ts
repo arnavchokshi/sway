@@ -45,7 +45,7 @@ export class HomeComponent implements OnInit {
   heightInches: number | null = null;
   gender = '';
 
-  currentStep: 'choice' | 'create-team' | 'join-team' | 'show-join-code' | 'edit-join-code' | 'select-member' | 'complete-profile' | 'success' = 'choice';
+  currentStep: 'choice' | 'create-team' | 'join-team' | 'show-join-code' | 'select-member' | 'complete-profile' | 'success' = 'choice';
   formData = {
     name: '',
     email: '',
@@ -59,6 +59,13 @@ export class HomeComponent implements OnInit {
 
   selectedTeam: any = null;
   isNewUser: boolean = false;
+
+  editingJoinCode = false;
+  editJoinCodeValue = '';
+  copied = false;
+
+  joinCodeError = '';
+  joinTeamError: string = '';
 
   constructor(
     private router: Router, 
@@ -222,7 +229,7 @@ export class HomeComponent implements OnInit {
           this.teamId = res.team._id;
           this.teamName = res.team.name;
           this.teamMembers = res.members || [];
-          this.sortedTeamMembers = [...this.teamMembers].sort((a, b) => 
+          this.sortedTeamMembers = [...this.teamMembers].sort((a: any, b: any) => 
             (a.name || '').localeCompare(b.name || '')
           );
           this.joinStep = 2;
@@ -381,21 +388,20 @@ export class HomeComponent implements OnInit {
 
   // Update verifyJoinCode to only proceed if backend returns valid team and members
   verifyJoinCode() {
-    console.log('Attempting to verify join code:', this.formData.teamCode);
+    this.joinTeamError = '';
     this.http.get<any>(`${environment.apiUrl}/team-by-join-code/${this.formData.teamCode}`).subscribe({
       next: (res) => {
-        console.log('Team lookup response:', res);
         if (res && res.team && Array.isArray(res.members) && res.members.length > 0) {
-          this.teamMembers = res.members;
+          this.teamMembers = res.members.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
           this.selectedTeam = res.team;
           this.currentStep = 'select-member';
+          this.joinTeamError = '';
         } else {
-          alert('No team or members found for this code.');
+          this.joinTeamError = 'Cant find team with this code. Make sure you have the correct code.';
         }
       },
       error: (err) => {
-        console.error('Team lookup error:', err);
-        alert('Team not found');
+        this.joinTeamError = 'Cant find team with this code. Please confirm code with capatin.';
       }
     });
   }
@@ -427,34 +433,31 @@ export class HomeComponent implements OnInit {
       });
     } else {
       if (this.selectedMember && this.selectedMember._id) {
-        // Login existing user
-        this.http.post(`${environment.apiUrl}/login`, {
-          email: this.selectedMember.email,
-          password: this.formData.password
+        // Update existing user
+        this.http.patch(`${environment.apiUrl}/users/${this.selectedMember._id}`, {
+          email: this.formData.email,
+          password: this.formData.password,
+          gender: this.formData.gender,
+          height
         }).subscribe({
-          next: (loginRes: any) => {
+          next: (userRes: any) => {
             this.authService.setCurrentUser({
-              _id: loginRes.user._id,
-              name: loginRes.user.name,
-              team: loginRes.user.team,
-              captain: loginRes.user.captain
+              _id: userRes.user._id,
+              name: userRes.user.name,
+              team: userRes.user.team,
+              captain: userRes.user.captain
             });
             this.currentStep = 'success';
           },
-          error: (err) => alert('Login failed: ' + (err.error?.error || err.message))
+          error: (err) => alert('User update failed: ' + (err.error?.error || err.message))
         });
       }
     }
   }
 
-  // Add method to handle editing join code
-  editJoinCode() {
-    this.formData.teamCode = this.joinCode;
-    this.currentStep = 'edit-join-code';
-  }
-
   // Add method to validate and format team code input
   validateTeamCodeInput(event: any) {
+    this.joinTeamError = '';
     let value = event.target.value;
     value = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
     this.formData.teamCode = value;
@@ -518,5 +521,84 @@ export class HomeComponent implements OnInit {
     const newCode = `${teamNamePrefix}${randomDigits}`;
     
     this.formData.teamCode = newCode.toUpperCase();
+  }
+
+  // Show join code and allow inline editing
+  showJoinCodeStep() {
+    this.editingJoinCode = false;
+    this.editJoinCodeValue = this.joinCode;
+    this.copied = false;
+  }
+
+  copyJoinCode() {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(this.joinCode).then(() => {
+        this.copied = true;
+        setTimeout(() => (this.copied = false), 1200);
+      });
+    }
+  }
+
+  startEditJoinCode() {
+    this.editingJoinCode = true;
+    this.editJoinCodeValue = this.joinCode;
+    this.joinCodeError = '';
+    setTimeout(() => {
+      const input = document.querySelector('.edit-code-input-inline') as HTMLInputElement;
+      if (input) input.focus();
+    }, 0);
+  }
+
+  clearJoinCodeError() {
+    this.joinCodeError = '';
+  }
+
+  saveJoinCodeEdit() {
+    const newCode = this.editJoinCodeValue.trim();
+    if (newCode.length !== 7) {
+      this.joinCodeError = 'Join code must be exactly 7 characters.';
+      return;
+    }
+    if (!/^[a-zA-Z0-9]+$/.test(newCode)) {
+      this.joinCodeError = 'Code must be alphanumeric.';
+      return;
+    }
+    if (newCode === this.joinCode) {
+      this.editingJoinCode = false;
+      return;
+    }
+    // Call backend to update code
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser && currentUser.team && currentUser.team._id) {
+      this.http.patch(`${environment.apiUrl}/teams/${currentUser.team._id}/join-code`, { joinCode: newCode })
+        .subscribe({
+          next: (res: any) => {
+            this.joinCode = newCode;
+            this.editingJoinCode = false;
+            this.joinCodeError = '';
+          },
+          error: (err) => {
+            if (err.error?.error && err.error.error.includes('already in use')) {
+              this.joinCodeError = 'This join code is already in use.';
+            } else {
+              this.joinCodeError = err.error?.error || 'Failed to update join code.';
+            }
+          }
+        });
+    } else {
+      this.editingJoinCode = false;
+    }
+  }
+
+  validateHeightFeet() {
+    let val = Number(this.formData.heightFeet);
+    if (isNaN(val) || val < 3) this.formData.heightFeet = '3';
+    else if (val > 8) this.formData.heightFeet = '8';
+  }
+
+  validateHeightInches() {
+    let val = Number(this.formData.heightInches);
+    if (isNaN(val) || val < 0) this.formData.heightInches = '0';
+    else if (val > 11) this.formData.heightInches = '11';
   }
 }

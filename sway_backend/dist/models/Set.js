@@ -55,16 +55,5 @@ const SetSchema = new mongoose_1.Schema({
             default: 0,
             min: 0, // Transition time cannot be negative
         }],
-    owner: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-    order: {
-        type: Number,
-        default: 0,
-    },
-}, {
-    timestamps: true, // Automatically adds createdAt and updatedAt
 });
 exports.Set = mongoose_1.default.model('Set', SetSchema);

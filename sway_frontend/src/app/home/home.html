@@ -140,6 +140,42 @@
             </div>
           </div>
 
+          <!-- Feature Card 9: Real-time Collaboration -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                <path d="M12 2v4"/>
+                <path d="M12 18v4"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>Real-time Collaboration</h3>
+              <p>Multiple captains can work on formations simultaneously</p>
+            </div>
+          </div>
+
+
+
+          <!-- Feature Card 11: Custom Backdrops -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21,15 16,10 5,21"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>Custom Backdrops</h3>
+              <p>Upload your own backdrop videos for realistic formation planning</p>
+            </div>
+          </div>
+
+
           <!-- Duplicate cards for seamless loop -->
           <!-- Feature Card 1: Instant Sync (Duplicate) -->
           <div class="feature-card-scroll">
@@ -385,7 +421,20 @@
 <!-- Login Popup -->
 <div class="login-popup-overlay" *ngIf="showLoginPopup" (click)="closeLoginPopup()">
   <div class="login-popup-content" (click)="$event.stopPropagation()">
-    <app-login (close)="closeLoginPopup()"></app-login>
+    <div class="onboarding-modal-header">
+      <div class="header-left">
+        <div class="segment-logo-container">
+          <img src="assets/logo.png" alt="Sway Logo" class="segment-logo">
+        </div>
+        <span class="onboarding-modal-title">Login     </span>
+      </div>
+      <button class="onboarding-modal-close" (click)="closeLoginPopup()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="onboarding-modal-body">
+      <app-login (close)="closeLoginPopup()"></app-login>
+    </div>
   </div>
 </div>
 
@@ -435,10 +484,10 @@
         <div class="form-group">
           <label>Height</label>
           <div class="height-inputs">
-            <input type="number" [(ngModel)]="heightFeet" name="heightFeet" placeholder="ft" min="0" max="8" required />
-            <span>ft</span>
-            <input type="number" [(ngModel)]="heightInches" name="heightInches" placeholder="in" min="0" max="11" required />
-            <span>in</span>
+            <input type="number" [(ngModel)]="heightFeet" name="heightFeet" placeholder="3-8" min="0" max="8" required />
+            <span class="height-unit">ft</span>
+            <input type="number" [(ngModel)]="heightInches" name="heightInches" placeholder="0-11" min="0" max="11" required />
+            <span class="height-unit">in</span>
           </div>
         </div>
         <div class="form-group">
@@ -512,8 +561,8 @@
     <!-- Header -->
     <div class="onboarding-modal-header">
       <div class="header-left">
-        <div class="header-icon-bg">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="6" fill="url(#sparkle-grad)"/><path d="M12 6l1.09 3.26H16l-2.59 1.88L14.18 15 12 12.52 9.82 15l1.36-3.86L8 9.26h2.91L12 6z" fill="#fff"/><defs><linearGradient id="sparkle-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#FFB347"/><stop offset="1" stop-color="#FF5E62"/></linearGradient></defs></svg>
+        <div class="segment-logo-container">
+          <img src="assets/logo.png" alt="Sway Logo" class="segment-logo">
         </div>
         <span class="onboarding-modal-title">
           {{ currentStep === 'choice' ? 'Welcome to SWAY' :
@@ -536,11 +585,11 @@
         <div class="onboarding-choice-cards">
           <div class="onboarding-choice-card" (click)="currentStep = 'create-team'">
             <div class="choice-card-icon-bg gradient-crown">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M4 7l4.5 7 3.5-5 3.5 5L20 7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="17" width="18" height="2" rx="1" fill="white"/></svg>
+              <span class="crown-symbol">🜲</span>
             </div>
             <div class="choice-card-title">Create a Team</div>
             <div class="choice-card-desc">Start fresh as a team captain and invite your dancers</div>
-            <div class="choice-card-badge badge-choreo">Recommended for Choreographers</div>
+            <div class="choice-card-badge badge-choreo">Perfect for Captains</div>
           </div>
           <div class="onboarding-choice-card" (click)="currentStep = 'join-team'">
             <div class="choice-card-icon-bg gradient-join">
@@ -573,7 +622,7 @@
           </div>
           <div class="onboarding-form-row">
             <div class="onboarding-form-group">
-              <label><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6" y="11" width="12" height="10" rx="2" stroke="#fff" stroke-width="2"/><path d="M12 17v.01" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg> Password</label>
+              <label><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="6" y="11" width="12" height="10" rx="2" stroke="#fff" stroke-width="2"/><path d="M12 17v.01" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg> Password</label>
               <input type="password" [(ngModel)]="formData.password" name="password" placeholder="Create a secure password" />
             </div>
             <div class="onboarding-form-group">
@@ -602,27 +651,38 @@
           <div class="join-team-title">Enter Team Code</div>
           <div class="join-team-desc">Your choreographer should have shared a team code with you</div>
           <input class="join-team-code-input" maxlength="7" [(ngModel)]="formData.teamCode" name="teamCode" placeholder="Enter 7-character team code" (input)="validateTeamCodeInput($event)" />
+          <div class="join-team-error" *ngIf="joinTeamError">{{ joinTeamError }}</div>
           <button type="button" class="onboarding-gradient-btn" [disabled]="!formData.teamCode || formData.teamCode.length !== 7" (click)="verifyJoinCode()">
             Join Team
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 10h10M13 6l4 4-4 4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <div class="join-team-link">
-            <span>Don't have a team code?</span>
-            <button class="join-team-create-link" (click)="currentStep = 'create-team'">Create your own team</button>
-          </div>
+          
         </div>
       </ng-container>
       <!-- Step: Show Join Code -->
       <ng-container *ngIf="currentStep === 'show-join-code'">
         <div class="onboarding-success-content">
           <div class="success-title">Your Team's Join Code</div>
-          <div class="join-code-value">{{ joinCode }}</div>
+          <div class="join-code-value">
+            <ng-container *ngIf="!editingJoinCode">
+              {{ joinCode }}
+              <button class="edit-code-btn" (click)="startEditJoinCode()" title="Edit Code">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </ng-container>
+            <ng-container *ngIf="editingJoinCode">
+              <input type="text" [(ngModel)]="editJoinCodeValue" maxlength="7" class="edit-code-input-inline" (input)="clearJoinCodeError()" />
+              <button class="save-code-btn" (click)="saveJoinCodeEdit()" title="Save">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="cancel-code-btn" (click)="editingJoinCode = false" title="Cancel">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="#ff5e62" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+            </ng-container>
+          </div>
+          <div class="edit-code-error" *ngIf="joinCodeError">{{ joinCodeError }}</div>
           <div class="success-desc">Share this code with your dancers so they can join your team.</div>
           <div class="join-code-actions">
-            <button type="button" class="onboarding-secondary-btn" (click)="editJoinCode()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              Edit Code
-            </button>
             <button type="button" class="onboarding-gradient-btn" (click)="continueAfterJoinCode()">
               Continue
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 10h10M13 6l4 4-4 4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -630,59 +690,16 @@
           </div>
         </div>
       </ng-container>
-      <!-- Step: Edit Join Code -->
-      <ng-container *ngIf="currentStep === 'edit-join-code'">
-        <div class="onboarding-step-header">
-          <button class="onboarding-back-btn" (click)="currentStep = 'show-join-code'">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 19l-7-7 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <span class="onboarding-step-desc">Customize your team code</span>
-        </div>
-        <div class="onboarding-edit-code-content">
-          <div class="edit-code-title">Edit Team Join Code</div>
-          <div class="edit-code-desc">Choose a 7-character code for your team. Use letters and numbers only.</div>
-          <div class="edit-code-input-group">
-            <input 
-              type="text" 
-              [(ngModel)]="formData.teamCode" 
-              name="editTeamCode" 
-              placeholder="Enter 7-character code" 
-              maxlength="7"
-              class="edit-code-input"
-              (input)="validateTeamCodeInput($event)"
-            />
-            <button type="button" class="generate-code-btn" (click)="generateNewJoinCode()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 2v6h-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 22v-6h6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              Generate
-            </button>
-          </div>
-          <div class="edit-code-info">
-            <div class="code-requirements">
-              <span class="requirement" [class.valid]="isTeamCodeLengthValid()">7 characters</span>
-              <span class="requirement" [class.valid]="isTeamCodeFormatValid()">Letters & numbers only</span>
-            </div>
-          </div>
-          <button type="button" class="onboarding-gradient-btn" [disabled]="!isTeamCodeValid()" (click)="updateJoinCode()">
-            Update Code
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 10h10M13 6l4 4-4 4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-        </div>
-      </ng-container>
       <!-- Step: Select Member -->
       <ng-container *ngIf="currentStep === 'select-member'">
-        <div class="onboarding-step-header">
-          <button class="onboarding-back-btn" (click)="currentStep = 'join-team'">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 19l-7-7 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <span class="onboarding-step-desc">Select your name</span>
-        </div>
+        <div class="select-member-heading">Select your <span class="green-highlight">name</span></div>
+        <div class="select-member-subheading">If you don't see your name, contact your captain.</div>
         <div class="select-member-list">
           <button *ngFor="let member of teamMembers" class="select-member-btn" [disabled]="member.email" (click)="selectMember(member)">
-            <span>{{ member.name }}</span>
+            <span class="member-name">{{ member.name }}</span>
             <span class="member-status" *ngIf="member.email">Already has account</span>
           </button>
         </div>
-        <div class="select-member-info">If you don't see your name, contact your captain.</div>
       </ng-container>
       <!-- Step: Complete Profile (for new users) -->
       <ng-container *ngIf="currentStep === 'complete-profile' && isNewUser">
@@ -707,10 +724,10 @@
             <div class="onboarding-form-group">
               <label>Height</label>
               <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="number" [(ngModel)]="formData.heightFeet" name="heightFeet" placeholder="ft" min="0" max="8" required style="width: 60px;" />
-                <span>ft</span>
-                <input type="number" [(ngModel)]="formData.heightInches" name="heightInches" placeholder="in" min="0" max="11" required style="width: 60px;" />
-                <span>in</span>
+                <input type="number" [(ngModel)]="formData.heightFeet" name="heightFeet" placeholder="3-8" min="0" max="8" required style="width: 60px;" />
+                <span class="height-unit">ft</span>
+                <input type="number" [(ngModel)]="formData.heightInches" name="heightInches" placeholder="0-11" min="0" max="11" required style="width: 60px;" />
+                <span class="height-unit">in</span>
               </div>
             </div>
             <div class="onboarding-form-group">

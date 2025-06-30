@@ -82,12 +82,13 @@ app.post('/api/register', (req, res) => __awaiter(void 0, void 0, void 0, functi
 app.post('/api/teams', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { name, school, owner } = req.body;
-        // Generate a unique join code: teamName + 2 random digits
+        // Generate a unique 7-character join code: first 4 letters of team name + 3 random digits
         let joinCode;
         let isUnique = false;
         while (!isUnique) {
-            const randomDigits = Math.floor(10 + Math.random() * 90); // 2 digits
-            joinCode = `${name.replace(/\s+/g, '').toLowerCase()}${randomDigits}`;
+            const teamNamePrefix = name.replace(/\s+/g, '').toLowerCase().substring(0, 4).padEnd(4, 'a');
+            const randomDigits = Math.floor(100 + Math.random() * 900); // 3 digits (100-999)
+            joinCode = `${teamNamePrefix}${randomDigits}`;
             const existing = yield Team_1.Team.findOne({ joinCode });
             if (!existing)
                 isUnique = true;
@@ -147,26 +148,44 @@ app.post('/api/bulk-users', (req, res) => __awaiter(void 0, void 0, void 0, func
 app.get('/api/team-by-join-code/:joinCode', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { joinCode } = req.params;
-        const team = yield Team_1.Team.findOne({ joinCode }).populate({
+        console.log('Looking for team with join code:', joinCode);
+        // Try case-insensitive search
+        const team = yield Team_1.Team.findOne({
+            joinCode: { $regex: new RegExp(`^${joinCode}$`, 'i') }
+        }).populate({
             path: 'members',
             select: 'name email _id' // Explicitly select the fields we need
         });
+        console.log('Team found:', team ? 'Yes' : 'No');
+        if (team) {
+            console.log('Team name:', team.name, 'Join code:', team.joinCode);
+        }
         if (!team) {
             return res.status(404).json({ error: 'Team not found' });
         }
         res.json({ team, members: team.members });
     }
     catch (error) {
+        console.error('Error in team lookup:', error);
         res.status(500).json({ error: error.message || 'Failed to fetch team' });
     }
 }));
 app.post('/api/segments', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { teamId, name, depth, width, divisions, animationDurations, stylesInSegment } = req.body;
+        const { teamId, name, depth, width, divisions, animationDurations, stylesInSegment, createdBy, isPublic, setId } = req.body;
+        // Validate required fields
+        if (!createdBy) {
+            return res.status(400).json({ error: 'createdBy field is required' });
+        }
         // Find the team to verify it exists
         const team = yield Team_1.Team.findById(teamId);
         if (!team) {
             return res.status(404).json({ error: 'Team not found' });
+        }
+        // Verify the user exists
+        const user = yield User_1.User.findById(createdBy);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
         }
         // Only allow styles that exist in the team's styles array
         const validStyleNames = (team.styles || []).map((s) => s.name);
@@ -182,7 +201,10 @@ app.post('/api/segments', (req, res) => __awaiter(void 0, void 0, void 0, functi
             divisions,
             animationDurations: Array.isArray(animationDurations) ? animationDurations : [1],
             musicUrl: '',
-            stylesInSegment: filteredStyles
+            stylesInSegment: filteredStyles,
+            createdBy: createdBy,
+            isPublic: isPublic !== undefined ? isPublic : true,
+            segmentSet: setId || undefined
         });
         yield segment.save();
         res.status(201).json({ message: 'Segment created', segment });
@@ -233,6 +255,32 @@ app.get('/api/teams/:id', (req, res) => __awaiter(void 0, void 0, void 0, functi
     }
     catch (error) {
         res.status(500).json({ error: error.message || 'Failed to fetch team' });
+    }
+}));
+// Add endpoint to update team join code
+app.patch('/api/teams/:teamId/join-code', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { teamId } = req.params;
+        const { joinCode } = req.body;
+        // Validate join code format (7 characters, alphanumeric)
+        if (!joinCode || joinCode.length !== 7 || !/^[a-zA-Z0-9]{7}$/.test(joinCode)) {
+            return res.status(400).json({ error: 'Join code must be exactly 7 alphanumeric characters' });
+        }
+        // Check if join code is already in use by another team
+        const existingTeam = yield Team_1.Team.findOne({ joinCode, _id: { $ne: teamId } });
+        if (existingTeam) {
+            return res.status(400).json({ error: 'This join code is already in use by another team' });
+        }
+        // Update the team's join code
+        const team = yield Team_1.Team.findByIdAndUpdate(teamId, { joinCode }, { new: true });
+        if (!team) {
+            return res.status(404).json({ error: 'Team not found' });
+        }
+        res.json({ message: 'Join code updated successfully', team });
+    }
+    catch (error) {
+        console.error('Error updating join code:', error);
+        res.status(500).json({ error: error.message || 'Failed to update join code' });
     }
 }));
 app.get('/api/segment/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -595,19 +643,11 @@ app.post('/api/sets', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         if (!team) {
             return res.status(404).json({ error: 'Team not found' });
         }
-        // Get the current user from the request (you might need to add authentication middleware)
-        // For now, using the team owner as default
-        const owner = team.owner;
-        // Get the next order number for this team
-        const existingSets = yield Set_1.Set.find({ team: teamId });
-        const nextOrder = existingSets.length;
         const set = new Set_1.Set({
             name,
             team: teamId,
             segments: [],
-            transitionTimes: [],
-            owner,
-            order: nextOrder
+            transitionTimes: []
         });
         yield set.save();
         res.status(201).json({ message: 'Set created', set });
@@ -620,7 +660,7 @@ app.post('/api/sets', (req, res) => __awaiter(void 0, void 0, void 0, function* 
 app.get('/api/sets/team/:teamId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { teamId } = req.params;
-        const sets = yield Set_1.Set.find({ team: teamId }).sort({ order: 1 });
+        const sets = yield Set_1.Set.find({ team: teamId });
         res.json({ sets });
     }
     catch (error) {
@@ -692,6 +732,71 @@ app.delete('/api/sets/:id/segments/:segmentId', (req, res) => __awaiter(void 0, 
     }
     catch (error) {
         res.status(500).json({ error: error.message || 'Failed to remove segment from set' });
+    }
+}));
+// Update segment privacy
+app.patch('/api/segment/:segmentId/privacy', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { segmentId } = req.params;
+        const { isPublic } = req.body;
+        const segment = yield Segment_1.Segment.findByIdAndUpdate(segmentId, { isPublic }, { new: true });
+        if (!segment) {
+            return res.status(404).json({ error: 'Segment not found' });
+        }
+        res.json({ message: 'Segment privacy updated', segment });
+    }
+    catch (error) {
+        console.error('Error updating segment privacy:', error);
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update segment privacy' });
+    }
+}));
+// Add endpoint to list all teams (for debugging)
+app.get('/api/teams', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const teams = yield Team_1.Team.find({}, 'name joinCode _id');
+        res.json({ teams });
+    }
+    catch (error) {
+        console.error('Error fetching teams:', error);
+        res.status(500).json({ error: error.message || 'Failed to fetch teams' });
+    }
+}));
+// Add endpoint to update all existing 6-character codes to 7-character codes
+app.patch('/api/teams/update-codes-to-7', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        // Find all teams with 6-character codes
+        const teams = yield Team_1.Team.find({ joinCode: { $regex: /^.{6}$/ } });
+        console.log(`Found ${teams.length} teams with 6-character codes`);
+        const updatedTeams = [];
+        for (const team of teams) {
+            // Generate a new 7-character code
+            let newJoinCode;
+            let isUnique = false;
+            while (!isUnique) {
+                const teamNamePrefix = team.name.replace(/\s+/g, '').toLowerCase().substring(0, 4).padEnd(4, 'a');
+                const randomDigits = Math.floor(100 + Math.random() * 900); // 3 digits (100-999)
+                newJoinCode = `${teamNamePrefix}${randomDigits}`;
+                const existing = yield Team_1.Team.findOne({ joinCode: newJoinCode, _id: { $ne: team._id } });
+                if (!existing)
+                    isUnique = true;
+            }
+            // Update the team's join code
+            const updatedTeam = yield Team_1.Team.findByIdAndUpdate(team._id, { joinCode: newJoinCode }, { new: true });
+            updatedTeams.push({
+                oldCode: team.joinCode,
+                newCode: newJoinCode,
+                teamName: team.name
+            });
+            console.log(`Updated ${team.name}: ${team.joinCode} -> ${newJoinCode}`);
+        }
+        res.json({
+            message: `Updated ${updatedTeams.length} teams from 6 to 7 characters`,
+            updatedTeams
+        });
+    }
+    catch (error) {
+        console.error('Error updating team codes:', error);
+        res.status(500).json({ error: error.message || 'Failed to update team codes' });
     }
 }));
 app.listen(port, () => {
