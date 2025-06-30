@@ -5340,7 +5340,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       const videoTexture = new THREE.VideoTexture(this.videoElement!);
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format = THREE.RGBFormat;
+      videoTexture.format = THREE.RGBAFormat;
 
       // Make the video plane half the size
       const videoGeometry = new THREE.PlaneGeometry(20, 12);
@@ -5447,7 +5447,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       const videoTexture = new THREE.VideoTexture(this.videoElement!);
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format = THREE.RGBFormat;
+      videoTexture.format = THREE.RGBAFormat;
 
       // Make the video plane half the size
       const videoGeometry = new THREE.PlaneGeometry(20, 12);

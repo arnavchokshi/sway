@@ -12,35 +12,169 @@
   <section class="hero-section" id="hero">
     <div class="landing-center">
       <div class="headline" data-aos="fade-up" data-aos-duration="1000">
-        <div class="animate-text">
-          <span class="word">Sync</span>
-          <span class="word">Your</span>
-          <span class="highlight word">Vision</span>
-        </div>
-        <div class="animate-text">
-          <span class="word">Share</span>
-          <span class="word">Your</span>
-          <span class="word">Stage</span>
-        </div>
+        <span>Sync Your <span class="highlight-gradient">Vision</span></span><br />
+        <span>Share Your Stage</span>
       </div>
       <div class="subheadline" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
         Seamlessly share formations with your dancers, making complex choreography instantly clear and rehearsals flow naturally.
       </div>
-      <div class="cta-btn-wrapper" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="400">
-        <button 
-          class="cta-btn"
-          [class.splitting]="showSplit"
-          (click)="onButtonClick()"
-          (touchstart)="onButtonClick()"
-          (transitionend)="onAnimationComplete()">
-          Get started
+      <div class="cta-btns-row" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="400">
+        <button class="cta-btn main" (click)="onButtonClick()">
+          Get Started
+          <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
         </button>
-        <div 
-          class="split-btns"
-          [class.active]="showSplit">
-          <button class="split-btn" (click)="CreateUser()" (touchstart)="CreateUser()">Create Team</button>
-          <button class="split-btn" (click)="JoinTeam()" (touchstart)="JoinTeam()">Join a Team</button>
+        <button class="cta-btn secondary" (click)="JoinTeam()">
+          <svg class="play-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          Try it Out
+        </button>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="feature-cards-container">
+        <div class="feature-cards-track">
+          <!-- Feature Card 1: Instant Sync -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>Instant Sync</h3>
+              <p>Real-time formation updates between captains and members</p>
+            </div>
+          </div>
+
+          <!-- Feature Card 2: AI Tips -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>AI-Powered Tips</h3>
+              <p>Intelligent suggestions for optimal formation placement</p>
+            </div>
+          </div>
+
+          <!-- Feature Card 3: Skill-Based -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                <path d="M9 14l2 2 4-4"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>Skill-Based Building</h3>
+              <p>Optimize formations based on member skills and heights</p>
+            </div>
+          </div>
+
+          <!-- Feature Card 4: 3D Visualization -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                <path d="M12 2v20"/>
+                <path d="M2 7h20"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>3D Height Visualization</h3>
+              <p>See formations in 3D with backdrop videos for immersive planning</p>
+            </div>
+          </div>
+
+          <!-- Feature Card 5: Team Management -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>Easy Team Management</h3>
+              <p>Create teams, add members, and manage rosters effortlessly</p>
+            </div>
+          </div>
+
+          <!-- Feature Card 6: Formation Sharing -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                <polyline points="16,6 12,2 8,6"/>
+                <line x1="12" y1="2" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>Instant Formation Sharing</h3>
+              <p>Share formations instantly with your entire team</p>
+            </div>
+          </div>
+
+          <!-- Feature Card 7: Mobile Friendly -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                <line x1="12" y1="18" x2="12.01" y2="18"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>Mobile Optimized</h3>
+              <p>Access formations on any device, perfect for rehearsals</p>
+            </div>
+          </div>
+
+          <!-- Feature Card 8: Performance Analytics -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 3v18h18"/>
+                <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>Performance Insights</h3>
+              <p>Track formation effectiveness and team coordination</p>
+            </div>
+          </div>
+
+          <!-- Duplicate cards for seamless loop -->
+          <!-- Feature Card 1: Instant Sync (Duplicate) -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>Instant Sync</h3>
+              <p>Real-time formation updates between captains and members</p>
+            </div>
+          </div>
+
+          <!-- Feature Card 2: AI Tips (Duplicate) -->
+          <div class="feature-card-scroll">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3>AI-Powered Tips</h3>
+              <p>Intelligent suggestions for optimal formation placement</p>
+            </div>
+          </div>
         </div>
+        <div class="feature-cards-fade"></div>
       </div>
     </div>
   </section>

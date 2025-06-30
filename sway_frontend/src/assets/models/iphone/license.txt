@@ -1,0 +1,11 @@
+Model Information:
+* title:	Iphone 16 Pro Max
+* source:	https://sketchfab.com/3d-models/iphone-16-pro-max-56f0840754654be3a9e4679c84d4ed64
+* author:	shig0 (https://sketchfab.com/shig0)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Iphone 16 Pro Max" (https://sketchfab.com/3d-models/iphone-16-pro-max-56f0840754654be3a9e4679c84d4ed64) by shig0 (https://sketchfab.com/shig0) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
