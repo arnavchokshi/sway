@@ -30,6 +30,7 @@ export class HomeComponent implements OnInit {
   isAnimating = false;
   joinStep = 1;
   showScrollToTop = false;
+  isCheckingAuth = false;
 
   // Join team form fields
   joinCode = '';
@@ -73,6 +74,9 @@ export class HomeComponent implements OnInit {
   ) {}
 
   ngOnInit() {
+    // Auto-login check - if user is already logged in, redirect to dashboard
+    this.checkAutoLogin();
+    
     // Check if we're on mobile
     const isMobile = window.innerWidth <= 768;
     
@@ -111,6 +115,32 @@ export class HomeComponent implements OnInit {
 
     // Add scroll listener for navigation effect
     window.addEventListener('scroll', this.onScroll.bind(this));
+  }
+
+  /**
+   * Check if user is already logged in and redirect to dashboard if so
+   */
+  private checkAutoLogin() {
+    if (this.authService.isAuthenticated()) {
+      this.isCheckingAuth = true;
+      
+      const currentUser = this.authService.getCurrentUser();
+      
+      // Validate the stored user data with the backend
+      this.http.get(`${environment.apiUrl}/users/${currentUser!._id}`).subscribe({
+        next: (response: any) => {
+          // User is still valid, redirect to dashboard
+          this.isCheckingAuth = false;
+          this.router.navigate(['/dashboard']);
+        },
+        error: (err) => {
+          // User data is invalid or expired, clear it
+          console.log('Stored user data is invalid, clearing...');
+          this.authService.logout();
+          this.isCheckingAuth = false;
+        }
+      });
+    }
   }
 
   onScroll() {

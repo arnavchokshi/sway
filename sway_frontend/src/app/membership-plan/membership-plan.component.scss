@@ -421,6 +421,20 @@
     font-size: 0.9rem;
   }
   
+  .referral-requirements {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: #fbbf24;
+    
+    strong {
+      color: white;
+    }
+  }
+  
   .referral-input {
     display: flex;
     gap: 0.5rem;
@@ -519,6 +533,20 @@
     color: white;
     margin-bottom: 1rem;
     font-size: 0.9rem;
+  }
+  
+  .referral-requirements {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: #10b981;
+    
+    strong {
+      color: white;
+    }
   }
   
   .code-display {
@@ -637,5 +665,175 @@
     &:hover {
       color: #fbbf24;
     }
+  }
+}
+
+.current-plan-badge {
+  position: fixed;
+  top: 32px;
+  right: 48px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 28px;
+  border-radius: 18px;
+  background: rgba(80, 20, 120, 0.25);
+  box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.12);
+  font-size: 1.18rem;
+  font-weight: 700;
+  color: #fff;
+  .plan-type {
+    margin-left: 8px;
+    font-weight: 900;
+    &.pro {
+      color: #ffd600;
+    }
+    &.free {
+      color: #fff;
+      opacity: 0.85;
+    }
+  }
+}
+
+.referral-bottom-card {
+  position: static;
+  left: unset;
+  bottom: unset;
+  transform: none;
+  min-width: 540px;
+  max-width: 90vw;
+  background: rgba(80, 20, 120, 0.25);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+  border-radius: 28px;
+  padding: 38px 38px 32px 38px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 40px auto 0 auto;
+  .referral-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 2rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 10px;
+    .highlight {
+      color: #ffd600;
+    }
+    .gift-icon {
+      display: flex;
+      align-items: center;
+      margin-right: 12px;
+    }
+    .gift-icon svg {
+      width: 32px;
+      height: 32px;
+      aspect-ratio: 1/1;
+      max-width: none;
+      max-height: none;
+      align-self: center;
+      display: block;
+      flex-shrink: 0;
+    }
+  }
+  .referral-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #fff;
+  }
+  .referral-desc {
+    font-size: 1.18rem;
+    color: #fff;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+  .referral-req-card {
+    background: rgba(60, 0, 100, 0.22);
+    border-radius: 14px;
+    padding: 16px 22px;
+    margin-bottom: 22px;
+    width: 100%;
+    .req-title {
+      color: #ffd600;
+      font-weight: 800;
+      font-size: 1.1rem;
+      margin-right: 8px;
+    }
+    .req-desc {
+      color: #fff;
+      font-size: 1.08rem;
+      font-weight: 500;
+    }
+  }
+  .referral-input-row {
+    display: flex;
+    width: 100%;
+    gap: 18px;
+    margin-bottom: 10px;
+    input[type="text"] {
+      flex: 1;
+      padding: 16px 18px;
+      border-radius: 14px;
+      border: none;
+      background: rgba(255,255,255,0.13);
+      color: #fff;
+      font-size: 1.18rem;
+      font-weight: 500;
+      outline: none;
+      transition: background 0.2s;
+      &::placeholder {
+        color: #fff;
+        opacity: 0.45;
+      }
+      &:disabled {
+        opacity: 0.6;
+      }
+    }
+    button {
+      background: #ffd600;
+      color: #6d28d9;
+      font-weight: 800;
+      font-size: 1.18rem;
+      border: none;
+      border-radius: 14px;
+      padding: 0 32px;
+      transition: background 0.2s, color 0.2s;
+      cursor: pointer;
+      &:disabled {
+        background: #ffd60099;
+        color: #6d28d9cc;
+        cursor: not-allowed;
+      }
+    }
+  }
+  .referral-message {
+    width: 100%;
+    text-align: center;
+    font-size: 1.08rem;
+    font-weight: 700;
+    margin-top: 6px;
+    &.success {
+      color: #ffd600;
+    }
+    &.error {
+      color: #ff4d4f;
+    }
+  }
+}
+
+@media (max-width: 700px) {
+  .referral-bottom-card {
+    min-width: 90vw;
+    padding: 22px 8vw 18px 8vw;
+    margin-top: 24px;
+  }
+  .current-plan-badge {
+    right: 12px;
+    top: 12px;
+    padding: 10px 16px;
+    font-size: 1rem;
   }
 } 

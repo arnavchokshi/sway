@@ -9,17 +9,18 @@ import { DashboardComponent } from './dashboard/dashboard';
 import { CreateSegmentComponent } from './create-segment/create-segment.component';
 import { EditRosterComponent } from './edit-roster/edit-roster.component';
 import { MembershipPlanComponent } from './membership-plan/membership-plan.component';
+import { AuthGuard } from './services/auth.guard';
 
 const routes: Routes = [
   { path: '', component: HomeComponent },
   { path: 'create-user', component: CreateUser },
-  { path: 'create-roster', component: CreateRoster },
+  { path: 'create-roster', component: CreateRoster, canActivate: [AuthGuard] },
   { path: 'join-team', component: JoinTeam },
   { path: 'sign-in', component: SignIn },
-  { path: 'dashboard', component: DashboardComponent },
-  { path: 'create-segment', component: CreateSegmentComponent },
-  { path: 'edit-roster', component: EditRosterComponent },
-  { path: 'membership-plan', component: MembershipPlanComponent },
+  { path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard] },
+  { path: 'create-segment', component: CreateSegmentComponent, canActivate: [AuthGuard] },
+  { path: 'edit-roster', component: EditRosterComponent, canActivate: [AuthGuard] },
+  { path: 'membership-plan', component: MembershipPlanComponent, canActivate: [AuthGuard] },
   // ...other routes
 ];
 

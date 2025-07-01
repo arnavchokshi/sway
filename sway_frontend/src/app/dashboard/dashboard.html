@@ -8,6 +8,10 @@
         <button class="panel-btn help-btn" (click)="showInfoModal = true">
           <i class="fas fa-info-circle"></i> Help
         </button>
+        <button class="panel-btn sign-out-btn" (click)="signOut()">
+          <i class="fas fa-sign-out-alt"></i> Sign Out
+        </button>
+        
         <button class="panel-btn membership-btn" (click)="navigateToMembershipPlan()">
           <i class="fas fa-crown"></i> Membership Plan
         </button>
@@ -17,6 +21,7 @@
         <div class="join-code-display" *ngIf="team">
           Join Code: <span class="join-code">{{ team.joinCode }}</span>
         </div>
+        
       </div>
     </div>
   </div>

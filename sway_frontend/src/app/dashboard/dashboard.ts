@@ -592,4 +592,16 @@ export class DashboardComponent implements OnInit {
   navigateToMembershipPlan() {
     this.router.navigate(['/membership-plan']);
   }
+
+  signOut() {
+    // Clear all authentication data
+    this.authService.logout();
+    
+    // Clear any other stored data
+    localStorage.removeItem('teamId');
+    localStorage.removeItem('selectedMember');
+    
+    // Redirect to home page
+    this.router.navigate(['/']);
+  }
 }

@@ -1,3 +1,11 @@
+<!-- Auto-login Loading Overlay -->
+<div class="auto-login-overlay" *ngIf="isCheckingAuth">
+  <div class="auto-login-content">
+    <div class="spinner"></div>
+    <p>Signing you in...</p>
+  </div>
+</div>
+
 <div class="landing-bg">
   <nav class="landing-nav">
     <img src="assets/logoName.png" alt="Sway Logo" class="dashboard-logo">

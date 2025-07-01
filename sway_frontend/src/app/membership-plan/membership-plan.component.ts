@@ -162,7 +162,7 @@ export class MembershipPlanComponent implements OnInit {
   }
 
   canApplyReferral(): boolean {
-    return !this.membershipStatus?.referralCodeUsed && this.membershipStatus?.membershipType === 'free';
+    return !this.membershipStatus?.referralCodeUsed;
   }
 
   dismissPaymentBanner() {

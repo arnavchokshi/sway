@@ -32,6 +32,10 @@ export class AuthService {
     return this.currentUser;
   }
 
+  isAuthenticated(): boolean {
+    return this.currentUser !== null && this.currentUser._id !== undefined;
+  }
+
   setCurrentUser(user: User) {
     this.currentUser = user;
     localStorage.setItem('currentUser', JSON.stringify(user));

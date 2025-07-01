@@ -291,6 +291,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private directVideoObjectUrl: string | null = null;
 
   isUploadingMusic = false;
+  uploadError: string | null = null;
+  uploadSuccess: string | null = null;
 
   // Zoom properties
   private currentZoom = 1;
@@ -2775,6 +2777,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const file = event.target.files[0];
     if (!file) return;
 
+    // Validate file type
+    const supportedTypes = [
+      'audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/wave', 'audio/x-wav',
+      'audio/ogg', 'audio/oga', 'audio/mp4', 'audio/m4a', 'audio/aac', 'audio/flac'
+    ];
+    
+    const supportedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    
+    if (!supportedTypes.includes(file.type) && !supportedExtensions.includes(fileExtension)) {
+      console.error('Unsupported audio format:', file.type, fileExtension);
+      this.uploadError = 'Please select a supported audio file format: MP3, WAV, OGG, M4A, AAC, or FLAC';
+      setTimeout(() => this.uploadError = null, 5000); // Clear error after 5 seconds
+      return;
+    }
+
     this.isUploadingMusic = true;
     try {
       this.segmentService.getMusicPresignedUrl(this.segment._id, file.name, file.type).subscribe({
@@ -2792,32 +2810,45 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
               // Save musicUrl to segment
               this.segmentService.updateSegment(this.segment._id, { musicUrl }).subscribe({
                 next: () => {
-
+                  // Show success message
+                  this.uploadSuccess = 'Audio file uploaded successfully!';
+                  setTimeout(() => this.uploadSuccess = null, 3000); // Clear success after 3 seconds
+                  
                   // Get signed URL for playback
                   this.getSignedMusicUrl();
                   this.isUploadingMusic = false;
                 },
                 error: (err) => {
-
+                  console.error('Error updating segment with music URL:', err);
+                  this.uploadError = 'Failed to save audio file. Please try again.';
+                  setTimeout(() => this.uploadError = null, 5000);
                   this.isUploadingMusic = false;
                 }
               });
             } else {
-
+              console.error('Failed to upload audio file to S3');
+              this.uploadError = 'Failed to upload audio file. Please try again.';
+              setTimeout(() => this.uploadError = null, 5000);
               this.isUploadingMusic = false;
             }
           } catch (err) {
-
+            console.error('Error uploading audio file:', err);
+            this.uploadError = 'Failed to upload audio file. Please try again.';
+            setTimeout(() => this.uploadError = null, 5000);
             this.isUploadingMusic = false;
           }
         },
         error: (err) => {
-
+          console.error('Error getting presigned URL:', err);
+          this.uploadError = 'Failed to prepare audio upload. Please try again.';
+          setTimeout(() => this.uploadError = null, 5000);
           this.isUploadingMusic = false;
         }
       });
     } catch (error) {
-
+      console.error('Unexpected error during audio upload:', error);
+      this.uploadError = 'An unexpected error occurred. Please try again.';
+      setTimeout(() => this.uploadError = null, 5000);
       this.isUploadingMusic = false;
     }
   }
@@ -4748,7 +4779,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Save state before making changes
     this.saveState(`Swap draft and main for formation ${formationIndex + 1}`);
 
-      // Swap the positions by making the draft become the main and main become the draft
+      // Swap the positions by making the draft become the new main formation (moves to top/main position)
     const draftData = this.formationDrafts[formationIndex];
     const mainData = this.formations[formationIndex];
     
