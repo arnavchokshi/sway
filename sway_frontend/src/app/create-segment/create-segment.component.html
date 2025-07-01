@@ -398,6 +398,26 @@
             </div>
           </div>
         </div>
+        
+        <!-- AI Formation Generator -->
+        <div class="ai-formation-section">
+          <div class="ai-formation-header">
+            <h4>🤖 AI Formation Generator</h4>
+            <button class="ai-toggle-btn" (click)="toggleAIFormationGenerator()">
+              <span class="material-icons">{{ showAIFormationGenerator ? 'expand_less' : 'expand_more' }}</span>
+            </button>
+          </div>
+          
+          <div class="ai-formation-content" *ngIf="showAIFormationGenerator">
+            <app-ai-formation-generator
+              [teamRoster]="teamRoster"
+              [stageWidth]="width"
+              [stageDepth]="depth"
+              [danceStyles]="danceStyleNames"
+              (formationsGenerated)="onFormationsGenerated($event)">
+            </app-ai-formation-generator>
+          </div>
+        </div>
       </ng-template>
     </div>
     <div class="content-area">

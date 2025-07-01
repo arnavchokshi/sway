@@ -50,13 +50,15 @@ declare global {
 }
 
 import { ControlBarComponent } from './control-bar/control-bar.component';
+import { AIFormationGeneratorComponent } from './ai-formation-generator/ai-formation-generator.component';
+import { FormationSequence } from '../services/ai-formation.service';
 
 @Component({
   selector: 'app-create-segment',
   templateUrl: './create-segment.component.html',
   styleUrls: ['./create-segment.component.scss'],
   standalone: true,
-  imports: [CommonModule, FormsModule, ControlBarComponent],
+  imports: [CommonModule, FormsModule, ControlBarComponent, AIFormationGeneratorComponent],
   animations: [
     trigger('movePerformer', [
       transition('* => *', [
@@ -7336,6 +7338,62 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // Dismiss upload success popup
   dismissUploadSuccess() {
     this.uploadSuccess = null;
+  }
+
+  // AI Formation Generator properties
+  showAIFormationGenerator = false;
+
+  // AI Formation Generator methods
+  toggleAIFormationGenerator() {
+    this.showAIFormationGenerator = !this.showAIFormationGenerator;
+  }
+
+  // Getter for dance styles names
+  get danceStyleNames(): string[] {
+    return this.segmentStyles.map(s => s.name);
+  }
+
+  onFormationsGenerated(sequence: FormationSequence) {
+    // Clear existing formations
+    this.formations = [];
+    this.formationDurations = [];
+    this.animationDurations = [];
+    this.currentFormationIndex = 0;
+
+    // Add each formation from the sequence
+    sequence.steps.forEach((step, index) => {
+      const performers: Performer[] = step.positions.map((pos, posIndex) => {
+        // Find the corresponding dancer from roster
+        const dancer = this.teamRoster[posIndex] || this.teamRoster[0];
+        
+        return {
+          id: pos.dancerId || dancer?._id || `dancer-${posIndex}`,
+          name: dancer?.name || dancer?.firstName + ' ' + dancer?.lastName || `Dancer ${posIndex + 1}`,
+          x: pos.x,
+          y: pos.y,
+          skillLevels: dancer?.skillLevels || {},
+          height: dancer?.height,
+          isDummy: !dancer?._id,
+          dummyName: !dancer?._id ? `Dancer ${posIndex + 1}` : undefined
+        };
+      });
+
+      this.formations.push(performers);
+      
+      // Set default duration (15 seconds per formation)
+      this.formationDurations.push(15);
+      this.animationDurations.push(2); // 2 second transitions
+    });
+
+    // Save the state
+    this.saveState('AI generated formations');
+    
+    // Close the AI generator
+    this.showAIFormationGenerator = false;
+    
+    // Show success message
+    this.uploadSuccess = `Generated ${sequence.totalFormations} formations from concept: "${sequence.concept}"`;
+    setTimeout(() => this.uploadSuccess = null, 5000);
   }
 }
  
