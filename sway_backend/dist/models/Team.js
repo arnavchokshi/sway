@@ -73,6 +73,29 @@ const TeamSchema = new mongoose_1.Schema({
                 trim: true,
             }
         }],
+    // Membership fields
+    membershipType: {
+        type: String,
+        enum: ['free', 'pro'],
+        default: 'free',
+    },
+    membershipExpiresAt: {
+        type: Date,
+        default: null,
+    },
+    referralCode: {
+        type: String,
+        unique: true,
+        sparse: true, // Allows multiple null values
+    },
+    referralCodeUsed: {
+        type: String,
+        default: null,
+    },
+    lastMembershipCheck: {
+        type: Date,
+        default: null,
+    },
 });
 // Create and export the Team model
 exports.Team = mongoose_1.default.model('Team', TeamSchema);

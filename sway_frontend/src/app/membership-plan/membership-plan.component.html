@@ -14,46 +14,31 @@
 
   <!-- Floating Current Plan Badge -->
   <div class="current-plan-badge frosted-glass" *ngIf="!loading && membershipStatus">
-    <span>Current Plan:</span>
-    <span class="plan-type" [class.pro]="membershipStatus.membershipType === 'pro'" [class.free]="membershipStatus.membershipType === 'free'">
-      {{ getMembershipBadgeText() }}
+    <span>
+      <span>Current Plan:</span>
+      <span class="plan-type" [class.pro]="membershipStatus.membershipType === 'pro'" [class.free]="membershipStatus.membershipType === 'free'">
+        {{ getMembershipBadgeText() }}
+      </span>
     </span>
+    <div class="expiry-info" *ngIf="membershipStatus.membershipType === 'pro' && membershipStatus.expiresAt">
+      <span class="expiry-text">
+        Expires: {{ membershipStatus.expiresAt | date:'mediumDate' }}
+        <span *ngIf="membershipStatus.daysUntilExpiry">
+          ({{ membershipStatus.daysUntilExpiry }} days remaining)
+        </span>
+      </span>
+    </div>
+    <!-- Cancel Subscription Button for Paid Pro Users Only -->
+    <div class="cancel-subscription-section" *ngIf="membershipService.canCancelSubscription(membershipStatus)">
+      <button class="cancel-subscription-btn" (click)="showCancelConfirmation()" [disabled]="cancelingSubscription">
+        <span *ngIf="!cancelingSubscription">Cancel Subscription</span>
+        <span *ngIf="cancelingSubscription">Canceling...</span>
+      </button>
+    </div>
   </div>
 
   <!-- Current Membership Status -->
-  <div class="membership-status" *ngIf="!loading && membershipStatus">
-    <div class="status-card frosted-glass">
-      
-      
-      <div class="status-details">
-        <!-- Pro Membership Details -->
-        <div class="pro-details" *ngIf="membershipStatus.membershipType === 'pro'">
-          <p *ngIf="membershipStatus.expiresAt">
-            <strong>Expires:</strong> {{ membershipStatus.expiresAt | date:'mediumDate' }}
-            <span *ngIf="membershipStatus.daysUntilExpiry">
-              ({{ membershipStatus.daysUntilExpiry }} days remaining)
-            </span>
-          </p>
-          
-          <!-- Referral Code Display -->
-          <div class="referral-code-display" *ngIf="membershipStatus.referralCode">
-            <h3>Your Referral Code</h3>
-            <p>Share this code with other teams! When they use it, <strong>you</strong> get 1 month of Pro for free!</p>
-            <p class="referral-requirements">
-              <strong>Requirements for them:</strong> Their team must have at least 10 registered users (with emails). 
-              Each referral code can only be used once.
-            </p>
-            <div class="code-display">
-              <span class="code">{{ membershipStatus.referralCode }}</span>
-              <button class="copy-btn" (click)="navigator.clipboard.writeText(membershipStatus.referralCode!)">
-                Copy
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+
 
   <div class="pricing-header">
     <h1 class="pricing-title">
@@ -77,7 +62,7 @@
         <ul class="plan-features">
           <li><span class="check yellow">✔</span> 3 captain limit</li>
           <li><span class="check yellow">✔</span> Up to 30 Team Members</li>
-          <li><span class="check yellow">✔</span> Up to 10 Segments</li>
+          <li><span class="check yellow">✔</span> Up to 6 Segments</li>
           <li><span class="check yellow">✔</span> Up to 3 Sets</li>
           <li><span class="cross">✖</span> AI Features</li>
           <li><span class="cross">✖</span> Backdrop Render</li>
@@ -117,35 +102,51 @@
   </div>
 
   <!-- Referral Code Section just below the plans -->
-  <div class="referral-bottom-card frosted-glass" *ngIf="!loading && membershipStatus && canApplyReferral()">
-    <div class="referral-header">
-      <span class="gift-icon" aria-label="present icon">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffd600" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
-          <rect x="3" y="8.5" width="18" height="12" rx="2.5"/>
-          <path d="M3 12h18"/>
-          <path d="M12 8.5v12"/>
-          <path d="M7.5 8.5a2.5 2.5 0 1 1 5 0 2.5 2.5 0 1 1 5 0"/>
-        </svg>
-      </span>
-      <span class="referral-title">Have a <span class="highlight">Referral Code</span>?</span>
+  <div class="referral-cards-container" *ngIf="!loading && membershipStatus">
+    <!-- Your Referral Code Card -->
+    <div class="referral-card frosted-glass" *ngIf="membershipStatus.referralCode">
+      <div class="referral-card-header">
+        <h3>Your Referral Code</h3>
+        <p>Share this code with other teams! When they use it, you get 1 month of Pro for free!</p>
+        <p>You can only use your referral code once. (max of 1 extra free month)</p>
+      </div>
+      <div class="code-display-large">
+        <span class="code-large">{{ membershipStatus.referralCode }}</span>
+        <button class="copy-btn-large" (click)="navigator.clipboard.writeText(membershipStatus.referralCode!)">
+          Copy
+        </button>
+      </div>
     </div>
-    <div class="referral-desc">
-      Enter another team's referral code to give <span class="highlight">them</span> 1 month of Pro for free!
-    </div>
-    <div class="referral-req-card">
-      <span class="req-title">Requirements:</span>
-      <span class="req-desc">
-        Your team must have at least 10 registered users (with emails) to use a referral code. Each team can only use one referral code ever.
-      </span>
-    </div>
-    <div class="referral-input-row">
-      <input type="text" [(ngModel)]="referralCode" placeholder="Enter referral code" [disabled]="applyingReferral">
-      <button (click)="applyReferralCode()" [disabled]="applyingReferral || !referralCode.trim()">
-        {{ applyingReferral ? 'Applying...' : 'Apply Code' }}
-      </button>
-    </div>
-    <div class="referral-message" *ngIf="referralMessage" [class.success]="referralSuccess" [class.error]="!referralSuccess">
-      {{ referralMessage }}
+
+    <!-- Apply Referral Code Card -->
+    <div class="referral-card frosted-glass" *ngIf="canApplyReferral()">
+      <div class="referral-card-header">
+        <span class="gift-icon" aria-label="present icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffd600" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+            <rect x="3" y="8.5" width="18" height="12" rx="2.5"/>
+            <path d="M3 12h18"/>
+            <path d="M12 8.5v12"/>
+            <path d="M7.5 8.5a2.5 2.5 0 1 1 5 0 2.5 2.5 0 1 1 5 0"/>
+          </svg>
+        </span>
+        <h3>Have a <span class="highlight">Referral Code</span>?</h3>
+        <p>Enter another team's referral code to give <span class="highlight">them</span> 1 month of Pro for free!</p>
+      </div>
+      <div class="referral-req-card">
+        <span class="req-title">Requirements:</span>
+        <span class="req-desc">
+          Your team must have at least 10 registered users (with emails) to use a referral code. 
+        </span>
+      </div>
+      <div class="referral-input-row">
+        <input type="text" [(ngModel)]="referralCode" placeholder="Enter referral code" [disabled]="applyingReferral">
+        <button (click)="applyReferralCode()" [disabled]="applyingReferral || !referralCode.trim()">
+          {{ applyingReferral ? 'Applying...' : 'Apply Code' }}
+        </button>
+      </div>
+      <div class="referral-message" *ngIf="referralMessage" [class.success]="referralSuccess" [class.error]="!referralSuccess">
+        {{ referralMessage }}
+      </div>
     </div>
   </div>
 
@@ -153,5 +154,43 @@
   <div class="loading-state" *ngIf="loading">
     <div class="spinner"></div>
     <p>Loading membership status...</p>
+  </div>
+
+  <!-- Cancel Subscription Confirmation Modal -->
+  <div class="modal-overlay" *ngIf="showCancelModal" (click)="closeCancelModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Cancel Pro Subscription</h3>
+        <button class="modal-close" (click)="closeCancelModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="warning-icon">⚠️</div>
+        <p class="modal-message">
+          Are you sure you want to cancel your Pro subscription?
+        </p>
+        <div class="cancellation-details">
+          <p><strong>What happens when you cancel:</strong></p>
+          <ul>
+            <li>Your subscription will remain active until the end of your current billing period</li>
+            <li>You'll lose access to Pro features after {{ membershipStatus?.expiresAt | date:'mediumDate' }}</li>
+            <li>Your team will be limited to free plan restrictions</li>
+            <li>You can resubscribe anytime to regain Pro access</li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="cancel-btn" (click)="closeCancelModal()">Keep Subscription</button>
+        <button class="confirm-cancel-btn" (click)="confirmCancelSubscription()" [disabled]="cancelingSubscription">
+          <span *ngIf="!cancelingSubscription">Yes, Cancel Subscription</span>
+          <span *ngIf="cancelingSubscription">Canceling...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success/Error Messages -->
+  <div class="message-banner" *ngIf="cancelMessage" [class.success]="cancelSuccess" [class.error]="!cancelSuccess">
+    <span>{{ cancelMessage }}</span>
+    <button class="close-message" (click)="dismissCancelMessage()">&times;</button>
   </div>
 </div> 

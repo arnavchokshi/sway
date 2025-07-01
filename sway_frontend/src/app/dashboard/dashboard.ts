@@ -1,9 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../services/auth.service';
 import { TeamService } from '../services/team.service';
 import { SetService, ISet } from '../services/set.service';
 import { SegmentService } from '../services/segment.service';
+import { LimitsService, LimitsStatus } from '../services/limits.service';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
@@ -59,22 +60,31 @@ export class DashboardComponent implements OnInit {
     stylesInSegment: ['bhangra', 'HH']
   };
 
+  currentUser: any = null;
+  showProfileDropdown = false;
+  
+  // Limits and violations
+  limitsStatus: LimitsStatus | null = null;
+  showLimitsViolationModal = false;
+  limitsModalReason: 'roster' | 'segment' | 'set' = 'roster';
+  limitsModalTargetName: string | null = null;
+
   constructor(
     private authService: AuthService, 
     private teamService: TeamService,
     private setService: SetService,
     private segmentService: SegmentService,
+    public limitsService: LimitsService,
     private router: Router
   ) {}
 
   ngOnInit() {
     // Detect mobile devices
     this.isMobile = /iPhone|iPod|Android.*Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
-    
-    const currentUser = this.authService.getCurrentUser();
-    this.isCaptain = !!currentUser?.captain;
-    if (currentUser?.team?._id) {
-      this.teamService.getTeamById(currentUser.team._id).subscribe({
+    this.currentUser = this.authService.getCurrentUser();
+    this.isCaptain = !!this.currentUser?.captain;
+    if (this.currentUser?.team?._id) {
+      this.teamService.getTeamById(this.currentUser.team._id).subscribe({
         next: (res) => {
           this.team = res.team;
           // Set teamId in localStorage for membership plan page
@@ -85,6 +95,9 @@ export class DashboardComponent implements OnInit {
       });
       this.loadSets();
       this.loadSegments();
+      
+      // Check limits status
+      this.checkLimitsStatus();
     }
   }
 
@@ -403,11 +416,12 @@ export class DashboardComponent implements OnInit {
 
   deleteSegment(segmentId: string) {
     if (!confirm('Are you sure you want to delete this segment?')) return;
-    
+
     this.segmentService.deleteSegment(segmentId).subscribe({
       next: () => {
+        this.loadSets();
         this.loadSegments();
-        this.loadSets(); // Reload sets to update segment references
+        this.checkLimitsStatus();
       },
       error: (err) => {
         console.error('Failed to delete segment:', err);
@@ -589,6 +603,111 @@ export class DashboardComponent implements OnInit {
     }
   }
 
+  // Limits and violations methods
+  checkLimitsStatus() {
+    if (!this.currentUser?.team?._id) return;
+    
+    this.limitsService.checkLimitsStatus(this.currentUser.team._id).subscribe({
+      next: (status) => {
+        this.limitsStatus = status;
+        // Only show modal on load if captains or teamMembers are over the limit
+        if ((status.violations.captains || status.violations.teamMembers) && !status.isProAccount) {
+          this.showLimitsViolationModal = true;
+          this.limitsModalReason = 'roster';
+        } else {
+          this.showLimitsViolationModal = false;
+        }
+      },
+      error: (err) => {
+        console.error('Error checking limits status:', err);
+      }
+    });
+  }
+
+  closeLimitsViolationModal() {
+    this.showLimitsViolationModal = false;
+    this.limitsModalTargetName = null;
+  }
+
+  goToEditRoster() {
+    this.closeLimitsViolationModal();
+    this.router.navigate(['/edit-roster']);
+  }
+
+  goToMembershipPlan() {
+    this.closeLimitsViolationModal();
+    this.router.navigate(['/membership-plan']);
+  }
+
+  // Check if a set is accessible (not grayed out due to limits)
+  isSetAccessible(set: ISet): boolean {
+    if (!this.limitsStatus) return true;
+    if (this.limitsStatus.isProAccount) return true;
+    // Only block if sets are over the limit
+    return !this.limitsStatus.violations.sets;
+  }
+
+  // Check if a segment is accessible
+  isSegmentAccessible(segment: any): boolean {
+    console.log('Checking segment accessibility:');
+    console.log('Limits status:', this.limitsStatus);
+    console.log('Is pro account:', this.limitsStatus?.isProAccount);
+    console.log('Segments violation:', this.limitsStatus?.violations.segments);
+    
+    if (!this.limitsStatus) {
+      console.log('No limits status, allowing access');
+      return true;
+    }
+    if (this.limitsStatus.isProAccount) {
+      console.log('Pro account, allowing access');
+      return true;
+    }
+    // Only block if segments are over the limit
+    const isAccessible = !this.limitsStatus.violations.segments;
+    console.log('Segment accessible:', isAccessible);
+    return isAccessible;
+  }
+
+  // Handle set click with limits check
+  onSetClick(set: ISet) {
+    if (!this.isSetAccessible(set)) {
+      this.limitsModalReason = 'set';
+      this.limitsModalTargetName = set.name;
+      this.showLimitsViolationModal = true;
+      return;
+    }
+    // If set is accessible, proceed with adding segment
+    this.addSegmentToSet(set._id);
+  }
+
+  // Handle segment click with limits check
+  onSegmentClick(segment: any) {
+    console.log('Segment clicked:', segment.name);
+    console.log('Limits status:', this.limitsStatus);
+    console.log('Is segment accessible:', this.isSegmentAccessible(segment));
+    
+    // If limits status is not loaded yet, load it first
+    if (!this.limitsStatus) {
+      console.log('Limits status not loaded, loading now...');
+      this.checkLimitsStatus();
+      // Wait a bit and try again
+      setTimeout(() => {
+        this.onSegmentClick(segment);
+      }, 500);
+      return;
+    }
+    
+    if (!this.isSegmentAccessible(segment)) {
+      console.log('Showing limits violation modal for segment');
+      this.limitsModalReason = 'segment';
+      this.limitsModalTargetName = segment.name;
+      this.showLimitsViolationModal = true;
+      return;
+    }
+    console.log('Proceeding to segment');
+    this.goToSegment(segment._id);
+  }
+
   navigateToMembershipPlan() {
     this.router.navigate(['/membership-plan']);
   }
@@ -603,5 +722,28 @@ export class DashboardComponent implements OnInit {
     
     // Redirect to home page
     this.router.navigate(['/']);
+  }
+
+  get userInitial(): string {
+    return this.currentUser?.name ? this.currentUser.name.charAt(0).toUpperCase() : '?';
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: Event) {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.profile-container')) {
+      this.closeProfileDropdown();
+    }
+  }
+
+  toggleProfileDropdown(event?: Event) {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.showProfileDropdown = !this.showProfileDropdown;
+  }
+
+  closeProfileDropdown() {
+    this.showProfileDropdown = false;
   }
 }

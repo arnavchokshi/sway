@@ -5,13 +5,6 @@
     <div class="panel-content">
       <img src="assets/logoName.png" alt="Sway Logo" class="dashboard-logo">
       <div class="panel-actions">
-        <button class="panel-btn help-btn" (click)="showInfoModal = true">
-          <i class="fas fa-info-circle"></i> Help
-        </button>
-        <button class="panel-btn sign-out-btn" (click)="signOut()">
-          <i class="fas fa-sign-out-alt"></i> Sign Out
-        </button>
-        
         <button class="panel-btn membership-btn" (click)="navigateToMembershipPlan()">
           <i class="fas fa-crown"></i> Membership Plan
         </button>
@@ -21,7 +14,23 @@
         <div class="join-code-display" *ngIf="team">
           Join Code: <span class="join-code">{{ team.joinCode }}</span>
         </div>
-        
+        <!-- User Profile Icon -->
+        <div class="profile-container" (click)="toggleProfileDropdown()" tabindex="0">
+          <div class="profile-icon">
+            {{ userInitial }}
+          </div>
+          <span class="dropdown-arrow">
+            <i class="fas fa-chevron-down"></i>
+          </span>
+          <div class="profile-dropdown" *ngIf="showProfileDropdown" (click)="$event.stopPropagation()">
+            <button class="dropdown-item" (click)="showInfoModal = true; closeProfileDropdown()">
+              <i class="fas fa-info-circle"></i> Help
+            </button>
+            <button class="dropdown-item" (click)="signOut(); closeProfileDropdown()">
+              <i class="fas fa-sign-out-alt"></i> Sign Out
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -30,15 +39,12 @@
   <div class="sets-section">
     <div class="sets-header">
       <h1 class="sets-title"></h1>
-      <button *ngIf="isCaptain" class="add-set-btn" (click)="openSetModal()">
-        Create New Set
-      </button>
     </div>
     
     <div class="sets-container">
       <ng-container *ngIf="sets.length > 0; else noSets">
         <div class="set-row" *ngFor="let set of sets; let setIndex = index">
-          <div class="set-content">
+          <div class="set-content" [class.grayed-out]="!isSetAccessible(set)">
             <div class="set-header">
               <div class="set-info">
                 <h3 class="set-name">{{ set.name }}</h3>
@@ -48,7 +54,7 @@
                 </div>
               </div>
               <div class="set-actions">
-                <button class="add-segment-btn" *ngIf="isCaptain" (click)="addSegmentToSet(set._id)">
+                <button class="add-segment-btn" *ngIf="isCaptain" (click)="onSetClick(set)">
                   <i class="fas fa-plus"></i> Add Segment
                 </button>
                 <button class="set-menu-btn" *ngIf="isCaptain" (click)="toggleSetMenu(set._id)">
@@ -72,12 +78,13 @@
                      [attr.data-segment-id]="segment._id"
                      [class.dragging]="draggingSegmentIndex === segIndex && draggingSetId === set._id"
                      [class.drag-over]="dragOverIndex === segIndex && dragOverSetId === set._id"
+                     [class.grayed-out]="!isSegmentAccessible(segment)"
                      draggable="true"
                      (dragstart)="onSegmentDragStart($event, segIndex, set._id, segment._id)"
                      (dragover)="onSegmentDragOver($event, segIndex, set._id)"
                      (drop)="onSegmentDrop($event, segIndex, set._id)"
                      (dragend)="onSegmentDragEnd()"
-                     (click)="goToSegment(segment._id)">
+                     (click)="onSegmentClick(segment)">
                   <div class="segment-grid-bg"></div>
                   <div class="segment-number">{{ segIndex + 1 }}</div>
                   
@@ -141,6 +148,13 @@
               </ng-template>
             </div>
           </div>
+        </div>
+        
+        <!-- Create New Set button at the bottom -->
+        <div class="create-set-bottom" *ngIf="isCaptain">
+          <button class="add-set-btn-bottom" (click)="openSetModal()">
+            <i class="fas fa-plus"></i> Create New Set
+          </button>
         </div>
       </ng-container>
       
@@ -406,4 +420,68 @@
       </div>
     </div>
   </div>
+
+  <!-- Limits Violation Modal -->
+  <ng-container *ngIf="showLimitsViolationModal">
+    <div class="modal-backdrop">
+      <div class="modal frosted-glass-modal">
+        <div class="modal-header warning-header">
+          <div class="warning-icon-circle">
+            <i class="fas fa-exclamation-triangle"></i>
+          </div>
+          <span class="warning-pill">Account Limit Exceeded</span>
+        </div>
+        <div class="main-warning-message">
+          <ng-container [ngSwitch]="limitsModalReason">
+            <ng-container *ngSwitchCase="'roster'">
+              <span>
+                Your account has exceeded free limits:
+                <span *ngIf="limitsStatus && limitsStatus.violations.captains">{{ limitsStatus.currentCounts.captains }} captains (limit: {{ limitsStatus.limits.maxCaptains }})</span>
+                <span *ngIf="limitsStatus && limitsStatus.violations.teamMembers">{{ limitsStatus.currentCounts.teamMembers }} team members (limit: {{ limitsStatus.limits.maxTeamMembers }})</span>
+              </span>
+            </ng-container>
+            <ng-container *ngSwitchCase="'segment'">
+              <span>
+                You have too many segments ({{ limitsStatus ? limitsStatus.currentCounts.segments : 0 }} / {{ limitsStatus ? limitsStatus.limits.maxSegments : 0 }} limit).
+              </span>
+            </ng-container>
+            <ng-container *ngSwitchCase="'set'">
+              <span>
+                You have too many sets ({{ limitsStatus ? limitsStatus.currentCounts.sets : 0 }} / {{ limitsStatus ? limitsStatus.limits.maxSets : 0 }} limit).
+              </span>
+            </ng-container>
+          </ng-container>
+        </div>
+        <div class="modal-body">
+          <ng-container [ngSwitch]="limitsModalReason">
+            <ng-container *ngSwitchCase="'roster'">
+              <div class="modal-info">
+                Please edit roster or upgrade to Pro to continue using Sway.
+              </div>
+            </ng-container>
+            <ng-container *ngSwitchCase="'segment'">
+              <div class="modal-info">
+                Please delete a segment or upgrade to Pro to access <b>{{ limitsModalTargetName }}</b>.
+              </div>
+            </ng-container>
+            <ng-container *ngSwitchCase="'set'">
+              <div class="modal-info">
+                You have {{ limitsStatus ? (limitsStatus.currentCounts.sets - limitsStatus.limits.maxSets) : 0 }} additional sets. Delete them or upgrade to view your segments.
+              </div>
+            </ng-container>
+          </ng-container>
+        </div>
+        <div class="modal-actions">
+          <button class="edit-roster-btn" (click)="goToEditRoster()" *ngIf="limitsModalReason === 'roster'">
+            Edit Roster
+          </button>
+          <button class="close-btn" (click)="closeLimitsViolationModal()" *ngIf="limitsModalReason !== 'roster'">Close</button>
+          <button class="upgrade-pro-btn" (click)="goToMembershipPlan()">
+            <i class="fas fa-star star"></i>
+            Upgrade to Pro
+          </button>
+        </div>
+      </div>
+    </div>
+  </ng-container>
 </div> 

@@ -98,12 +98,33 @@
       
       
       
-      <!-- Add Backdrop (only in 3D view) -->
-      <button class="control-btn animated-btn" *ngIf="is3DView" (click)="triggerBackdropUpload()">
+      <!-- Add Backdrop (only in 3D view, Pro Account Only) -->
+      <button class="control-btn animated-btn" *ngIf="is3DView" (click)="handleBackdropClick()">
         <span class="material-icons">video_library</span>
         Add Backdrop
       </button>
       <input type="file" accept="video/mp4,video/webm" (change)="onDirectVideoFileSelected($event)" hidden #backdropFileInput>
+      
+      <!-- Pro Account Popup for Backdrop -->
+      <div class="pro-popup-backdrop" *ngIf="showProPopup" (click)="closeProPopup()">
+        <div class="pro-popup-content" (click)="$event.stopPropagation()">
+          <div class="pro-popup-header">
+            <span class="material-icons">star</span>
+            <h3>Pro Feature</h3>
+            <button class="pro-popup-close" (click)="closeProPopup()">
+              <span class="material-icons">close</span>
+            </button>
+          </div>
+          <div class="pro-popup-body">
+            <p>Backdrop videos are only available for Pro members.</p>
+            <p>Upgrade to Pro to add immersive video backdrops to your formations!</p>
+          </div>
+          <div class="pro-popup-footer">
+            <button class="pro-popup-btn secondary" (click)="closeProPopup()">Cancel</button>
+            <button class="pro-popup-btn primary" (click)="upgradeToPro()">Upgrade to Pro</button>
+          </div>
+        </div>
+      </div>
       
       <!-- Stage Tools Dropdown -->
       <div class="stage-tools-dropdown">
@@ -145,12 +166,12 @@
   </div>
 
   <div class="main-content">
-    <!-- Collapsible Positioning Tips Tab -->
+    <!-- Collapsible Positioning Tips Tab (Always visible for captains) -->
     <div class="positioning-tips-tab" *ngIf="isCaptain" [class.expanded]="showPositioningTips">
       <!-- Tab Handle -->
       <div class="tips-tab-handle" (click)="togglePositioningTips()">
         <span class="tips-tab-label">Positioning Tips</span>
-        <div class="tips-badge" *ngIf="getAllCurrentTips().length > 0">
+        <div class="tips-badge" *ngIf="isProAccount && getAllCurrentTips().length > 0">
           {{ getAllCurrentTips().length }}
         </div>
       </div>
@@ -165,28 +186,36 @@
           <span class="tips-title">Performer Positioning Tips</span>
         </div>
         <div class="tips-content">
-          <div class="tips-empty" *ngIf="getAllCurrentTips().length === 0">
-            <span class="material-icons">check_circle</span>
-            <p>No positioning issues detected!</p>
-            <small>All performers are positioned optimally in this formation.</small>
-          </div>
-          <div class="warning-item" *ngFor="let tip of getAllCurrentTips()">
-            <div class="warning-message">{{ tip.message }}</div>
-            <div class="warning-details">
-              <span class="tip-type" [ngClass]="tip.type">
-                <span class="material-icons" *ngIf="tip.type === 'consistency'">sync</span>
-                <span class="material-icons" *ngIf="tip.type === 'mirror_height'">height</span>
-                <span class="material-icons" *ngIf="tip.type === 'skill_position'">star</span>
-                {{ tip.type === 'consistency' ? 'Consistency' : tip.type === 'mirror_height' ? 'Height Gap' : 'Skill Position' }}
-              </span>
-              <span class="segment-info" *ngIf="tip.type === 'consistency'">
-                {{ tip.details.previousSegment }} → {{ tip.details.currentSegment }}
-              </span>
-              <span class="side-info" *ngIf="tip.type === 'consistency'">
-                {{ tip.details.previousSide }} → {{ tip.details.currentSide }}
-              </span>
+          <ng-container *ngIf="isProAccount; else upgradeToPro">
+            <div class="tips-empty" *ngIf="getAllCurrentTips().length === 0">
+              <span class="material-icons">check_circle</span>
+              <p>No positioning issues detected!</p>
+              <small>All performers are positioned optimally in this formation.</small>
             </div>
-          </div>
+            <div class="warning-item" *ngFor="let tip of getAllCurrentTips()">
+              <div class="warning-message">{{ tip.message }}</div>
+              <div class="warning-details">
+                <span class="tip-type" [ngClass]="tip.type">
+                  <span class="material-icons" *ngIf="tip.type === 'consistency'">sync</span>
+                  <span class="material-icons" *ngIf="tip.type === 'mirror_height'">height</span>
+                  <span class="material-icons" *ngIf="tip.type === 'skill_position'">star</span>
+                  {{ tip.type === 'consistency' ? 'Consistency' : tip.type === 'mirror_height' ? 'Height Gap' : 'Skill Position' }}
+                </span>
+                <span class="segment-info" *ngIf="tip.type === 'consistency'">
+                  {{ tip.details.previousSegment }} → {{ tip.details.currentSegment }}
+                </span>
+                <span class="side-info" *ngIf="tip.type === 'consistency'">
+                  {{ tip.details.previousSide }} → {{ tip.details.currentSide }}
+                </span>
+              </div>
+            </div>
+          </ng-container>
+          <ng-template #upgradeToPro>
+            <div class="tips-empty">
+              <span class="material-icons">star</span>
+              <p>Upgrade to pro to use this feature</p>
+            </div>
+          </ng-template>
         </div>
       </div>
     </div>

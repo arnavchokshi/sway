@@ -26,10 +26,16 @@ export class MembershipPlanComponent implements OnInit {
   paymentSuccess: boolean | null = null;
   paymentBannerVisible = true;
 
+  // Cancel subscription feedback
+  showCancelModal = false;
+  cancelingSubscription = false;
+  cancelMessage = '';
+  cancelSuccess = false;
+
   constructor(
     private router: Router,
     private route: ActivatedRoute,
-    private membershipService: MembershipService
+    public membershipService: MembershipService
   ) {}
 
   ngOnInit() {
@@ -167,5 +173,52 @@ export class MembershipPlanComponent implements OnInit {
 
   dismissPaymentBanner() {
     this.paymentBannerVisible = false;
+  }
+
+  // Cancel subscription methods
+  showCancelConfirmation() {
+    this.showCancelModal = true;
+  }
+
+  closeCancelModal() {
+    this.showCancelModal = false;
+  }
+
+  confirmCancelSubscription() {
+    if (!this.teamId) {
+      this.showCancelMessage('Team ID not found. Please try again.', false);
+      return;
+    }
+
+    // Check if user can actually cancel (has paid subscription)
+    if (!this.membershipStatus || !this.membershipService.canCancelSubscription(this.membershipStatus)) {
+      this.showCancelMessage('You can only cancel a paid subscription. Free trial subscriptions cannot be canceled.', false);
+      return;
+    }
+
+    this.cancelingSubscription = true;
+    this.membershipService.cancelSubscription(this.teamId).subscribe({
+      next: (result) => {
+        this.cancelingSubscription = false;
+        this.closeCancelModal();
+        this.showCancelMessage('Your subscription has been canceled successfully. You will continue to have Pro access until the end of your current billing period.', true);
+        this.loadMembershipStatus(); // Refresh status
+      },
+      error: (error) => {
+        this.cancelingSubscription = false;
+        const errorMessage = error.error?.message || 'Error canceling subscription. Please try again.';
+        this.showCancelMessage(errorMessage, false);
+      }
+    });
+  }
+
+  showCancelMessage(message: string, isSuccess: boolean) {
+    this.cancelMessage = message;
+    this.cancelSuccess = isSuccess;
+  }
+
+  dismissCancelMessage() {
+    this.cancelMessage = '';
+    this.cancelSuccess = false;
   }
 } 

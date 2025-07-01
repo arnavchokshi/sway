@@ -221,6 +221,7 @@ export class MembershipService {
     referralCodeUsed?: string;
     registeredUserCount: number;
     daysUntilExpiry?: number;
+    hasPaidSubscription?: boolean;
   }> {
     try {
       const team = await Team.findById(teamId);
@@ -238,6 +239,12 @@ export class MembershipService {
         daysUntilExpiry = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       }
 
+      // Check if user has a paid subscription (only for Pro users)
+      let hasPaidSubscription = false;
+      if (team.membershipType === 'pro') {
+        hasPaidSubscription = await this.hasPaidSubscription(teamId);
+      }
+
       return {
         membershipType: team.membershipType,
         isActive,
@@ -245,11 +252,37 @@ export class MembershipService {
         referralCode: team.referralCode,
         referralCodeUsed: team.referralCodeUsed,
         registeredUserCount,
-        daysUntilExpiry
+        daysUntilExpiry,
+        hasPaidSubscription
       };
     } catch (error) {
       console.error('Error getting membership status:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Check if a team has a paid subscription (not a free trial)
+   */
+  static async hasPaidSubscription(teamId: string): Promise<boolean> {
+    try {
+      // Import Stripe here to avoid circular dependencies
+      const Stripe = require('stripe');
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: '2025-05-28.basil' });
+
+      // Find team's subscription by listing all subscriptions and filtering
+      const subscriptions = await stripe.subscriptions.list({
+        status: 'active',
+      });
+
+      const teamSubscription = subscriptions.data.find(sub => 
+        sub.metadata && sub.metadata.teamId === teamId
+      );
+
+      return !!teamSubscription;
+    } catch (error) {
+      console.error('Error checking paid subscription:', error);
+      return false;
     }
   }
 } 

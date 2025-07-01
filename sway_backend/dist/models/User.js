@@ -41,6 +41,7 @@ const UserSchema = new mongoose_1.Schema({
         type: String,
         trim: true,
         lowercase: true,
+        unique: true,
         sparse: true
     },
     password: {
@@ -73,6 +74,12 @@ const UserSchema = new mongoose_1.Schema({
     isDummy: {
         type: Boolean,
         default: false,
+    },
+    resetPasswordToken: {
+        type: String,
+    },
+    resetPasswordExpires: {
+        type: Date,
     },
 });
 // Create and export the User model

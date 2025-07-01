@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -33,10 +66,19 @@ const Team_1 = require("./models/Team");
 const Segment_1 = require("./models/Segment");
 const Set_1 = require("./models/Set");
 const aws_sdk_1 = __importDefault(require("aws-sdk"));
+const stripe_1 = __importDefault(require("stripe"));
+const membership_service_1 = require("./services/membership.service");
+const nodemailer_1 = __importDefault(require("nodemailer"));
+const crypto_1 = __importDefault(require("crypto"));
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3000;
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
+// Stripe
+const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2025-05-28.basil' });
+// Stripe configuration
+const STRIPE_PRICE_ID = 'price_1RfwCNAnXImjVuyNGaYJGbVz';
+const STRIPE_WEBHOOK_SECRET = 'whsec_sROy3Y1dUexPbdHGE3dxWjeXrUrl5IlC';
 // MongoDB Connection
 const uri = process.env.ATLAS_URI;
 if (!uri) {
@@ -93,7 +135,20 @@ app.post('/api/teams', (req, res) => __awaiter(void 0, void 0, void 0, function*
             if (!existing)
                 isUnique = true;
         }
-        const team = new Team_1.Team({ name, school, owner, members: [owner], joinCode });
+        // Set 4 months of Pro and generate referral code
+        const fourMonthsFromNow = new Date();
+        fourMonthsFromNow.setMonth(fourMonthsFromNow.getMonth() + 4);
+        const referralCode = yield Promise.resolve().then(() => __importStar(require('./services/membership.service'))).then(m => m.MembershipService.generateUniqueReferralCode());
+        const team = new Team_1.Team({
+            name,
+            school,
+            owner,
+            members: [owner],
+            joinCode,
+            membershipType: 'pro',
+            membershipExpiresAt: fourMonthsFromNow,
+            referralCode: yield referralCode
+        });
         yield team.save();
         res.status(201).json({ message: 'Team created', team });
     }
@@ -236,10 +291,119 @@ app.post('/api/login', (req, res) => __awaiter(void 0, void 0, void 0, function*
         res.status(500).json({ error: 'Server error' });
     }
 }));
+app.post('/api/forgot-password', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+        // Find user by email
+        const user = yield User_1.User.findOne({ email });
+        if (!user) {
+            // Don't reveal if user exists or not for security
+            return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+        }
+        // Generate reset token
+        const resetToken = crypto_1.default.randomBytes(32).toString('hex');
+        const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+        // Store reset token in user document (you might want to add these fields to your User model)
+        user.resetPasswordToken = resetToken;
+        user.resetPasswordExpires = resetTokenExpiry;
+        yield user.save();
+        // Create email transporter (using Gmail for this example)
+        const transporter = nodemailer_1.default.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER, // Add this to your .env file
+                pass: process.env.EMAIL_PASS // Add this to your .env file (use app password)
+            }
+        });
+        // Create reset URL
+        const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:4200'}/reset-password?token=${resetToken}`;
+        // Email content
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'Password Reset Request - Sway',
+            html: `
+        <h2>Password Reset Request</h2>
+        <p>You requested a password reset for your Sway account.</p>
+        <p>Click the link below to reset your password:</p>
+        <a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+        <p>Best regards,<br>The Sway Team</p>
+      `
+        };
+        // Send email
+        yield transporter.sendMail(mailOptions);
+        res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    }
+    catch (error) {
+        console.error('Error in forgot password:', error);
+        res.status(500).json({ error: 'Failed to process password reset request' });
+    }
+}));
+app.post('/api/reset-password', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { token, newPassword } = req.body;
+        if (!token || !newPassword) {
+            return res.status(400).json({ error: 'Token and new password are required' });
+        }
+        // Find user with the reset token and check if it's not expired
+        const user = yield User_1.User.findOne({
+            resetPasswordToken: token,
+            resetPasswordExpires: { $gt: Date.now() }
+        });
+        if (!user) {
+            return res.status(400).json({ error: 'Invalid or expired reset token' });
+        }
+        // Hash the new password
+        const hashedPassword = yield bcrypt_1.default.hash(newPassword, 10);
+        // Update user's password and clear reset token
+        user.password = hashedPassword;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
+        yield user.save();
+        res.json({ message: 'Password has been reset successfully' });
+    }
+    catch (error) {
+        console.error('Error in reset password:', error);
+        res.status(500).json({ error: 'Failed to reset password' });
+    }
+}));
 app.get('/api/segments/:teamId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { teamId } = req.params;
         const segments = yield Segment_1.Segment.find({ team: teamId });
+        res.json({ segments });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to fetch segments' });
+    }
+}));
+// New endpoint for privacy-aware segment fetching
+app.get('/api/segments/:teamId/visible', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { teamId } = req.params;
+        const { userId } = req.query; // Get user ID from query parameter
+        if (!userId) {
+            return res.status(400).json({ error: 'User ID is required' });
+        }
+        // Get user to check if they're a captain
+        const user = yield User_1.User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        let segments;
+        if (user.captain) {
+            // Captains can see all segments
+            segments = yield Segment_1.Segment.find({ team: teamId });
+        }
+        else {
+            // Non-captains can only see public segments
+            segments = yield Segment_1.Segment.find({ team: teamId, isPublic: true });
+        }
         res.json({ segments });
     }
     catch (error) {
@@ -797,6 +961,312 @@ app.patch('/api/teams/update-codes-to-7', (req, res) => __awaiter(void 0, void 0
     catch (error) {
         console.error('Error updating team codes:', error);
         res.status(500).json({ error: error.message || 'Failed to update team codes' });
+    }
+}));
+app.post('/api/create-checkout-session', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { teamId } = req.body;
+        if (!teamId) {
+            return res.status(400).json({ error: 'Team ID is required' });
+        }
+        // Verify team exists
+        const team = yield Team_1.Team.findById(teamId);
+        if (!team) {
+            return res.status(404).json({ error: 'Team not found' });
+        }
+        const session = yield stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            mode: 'subscription',
+            line_items: [
+                {
+                    price: STRIPE_PRICE_ID,
+                    quantity: 1,
+                },
+            ],
+            success_url: 'https://sway-frontend-3t6a.onrender.com/membership-plan?success=true',
+            cancel_url: 'https://sway-frontend-3t6a.onrender.com/dashboard',
+            metadata: {
+                teamId: teamId,
+            },
+        });
+        res.json({ url: session.url });
+    }
+    catch (err) {
+        console.error('Error creating checkout session:', err);
+        res.status(500).json({ error: err.message });
+    }
+}));
+// Create subscription (alternative to checkout session)
+app.post('/api/subscriptions/create', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { teamId, paymentMethodId } = req.body;
+        if (!teamId || !paymentMethodId) {
+            return res.status(400).json({ error: 'Team ID and payment method ID are required' });
+        }
+        // Verify team exists
+        const team = yield Team_1.Team.findById(teamId);
+        if (!team) {
+            return res.status(404).json({ error: 'Team not found' });
+        }
+        // Create or retrieve customer
+        let customer;
+        const existingCustomers = yield stripe.customers.list({
+            email: team.owner.toString(), // Using team owner as customer identifier
+            limit: 1,
+        });
+        if (existingCustomers.data.length > 0) {
+            customer = existingCustomers.data[0];
+        }
+        else {
+            customer = yield stripe.customers.create({
+                payment_method: paymentMethodId,
+                email: team.owner.toString(),
+                metadata: {
+                    teamId: teamId,
+                },
+            });
+        }
+        // Attach payment method to customer
+        yield stripe.paymentMethods.attach(paymentMethodId, {
+            customer: customer.id,
+        });
+        // Set as default payment method
+        yield stripe.customers.update(customer.id, {
+            invoice_settings: {
+                default_payment_method: paymentMethodId,
+            },
+        });
+        // Create subscription
+        const subscription = yield stripe.subscriptions.create({
+            customer: customer.id,
+            items: [{ price: STRIPE_PRICE_ID }],
+            metadata: {
+                teamId: teamId,
+            },
+        });
+        // Update team membership
+        team.membershipType = 'pro';
+        team.membershipExpiresAt = new Date(subscription.current_period_end * 1000);
+        yield team.save();
+        res.json({
+            subscription: subscription,
+            message: 'Subscription created successfully'
+        });
+    }
+    catch (err) {
+        console.error('Error creating subscription:', err);
+        res.status(500).json({ error: err.message });
+    }
+}));
+// Cancel subscription
+app.post('/api/subscriptions/cancel', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { teamId } = req.body;
+        if (!teamId) {
+            return res.status(400).json({ error: 'Team ID is required' });
+        }
+        // Find team's subscription by listing all subscriptions and filtering
+        const subscriptions = yield stripe.subscriptions.list({
+            status: 'active',
+        });
+        const teamSubscription = subscriptions.data.find(sub => sub.metadata && sub.metadata.teamId === teamId);
+        if (!teamSubscription) {
+            return res.status(404).json({ error: 'No active subscription found for this team' });
+        }
+        // Cancel subscription at period end
+        const canceledSubscription = yield stripe.subscriptions.update(teamSubscription.id, {
+            cancel_at_period_end: true,
+        });
+        res.json({
+            subscription: canceledSubscription,
+            message: 'Subscription will be canceled at the end of the current period'
+        });
+    }
+    catch (err) {
+        console.error('Error canceling subscription:', err);
+        res.status(500).json({ error: err.message });
+    }
+}));
+// Stripe webhook handler
+app.post('/api/webhooks/stripe', express_1.default.raw({ type: 'application/json' }), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const sig = req.headers['stripe-signature'];
+    let event;
+    try {
+        event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+    }
+    catch (err) {
+        console.error('Webhook signature verification failed:', err.message);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+    try {
+        switch (event.type) {
+            case 'customer.subscription.created':
+                yield handleSubscriptionCreated(event.data.object);
+                break;
+            case 'customer.subscription.updated':
+                yield handleSubscriptionUpdated(event.data.object);
+                break;
+            case 'customer.subscription.deleted':
+                yield handleSubscriptionDeleted(event.data.object);
+                break;
+            case 'invoice.payment_succeeded':
+                yield handlePaymentSucceeded(event.data.object);
+                break;
+            case 'invoice.payment_failed':
+                yield handlePaymentFailed(event.data.object);
+                break;
+            default:
+                console.log(`Unhandled event type: ${event.type}`);
+        }
+        res.json({ received: true });
+    }
+    catch (error) {
+        console.error('Error handling webhook:', error);
+        res.status(500).json({ error: 'Webhook handler failed' });
+    }
+}));
+// Webhook handlers
+function handleSubscriptionCreated(subscription) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const teamId = (_a = subscription.metadata) === null || _a === void 0 ? void 0 : _a.teamId;
+        if (teamId) {
+            const team = yield Team_1.Team.findById(teamId);
+            if (team) {
+                team.membershipType = 'pro';
+                team.membershipExpiresAt = new Date(subscription.current_period_end * 1000);
+                yield team.save();
+                console.log(`Team ${teamId} subscription created, membership updated to pro`);
+            }
+        }
+    });
+}
+function handleSubscriptionUpdated(subscription) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const teamId = (_a = subscription.metadata) === null || _a === void 0 ? void 0 : _a.teamId;
+        if (teamId) {
+            const team = yield Team_1.Team.findById(teamId);
+            if (team) {
+                if (subscription.status === 'active') {
+                    team.membershipType = 'pro';
+                    team.membershipExpiresAt = new Date(subscription.current_period_end * 1000);
+                }
+                else if (subscription.status === 'canceled' || subscription.status === 'unpaid') {
+                    team.membershipType = 'free';
+                    team.membershipExpiresAt = undefined;
+                }
+                yield team.save();
+                console.log(`Team ${teamId} subscription updated, membership status: ${subscription.status}`);
+            }
+        }
+    });
+}
+function handleSubscriptionDeleted(subscription) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const teamId = (_a = subscription.metadata) === null || _a === void 0 ? void 0 : _a.teamId;
+        if (teamId) {
+            const team = yield Team_1.Team.findById(teamId);
+            if (team) {
+                team.membershipType = 'free';
+                team.membershipExpiresAt = undefined;
+                yield team.save();
+                console.log(`Team ${teamId} subscription deleted, membership reverted to free`);
+            }
+        }
+    });
+}
+function handlePaymentSucceeded(invoice) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const subscription = yield stripe.subscriptions.retrieve(invoice.subscription);
+        const teamId = (_a = subscription.metadata) === null || _a === void 0 ? void 0 : _a.teamId;
+        if (teamId) {
+            const team = yield Team_1.Team.findById(teamId);
+            if (team) {
+                team.membershipType = 'pro';
+                team.membershipExpiresAt = new Date(subscription.current_period_end * 1000);
+                yield team.save();
+                console.log(`Team ${teamId} payment succeeded, membership extended`);
+            }
+        }
+    });
+}
+function handlePaymentFailed(invoice) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const subscription = yield stripe.subscriptions.retrieve(invoice.subscription);
+        const teamId = (_a = subscription.metadata) === null || _a === void 0 ? void 0 : _a.teamId;
+        if (teamId) {
+            console.log(`Team ${teamId} payment failed, subscription status: ${subscription.status}`);
+            // You might want to send notification emails here
+        }
+    });
+}
+// ===== MEMBERSHIP API ENDPOINTS =====
+// Check and upgrade membership
+app.post('/api/teams/:id/check-membership-upgrade', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const result = yield membership_service_1.MembershipService.checkAndUpgradeMembership(id);
+        res.json(result);
+    }
+    catch (error) {
+        console.error('Error checking membership upgrade:', error);
+        res.status(500).json({ error: error.message || 'Failed to check membership upgrade' });
+    }
+}));
+// Apply referral code
+app.post('/api/teams/:id/apply-referral', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { referralCode } = req.body;
+        if (!referralCode) {
+            return res.status(400).json({ error: 'Referral code is required' });
+        }
+        const result = yield membership_service_1.MembershipService.applyReferralCode(id, referralCode);
+        res.json(result);
+    }
+    catch (error) {
+        console.error('Error applying referral code:', error);
+        res.status(500).json({ error: error.message || 'Failed to apply referral code' });
+    }
+}));
+// Get membership status
+app.get('/api/teams/:id/membership-status', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const status = yield membership_service_1.MembershipService.getMembershipStatus(id);
+        res.json(status);
+    }
+    catch (error) {
+        console.error('Error getting membership status:', error);
+        res.status(500).json({ error: error.message || 'Failed to get membership status' });
+    }
+}));
+// Get registered user count
+app.get('/api/teams/:id/registered-user-count', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const count = yield membership_service_1.MembershipService.getRegisteredUserCount(id);
+        res.json({ registeredUserCount: count });
+    }
+    catch (error) {
+        console.error('Error getting registered user count:', error);
+        res.status(500).json({ error: error.message || 'Failed to get registered user count' });
+    }
+}));
+// Check if membership is active
+app.get('/api/teams/:id/membership-active', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const isActive = yield membership_service_1.MembershipService.isMembershipActive(id);
+        res.json({ isActive });
+    }
+    catch (error) {
+        console.error('Error checking membership status:', error);
+        res.status(500).json({ error: error.message || 'Failed to check membership status' });
     }
 }));
 app.listen(port, () => {

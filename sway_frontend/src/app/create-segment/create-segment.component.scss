@@ -3629,6 +3629,198 @@ body {
   }
 }
 
+// Pro Account Notice for Non-Pro Users
+.pro-notice {
+  position: fixed;
+  top: 40px;
+  right: 0;
+  z-index: 999;
+  display: flex;
+  align-items: stretch;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  animation: fadeInOpacity 0.6s ease-out 0.8s forwards;
+
+  .pro-notice-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 150px;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.9) 0%, rgba(139, 92, 246, 0.7) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-right: none;
+    border-radius: 8px 0 0 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    flex-shrink: 0;
+
+    &:hover {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(139, 92, 246, 0.8) 100%);
+      transform: translateX(-10px);
+      width: 280px;
+      border-radius: 8px 0 0 8px;
+
+      .pro-notice-text {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .material-icons {
+      color: #fff;
+      font-size: 1rem;
+      margin-right: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .pro-notice-text {
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translateX(-10px);
+      transition: all 0.3s ease;
+      pointer-events: none;
+    }
+  }
+}
+
+// Pro Account Popup Styles
+.pro-popup-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.pro-popup-content {
+  background: linear-gradient(135deg, #2d1b69 0%, #11052c 100%);
+  border-radius: 16px;
+  padding: 0;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  max-width: 400px;
+  width: 90%;
+  max-height: 80vh;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  animation: slideInUp 0.3s ease-out;
+  transform: translateY(80%);
+}
+
+.pro-popup-header {
+  display: flex;
+  align-items: center;
+  padding: 1.5rem 1.5rem 1rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+  .material-icons {
+    color: #8b5cf6;
+    font-size: 1.5rem;
+    margin-right: 0.75rem;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #fff;
+    flex: 1;
+  }
+
+  .pro-popup-close {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .material-icons {
+      font-size: 1.25rem;
+      margin: 0;
+    }
+  }
+}
+
+.pro-popup-body {
+  padding: 1rem 1.5rem;
+
+  p {
+    margin: 0 0 0.75rem 0;
+    color: #e2e8f0;
+    line-height: 1.5;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+.pro-popup-footer {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem 1.5rem 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+  .pro-popup-btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &.secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #e2e8f0;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+    }
+
+    &.primary {
+      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+      color: #fff;
+
+      &:hover {
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+        transform: translateY(-1px);
+      }
+    }
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 // Animation for slide in
 @keyframes slideInFromRight {
   from {
@@ -4609,5 +4801,19 @@ body {
 }
 .close-btn:hover {
   background: rgba(0,0,0,0.08);
+}
+
+.requirements-box {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1rem;
+  margin: 1.5rem 0 2rem 0;
+  background: rgba(60, 20, 60, 0.4); // or your color
+  border-radius: 2rem;
+  color: #fff;
+  font-size: 1.6rem;
+  // Remove any fixed width or negative margins
+  // Add overflow-wrap if text is long
+  overflow-wrap: break-word;
 }
 

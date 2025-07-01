@@ -6,6 +6,7 @@ import { TeamService } from '../services/team.service';
 import { AuthService } from '../services/auth.service';
 import { SegmentService, FormationDraft } from '../services/segment.service';
 import { PerformerConsistencyService, ConsistencyWarning, FormationTip } from '../services/performer-consistency.service';
+import { MembershipService, MembershipStatus } from '../services/membership.service';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { environment } from '../../environments/environment';
 import WaveSurfer from 'wavesurfer.js';
@@ -73,6 +74,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   isCaptain = false;
   currentUserId: string = '';
+  membershipStatus: MembershipStatus | null = null;
+  isProAccount = false;
+  showProPopup = false;
   spotlightRadius = 80; // pixels
   spotlightOpacity = 0.35; // 35% opacity for the dark overlay
   roster: any[] = [];
@@ -446,6 +450,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     private authService: AuthService,
     private segmentService: SegmentService,
     private performerConsistencyService: PerformerConsistencyService,
+    private membershipService: MembershipService,
     private renderer: Renderer2,
     private cdr: ChangeDetectorRef,
     private sanitizer: DomSanitizer
@@ -547,6 +552,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (currentUser?.team?._id) {
       this.loadTeamRosterAndMapFormations(currentUser.team._id);
       this.loadAllSegments();
+      
+      // Load membership status to check if user has pro account
+      this.loadMembershipStatus(currentUser.team._id);
     }
     
     // Subscribe to route parameter changes to handle segment navigation
@@ -609,6 +617,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   public onComponentActivate() {
     // Refresh team roster data when component is activated
     this.refreshData();
+  }
+
+  // Load membership status to check if user has pro account
+  private loadMembershipStatus(teamId: string) {
+    this.membershipService.getMembershipStatus(teamId).subscribe({
+      next: (status: MembershipStatus) => {
+        this.membershipStatus = status;
+        this.isProAccount = status.membershipType === 'pro' && status.isActive;
+      },
+      error: (err) => {
+        console.error('Failed to load membership status:', err);
+        this.isProAccount = false;
+      }
+    });
   }
 
   // New method to load team roster and map formations with fresh user data
@@ -2813,7 +2835,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                   // Show success message
                   this.uploadSuccess = 'Audio file uploaded successfully!';
                   setTimeout(() => this.uploadSuccess = null, 3000); // Clear success after 3 seconds
-                  
+
                   // Get signed URL for playback
                   this.getSignedMusicUrl();
                   this.isUploadingMusic = false;
@@ -6034,6 +6056,24 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
   }
 
+  handleBackdropClick() {
+    if (this.isProAccount) {
+      this.triggerBackdropUpload();
+    } else {
+      this.showProPopup = true;
+    }
+  }
+
+  closeProPopup() {
+    this.showProPopup = false;
+  }
+
+  upgradeToPro() {
+    // Navigate to membership plan page or handle upgrade
+    this.router.navigate(['/membership-plan']);
+    this.closeProPopup();
+  }
+
   toggleViewOptions() {
     // This could be used for additional view options in the future
     console.log('View options clicked');
@@ -7286,6 +7326,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       // Playhead is too far right, scroll right
       container.scrollLeft = playheadRight - containerWidth + padding;
     }
+  }
+
+  // Dismiss upload error popup
+  dismissUploadError() {
+    this.uploadError = null;
+  }
+
+  // Dismiss upload success popup
+  dismissUploadSuccess() {
+    this.uploadSuccess = null;
   }
 }
  

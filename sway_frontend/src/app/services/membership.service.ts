@@ -11,6 +11,7 @@ export interface MembershipStatus {
   referralCodeUsed?: string;
   registeredUserCount: number;
   daysUntilExpiry?: number;
+  hasPaidSubscription?: boolean;
 }
 
 export interface MembershipUpgradeResult {
@@ -139,11 +140,7 @@ export class MembershipService {
     if (status.membershipType === 'free') {
       return 'Free';
     } else if (status.membershipType === 'pro') {
-      if (status.daysUntilExpiry && status.daysUntilExpiry > 0) {
-        return `Pro (${this.formatDaysUntilExpiry(status.daysUntilExpiry)})`;
-      } else {
-        return 'Pro (Expired)';
-      }
+      return 'Pro';
     }
     return 'Unknown';
   }
@@ -166,5 +163,14 @@ export class MembershipService {
       }
     }
     return 'gray';
+  }
+
+  /**
+   * Check if user can cancel their subscription
+   */
+  canCancelSubscription(status: MembershipStatus): boolean {
+    return status.membershipType === 'pro' && 
+           status.isActive && 
+           status.hasPaidSubscription === true;
   }
 } 
