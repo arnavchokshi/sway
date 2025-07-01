@@ -111,6 +111,18 @@ export class MembershipService {
         throw new Error('Team not found');
       }
 
+      // Check if this team has at least 10 registered users
+      const registeredUserCount = await User.countDocuments({
+        team: teamId,
+        email: { $exists: true, $ne: null }
+      });
+      if (registeredUserCount < 10) {
+        return {
+          applied: false,
+          message: 'You must have at least 10 registered users to use a referral code.'
+        };
+      }
+
       // Check if this team has already used a referral code
       if (team.referralCodeUsed) {
         return {

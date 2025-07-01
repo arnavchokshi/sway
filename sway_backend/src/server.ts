@@ -18,7 +18,7 @@ app.use(cors());
 app.use(express.json());
 
 // Stripe
-const stripe = new Stripe('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', { apiVersion: '2025-05-28.basil' });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: '2025-05-28.basil' });
 
 // Stripe configuration
 const STRIPE_PRICE_ID = 'price_1RfwCNAnXImjVuyNGaYJGbVz';
@@ -87,7 +87,21 @@ app.post('/api/teams', async (req: Request, res: Response) => {
       if (!existing) isUnique = true;
     }
 
-    const team = new Team({ name, school, owner, members: [owner], joinCode });
+    // Set 2 months of Pro and generate referral code
+    const twoMonthsFromNow = new Date();
+    twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
+    const referralCode = await import('./services/membership.service').then(m => m.MembershipService.generateUniqueReferralCode());
+
+    const team = new Team({
+      name,
+      school,
+      owner,
+      members: [owner],
+      joinCode,
+      membershipType: 'pro',
+      membershipExpiresAt: twoMonthsFromNow,
+      referralCode: await referralCode
+    });
     await team.save();
     res.status(201).json({ message: 'Team created', team });
   } catch (error: any) {
