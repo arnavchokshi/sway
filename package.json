@@ -4,6 +4,9 @@
     "@stripe/stripe-js": "^7.4.0",
     "aws-sdk": "^2.1692.0",
     "babylonjs": "^8.12.1",
-    "framer-motion": "^12.18.1"
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "framer-motion": "^12.18.1",
+    "stripe": "^18.2.1"
   }
 }

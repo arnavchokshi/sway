@@ -1,20 +1,23 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
-require('dotenv').config();
+require('dotenv/config');
 import bcrypt from 'bcrypt';
 import { User } from './models/User';
 import { Team } from './models/Team';
 import { Segment } from './models/Segment';
 import { Set } from './models/Set';
 import AWS from 'aws-sdk';
+import Stripe from 'stripe';
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use('/api', require('./create-payment-intent'));
+
+// Stripe
+const stripe = new Stripe('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', { apiVersion: '2022-11-15' });
 
 // MongoDB Connection
 const uri = process.env.ATLAS_URI;
@@ -916,6 +919,30 @@ app.patch('/api/teams/update-codes-to-7', async (req: Request, res: Response) =>
   } catch (error: any) {
     console.error('Error updating team codes:', error);
     res.status(500).json({ error: error.message || 'Failed to update team codes' });
+  }
+});
+
+app.post('/api/create-checkout-session', async (req: Request, res: Response) => {
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: { name: 'Pro Membership' },
+            unit_amount: 499, // $4.99 in cents
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: 'http://localhost:4200/membership-plan?success=true',
+      cancel_url: 'http://localhost:4200/membership-plan?canceled=true',
+    });
+    res.json({ url: session.url });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
