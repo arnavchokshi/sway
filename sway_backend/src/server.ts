@@ -18,7 +18,7 @@ app.use(cors());
 app.use(express.json());
 
 // Stripe
-const stripe = new Stripe('sk_test_51RfsH6PHljgFLzSLTOS5OvmezgD3apLn186eVa5z7kTbB8S5EVU8FC2W0Xx2p7QH5psNz07WRR3f69ZJqOdEguDB00nDufMGH4', { apiVersion: '2025-05-28.basil' });
+const stripe = new Stripe('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', { apiVersion: '2025-05-28.basil' });
 
 // Stripe configuration
 const STRIPE_PRICE_ID = 'price_1RfwCNAnXImjVuyNGaYJGbVz';
