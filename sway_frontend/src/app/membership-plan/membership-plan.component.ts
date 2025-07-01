@@ -22,6 +22,10 @@ export class MembershipPlanComponent implements OnInit {
   teamId?: string;
   navigator = navigator;
 
+  // Payment feedback
+  paymentSuccess: boolean | null = null;
+  paymentBannerVisible = true;
+
   constructor(
     private router: Router,
     private route: ActivatedRoute,
@@ -29,6 +33,16 @@ export class MembershipPlanComponent implements OnInit {
   ) {}
 
   ngOnInit() {
+    // Read payment result from query params
+    this.route.queryParams.subscribe(params => {
+      if (params['success'] === 'true') {
+        this.paymentSuccess = true;
+        this.paymentBannerVisible = true;
+      } else if (params['canceled'] === 'true') {
+        this.paymentSuccess = false;
+        this.paymentBannerVisible = true;
+      }
+    });
     // Get team ID from route or localStorage
     this.teamId = this.route.snapshot.params['teamId'] || localStorage.getItem('teamId');
     
@@ -149,5 +163,9 @@ export class MembershipPlanComponent implements OnInit {
 
   canApplyReferral(): boolean {
     return !this.membershipStatus?.referralCodeUsed && this.membershipStatus?.membershipType === 'free';
+  }
+
+  dismissPaymentBanner() {
+    this.paymentBannerVisible = false;
   }
 } 

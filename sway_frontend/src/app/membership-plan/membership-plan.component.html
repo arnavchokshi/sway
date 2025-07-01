@@ -1,4 +1,11 @@
 <div class="pricing-bg">
+  <!-- Payment Success/Failure Banner -->
+  <div *ngIf="paymentBannerVisible && paymentSuccess !== null" class="payment-banner" [class.success]="paymentSuccess" [class.failure]="!paymentSuccess">
+    <span *ngIf="paymentSuccess">🎉 Payment successful! Your Pro membership is now active.</span>
+    <span *ngIf="paymentSuccess === false">❌ Payment canceled or failed. Please try again.</span>
+    <button class="close-banner" (click)="dismissPaymentBanner()">&times;</button>
+  </div>
+
   <div class="back-btn-row">
     <button class="back-btn" (click)="goToDashboard()">
       ← Back to Dashboard

@@ -88,7 +88,7 @@ export class MembershipService {
   }
 
   /**
-   * Apply a referral code to a team for bonus membership time
+   * Apply a referral code to give the code owner a bonus month (not the team entering the code)
    */
   static async applyReferralCode(teamId: string, referralCode: string): Promise<{
     applied: boolean;
@@ -119,12 +119,8 @@ export class MembershipService {
         };
       }
 
-      // Check if this referral code has already been used by another team
-      const codeAlreadyUsed = await Team.findOne({ 
-        referralCodeUsed: referralCode,
-        _id: { $ne: teamId } // Exclude current team
-      });
-
+      // Check if this referral code has already been used by any team
+      const codeAlreadyUsed = await Team.findOne({ referralCodeUsed: referralCode });
       if (codeAlreadyUsed) {
         return {
           applied: false,
@@ -132,30 +128,28 @@ export class MembershipService {
         };
       }
 
-      // Apply the referral code - grant 1 additional month
-      let newExpiryDate: Date;
+      // Mark this team as having used the code
+      team.referralCodeUsed = referralCode;
+      await team.save();
 
-      if (team.membershipType === 'free') {
-        // If free, start pro membership for 1 month
+      // Give the code owner (referringTeam) 1 additional month of Pro
+      let newExpiryDate: Date;
+      if (referringTeam.membershipType === 'free' || !referringTeam.membershipExpiresAt) {
         newExpiryDate = new Date();
         newExpiryDate.setMonth(newExpiryDate.getMonth() + 1);
-        team.membershipType = 'pro';
+        referringTeam.membershipType = 'pro';
       } else {
-        // If already pro, extend by 1 month
-        const currentExpiry = team.membershipExpiresAt || new Date();
+        const currentExpiry = referringTeam.membershipExpiresAt;
         newExpiryDate = new Date(currentExpiry);
         newExpiryDate.setMonth(newExpiryDate.getMonth() + 1);
       }
-
-      team.membershipExpiresAt = newExpiryDate;
-      team.referralCodeUsed = referralCode;
-
-      await team.save();
+      referringTeam.membershipExpiresAt = newExpiryDate;
+      await referringTeam.save();
 
       return {
         applied: true,
-        message: 'Referral code applied successfully! 1 month of pro membership added.',
-        membershipExpiresAt: newExpiryDate
+        message: 'Referral code applied! The code owner has received 1 month of Pro.',
+        membershipExpiresAt: referringTeam.membershipExpiresAt
       };
     } catch (error) {
       console.error('Error applying referral code:', error);
