@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
-require('dotenv/config');
+require('dotenv').config();
 import bcrypt from 'bcrypt';
 import { User } from './models/User';
 import { Team } from './models/Team';
