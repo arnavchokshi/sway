@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@babylonjs/materials": "^8.12.1",
+    "@stripe/stripe-js": "^7.4.0",
     "aws-sdk": "^2.1692.0",
     "babylonjs": "^8.12.1",
     "framer-motion": "^12.18.1"

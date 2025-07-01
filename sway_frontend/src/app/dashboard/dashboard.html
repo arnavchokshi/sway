@@ -1,18 +1,23 @@
 <!-- Dashboard Layout -->
 <div class="dashboard-bg">
-  <!-- Top Navigation Bar -->
-  <div class="top-nav">
-    <img src="assets/logoName.png" alt="Sway Logo" class="dashboard-logo">
-    <div class="nav-buttons">
-      <button class="nav-btn help-btn" (click)="showInfoModal = true">
-        <i class="fas fa-info-circle"></i> Help
-      </button>
-      <div class="join-code-display" *ngIf="team">
-        Join Code: <span class="join-code">{{ team.joinCode }}</span>
+  <!-- Top Panel -->
+  <div class="top-panel">
+    <div class="panel-content">
+      <img src="assets/logoName.png" alt="Sway Logo" class="dashboard-logo">
+      <div class="panel-actions">
+        <button class="panel-btn help-btn" (click)="showInfoModal = true">
+          <i class="fas fa-info-circle"></i> Help
+        </button>
+        <button class="panel-btn membership-btn" (click)="navigateToMembershipPlan()">
+          <i class="fas fa-crown"></i> Membership Plan
+        </button>
+        <button *ngIf="isCaptain" class="panel-btn edit-team-btn" (click)="navigateToEditRoster()">
+          <i class="fas fa-users"></i> Edit Team
+        </button>
+        <div class="join-code-display" *ngIf="team">
+          Join Code: <span class="join-code">{{ team.joinCode }}</span>
+        </div>
       </div>
-      <button *ngIf="isCaptain" class="nav-btn edit-team-btn" (click)="navigateToEditRoster()">
-        <i class="fas fa-users"></i> Edit Team
-      </button>
     </div>
   </div>
 

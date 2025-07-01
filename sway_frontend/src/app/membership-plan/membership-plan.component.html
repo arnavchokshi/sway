@@ -1,0 +1,72 @@
+<div class="pricing-bg">
+  <div class="pricing-header">
+    <h1 class="pricing-title">
+      <span class="white-text">Pricing</span> <span class="yellow-text">Plans</span>
+    </h1>
+    <div class="pricing-subtitle">
+      Seamlessly share formations with your dancers, making complex choreography instantly clear and rehearsals flow naturally.
+    </div>
+    <div class="toggle-row modern-toggle">
+      <div class="toggle-switch pill-toggle">
+        <button class="toggle-btn" [class.active]="!annual" (click)="annual = false">Monthly</button>
+        <button class="toggle-btn" [class.active]="annual" (click)="annual = true">
+          Annual <span class="arrow">→</span>
+        </button>
+        <span class="save-badge">Save $$$</span>
+      </div>
+    </div>
+  </div>
+  <div class="plans-row modern-layout">
+    <!-- Free Plan -->
+    <div class="plan-card frosted-glass">
+      <div class="plan-card-inner">
+        <div class="plan-title">Free</div>
+        <div class="plan-desc">Everything to start</div>
+        <div class="plan-price-row">
+          <span class="plan-price">$0</span>
+          <span class="plan-per">/month</span>
+        </div>
+        <ul class="plan-features">
+          <li><span class="check yellow">✔</span> 3 captain limit</li>
+          <li><span class="check yellow">✔</span> Up to 30 Team Members</li>
+          <li><span class="check yellow">✔</span> Up to 10 Segments</li>
+          <li><span class="check yellow">✔</span> Up to 3 Sets</li>
+          <li><span class="check yellow">✔</span> 1 Workspace</li>
+          <li><span class="cross">✖</span> AI Features</li>
+          <li><span class="cross">✖</span> Backdrop Render</li>
+        </ul>
+        <button class="try-btn outline-btn">
+          <span class="play-icon">▶</span> SIGN UP FREE
+        </button>
+      </div>
+    </div>
+    <!-- Pro Plan -->
+    <div class="plan-card pro frosted-glass">
+      <div class="most-popular-badge">Most Popular</div>
+      <div class="plan-card-inner">
+        <div class="plan-title">Pro</div>
+        <div class="plan-desc">Everything to scale</div>
+        <div class="plan-price-row">
+          <span class="plan-price highlight">{{ annual ? '$3.99' : '$4.99' }}</span>
+          <span class="plan-per">/month</span>
+        </div>
+        <ul class="plan-features">
+          <li><span class="check yellow">✔</span> Unlimited captains</li>
+          <li><span class="check yellow">✔</span> Unlimited Team Members</li>
+          <li><span class="check yellow">✔</span> Unlimited Segments</li>
+          <li><span class="check yellow">✔</span> Unlimited Sets</li>
+          <li><span class="check yellow">✔</span> Unlimited Workspaces</li>
+          <li><span class="check yellow">✔</span> All AI-powered choreography tools</li>
+          <li><span class="check yellow">✔</span> Backdrop Render Included</li>
+        </ul>
+        <button class="try-btn yellow-btn" (click)="startPayment()">
+          <span class="play-icon">▶</span> SIGN UP PRO
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="payment-section" *ngIf="showPayment">
+    <h2 class="payment-title">Complete your payment</h2>
+    <div id="payment-element"></div>
+  </div>
+</div> 

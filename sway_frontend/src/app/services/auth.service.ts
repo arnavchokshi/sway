@@ -1,4 +1,6 @@
 import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../environments/environment';
 
 interface Team {
   _id: string;
@@ -18,7 +20,7 @@ interface User {
 export class AuthService {
   private currentUser: User | null = null;
 
-  constructor() {
+  constructor(private http: HttpClient) {
     // Load user from localStorage on service initialization
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
@@ -38,5 +40,9 @@ export class AuthService {
   logout() {
     this.currentUser = null;
     localStorage.removeItem('currentUser');
+  }
+
+  forgotPassword(email: string) {
+    return this.http.post(`${environment.apiUrl}/forgot-password`, { email });
   }
 } 

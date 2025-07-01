@@ -3460,6 +3460,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     setTimeout(() => {
       this.isResizingTimelineElement = false;
     }, 10);
+    
+    // Trigger auto-save after formation duration change
+    this.triggerAutoSave();
   };
 
   getFormationFlex(i: number): number {
@@ -3525,6 +3528,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     setTimeout(() => {
       this.isResizingTimelineElement = false;
     }, 10);
+    
+    // Trigger auto-save after transition duration change
+    this.triggerAutoSave();
   };
 
   getTimelinePixelWidth(): number {
@@ -4604,6 +4610,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.formations = [...this.formations];
     this.formationDurations = [...this.formationDurations];
     this.animationDurations = [...this.animationDurations];
+    
+    // Trigger auto-save after deleting formation
+    this.triggerAutoSave();
   }
 
   duplicateFormation(index: number) {
@@ -4627,6 +4636,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.formations = [...this.formations];
     this.formationDurations = [...this.formationDurations];
     this.animationDurations = [...this.animationDurations];
+    
+    // Trigger auto-save after duplicating formation
+    this.triggerAutoSave();
   }
 
   createFormationDraft(formationIndex: number) {

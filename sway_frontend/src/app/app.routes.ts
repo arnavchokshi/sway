@@ -8,6 +8,7 @@ import { SignIn } from './sign-in/sign-in';
 import { DashboardComponent } from './dashboard/dashboard';
 import { CreateSegmentComponent } from './create-segment/create-segment.component';
 import { EditRosterComponent } from './edit-roster/edit-roster.component';
+import { MembershipPlanComponent } from './membership-plan/membership-plan.component';
 
 const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -18,6 +19,7 @@ const routes: Routes = [
   { path: 'dashboard', component: DashboardComponent },
   { path: 'create-segment', component: CreateSegmentComponent },
   { path: 'edit-roster', component: EditRosterComponent },
+  { path: 'membership-plan', component: MembershipPlanComponent },
   // ...other routes
 ];
 

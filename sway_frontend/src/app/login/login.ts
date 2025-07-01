@@ -50,4 +50,22 @@ export class Login {
   goToHome() {
     this.router.navigate(['/']);
   }
+
+  forgotPassword(event: Event) {
+    event.preventDefault();
+    
+    if (!this.email) {
+      alert('Please enter your email address first');
+      return;
+    }
+
+    this.authService.forgotPassword(this.email).subscribe({
+      next: (response: any) => {
+        alert('Password reset instructions have been sent to your email address.');
+      },
+      error: (err) => {
+        alert('Failed to send password reset email: ' + (err.error?.error || err.message));
+      }
+    });
+  }
 }

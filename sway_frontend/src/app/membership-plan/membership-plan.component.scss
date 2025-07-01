@@ -1,0 +1,233 @@
+.pricing-bg {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #6d28d9 0%, #a78bfa 100%);
+  padding: 48px 0 64px 0;
+}
+
+.pricing-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+.pricing-title {
+  font-size: 3.2rem;
+  font-weight: 900;
+  margin-bottom: 12px;
+  letter-spacing: -1px;
+}
+.white-text {
+  color: #fff;
+}
+.yellow-text {
+  color: #ffd600;
+}
+.pricing-subtitle {
+  font-size: 1.18rem;
+  color: #fff;
+  opacity: 0.95;
+  margin-bottom: 30px;
+  font-weight: 500;
+}
+.toggle-row.modern-toggle {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.toggle-switch.pill-toggle {
+  background: #fff;
+  border-radius: 30px;
+  display: flex;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  overflow: hidden;
+  align-items: center;
+  padding: 4px 8px;
+  position: relative;
+}
+.toggle-btn {
+  border: none;
+  background: transparent;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #6d28d9;
+  padding: 10px 32px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  outline: none;
+  border-radius: 22px;
+  position: relative;
+  z-index: 1;
+}
+.toggle-btn.active {
+  background: #fff;
+  color: #18181b;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.arrow {
+  font-size: 1.1em;
+  margin-left: 4px;
+}
+.save-badge {
+  background: #ffd600;
+  color: #6d28d9;
+  font-size: 0.95em;
+  font-weight: 700;
+  border-radius: 16px;
+  padding: 4px 16px;
+  margin-left: 16px;
+  margin-right: 4px;
+  display: inline-block;
+}
+.plans-row.modern-layout {
+  display: flex;
+  justify-content: center;
+  gap: 36px;
+  flex-wrap: wrap;
+  margin-top: 32px;
+}
+.plan-card {
+  background: rgba(255,255,255,0.10);
+  border-radius: 22px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1.5px solid rgba(255,255,255,0.35);
+  min-width: 320px;
+  max-width: 370px;
+  flex: 1 1 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  position: relative;
+  margin-bottom: 24px;
+  transition: box-shadow 0.2s;
+}
+.plan-card.pro {
+  border: 2.5px solid #ffd600;
+  background: rgba(255,214,0,0.08);
+}
+.most-popular-badge {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffd600;
+  color: #6d28d9;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 4px 24px;
+  border-radius: 12px 12px 12px 12px;
+  letter-spacing: 0.5px;
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.plan-card-inner {
+  padding: 38px 32px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  height: 100%;
+}
+.plan-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin-bottom: 2px;
+  color: #fff;
+}
+.plan-desc {
+  font-size: 1.08rem;
+  color: #fff;
+  margin-bottom: 18px;
+  font-weight: 500;
+}
+.plan-price-row {
+  display: flex;
+  align-items: flex-end;
+  margin-bottom: 18px;
+}
+.plan-price {
+  font-size: 2.8rem;
+  font-weight: 900;
+  letter-spacing: -1px;
+  margin-right: 6px;
+  color: #fff;
+}
+.plan-price.highlight {
+  color: #ffd600;
+}
+.plan-per {
+  font-size: 1.1rem;
+  color: #fff;
+  font-weight: 500;
+  margin-bottom: 6px;
+  opacity: 0.8;
+}
+.plan-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 28px 0;
+  width: 100%;
+}
+.plan-features li {
+  font-size: 1.08rem;
+  margin: 10px 0;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  color: #fff;
+}
+.check.yellow {
+  color: #ffd600;
+  font-size: 1.2em;
+  margin-right: 10px;
+  font-weight: 700;
+}
+.cross {
+  color: #fff;
+  font-size: 1.2em;
+  margin-right: 10px;
+  font-weight: 700;
+  opacity: 0.5;
+}
+.try-btn {
+  width: 100%;
+  background: transparent;
+  color: #fff;
+  border: 2px solid #fff;
+  border-radius: 30px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  padding: 14px 0;
+  margin-top: 10px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.try-btn.yellow-btn {
+  background: #ffd600;
+  color: #6d28d9;
+  border: 2px solid #ffd600;
+}
+.try-btn.outline-btn {
+  background: transparent;
+  color: #fff;
+  border: 2px solid #fff;
+}
+.play-icon {
+  font-size: 1.1em;
+  margin-right: 10px;
+  font-weight: 700;
+}
+@media (max-width: 900px) {
+  .plans-row.modern-layout {
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+  }
+  .plan-card {
+    min-width: 260px;
+    max-width: 98vw;
+  }
+} 

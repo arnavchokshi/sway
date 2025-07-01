@@ -649,7 +649,6 @@
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="8" fill="url(#join-grad)"/><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="#fff" stroke-width="2"/><path d="M17 11h6m-3-3v6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="join-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#10b981"/></linearGradient></defs></svg>
           </div>
           <div class="join-team-title">Enter Team Code</div>
-          <div class="join-team-desc">Your choreographer should have shared a team code with you</div>
           <input class="join-team-code-input" maxlength="7" [(ngModel)]="formData.teamCode" name="teamCode" placeholder="Enter 7-character team code" (input)="validateTeamCodeInput($event)" />
           <div class="join-team-error" *ngIf="joinTeamError">{{ joinTeamError }}</div>
           <button type="button" class="onboarding-gradient-btn" [disabled]="!formData.teamCode || formData.teamCode.length !== 7" (click)="verifyJoinCode()">

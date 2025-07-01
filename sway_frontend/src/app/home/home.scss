@@ -772,6 +772,7 @@
   align-items: center;
   z-index: 1000;
   animation: fadeIn 0.3s ease-out;
+  overflow: hidden;
 }
 
 .join-team-modal {
@@ -1201,6 +1202,7 @@
   align-items: center;
   z-index: 1000;
   animation: fadeIn 0.3s ease-out;
+
 }
 
 .modal-content {
@@ -2541,6 +2543,7 @@ html, body {
   display: flex;
   flex-direction: column;
   animation: popInModal 0.28s cubic-bezier(0.4,1.4,0.6,1) both;
+  overflow-y: hidden;
 }
 
 .onboarding-modal-header {

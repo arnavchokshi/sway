@@ -584,4 +584,8 @@ export class DashboardComponent implements OnInit {
       this.pendingSegmentId = null;
     }
   }
+
+  navigateToMembershipPlan() {
+    this.router.navigate(['/membership-plan']);
+  }
 }
