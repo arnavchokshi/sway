@@ -18,7 +18,7 @@ export class MembershipPlanComponent {
   }
 
   async goToPayment() {
-    const res = await fetch('http://localhost:3000/api/create-checkout-session', { method: 'POST' });
+    const res = await fetch('https://sway-backend-3t6a.onrender.com', { method: 'POST' });
     const data = await res.json();
     if (data.url) {
       window.location.href = data.url;
