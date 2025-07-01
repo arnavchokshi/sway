@@ -9,6 +9,7 @@ import { Segment } from './models/Segment';
 import { Set } from './models/Set';
 import AWS from 'aws-sdk';
 import Stripe from 'stripe';
+import { MembershipService } from './services/membership.service';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,7 +18,11 @@ app.use(cors());
 app.use(express.json());
 
 // Stripe
-const stripe = new Stripe('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', { apiVersion: '2022-11-15' });
+const stripe = new Stripe('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', { apiVersion: '2025-05-28.basil' });
+
+// Stripe configuration
+const STRIPE_PRICE_ID = 'price_1RfwCNAnXImjVuyNGaYJGbVz';
+const STRIPE_WEBHOOK_SECRET = 'whsec_sROy3Y1dUexPbdHGE3dxWjeXrUrl5IlC';
 
 // MongoDB Connection
 const uri = process.env.ATLAS_URI;
@@ -924,25 +929,323 @@ app.patch('/api/teams/update-codes-to-7', async (req: Request, res: Response) =>
 
 app.post('/api/create-checkout-session', async (req: Request, res: Response) => {
   try {
+    const { teamId } = req.body;
+    
+    if (!teamId) {
+      return res.status(400).json({ error: 'Team ID is required' });
+    }
+
+    // Verify team exists
+    const team = await Team.findById(teamId);
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      mode: 'payment',
+      mode: 'subscription',
       line_items: [
         {
-          price_data: {
-            currency: 'usd',
-            product_data: { name: 'Pro Membership' },
-            unit_amount: 499, // $4.99 in cents
-          },
+          price: STRIPE_PRICE_ID,
           quantity: 1,
         },
       ],
-      success_url: 'http://localhost:4200/membership-plan?success=true',
-      cancel_url: 'http://localhost:4200/membership-plan?canceled=true',
+      success_url: 'https://sway-frontend-3t6a.onrender.com/membership-plan?success=true',
+      cancel_url: 'https://sway-frontend-3t6a.onrender.com/dashboard',
+      metadata: {
+        teamId: teamId,
+      },
     });
     res.json({ url: session.url });
   } catch (err: any) {
+    console.error('Error creating checkout session:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Create subscription (alternative to checkout session)
+app.post('/api/subscriptions/create', async (req: Request, res: Response) => {
+  try {
+    const { teamId, paymentMethodId } = req.body;
+    
+    if (!teamId || !paymentMethodId) {
+      return res.status(400).json({ error: 'Team ID and payment method ID are required' });
+    }
+
+    // Verify team exists
+    const team = await Team.findById(teamId);
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    // Create or retrieve customer
+    let customer;
+    const existingCustomers = await stripe.customers.list({
+      email: team.owner.toString(), // Using team owner as customer identifier
+      limit: 1,
+    });
+
+    if (existingCustomers.data.length > 0) {
+      customer = existingCustomers.data[0];
+    } else {
+      customer = await stripe.customers.create({
+        payment_method: paymentMethodId,
+        email: team.owner.toString(),
+        metadata: {
+          teamId: teamId,
+        },
+      });
+    }
+
+    // Attach payment method to customer
+    await stripe.paymentMethods.attach(paymentMethodId, {
+      customer: customer.id,
+    });
+
+    // Set as default payment method
+    await stripe.customers.update(customer.id, {
+      invoice_settings: {
+        default_payment_method: paymentMethodId,
+      },
+    });
+
+    // Create subscription
+    const subscription = await stripe.subscriptions.create({
+      customer: customer.id,
+      items: [{ price: STRIPE_PRICE_ID }],
+      metadata: {
+        teamId: teamId,
+      },
+    });
+
+    // Update team membership
+    team.membershipType = 'pro';
+    team.membershipExpiresAt = new Date((subscription as any).current_period_end * 1000);
+    await team.save();
+
+    res.json({ 
+      subscription: subscription,
+      message: 'Subscription created successfully'
+    });
+  } catch (err: any) {
+    console.error('Error creating subscription:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Cancel subscription
+app.post('/api/subscriptions/cancel', async (req: Request, res: Response) => {
+  try {
+    const { teamId } = req.body;
+    
+    if (!teamId) {
+      return res.status(400).json({ error: 'Team ID is required' });
+    }
+
+    // Find team's subscription by listing all subscriptions and filtering
+    const subscriptions = await stripe.subscriptions.list({
+      status: 'active',
+    });
+
+    const teamSubscription = subscriptions.data.find(sub => 
+      sub.metadata && sub.metadata.teamId === teamId
+    );
+
+    if (!teamSubscription) {
+      return res.status(404).json({ error: 'No active subscription found for this team' });
+    }
+
+    // Cancel subscription at period end
+    const canceledSubscription = await stripe.subscriptions.update(teamSubscription.id, {
+      cancel_at_period_end: true,
+    });
+
+    res.json({ 
+      subscription: canceledSubscription,
+      message: 'Subscription will be canceled at the end of the current period'
+    });
+  } catch (err: any) {
+    console.error('Error canceling subscription:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Stripe webhook handler
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req: Request, res: Response) => {
+  const sig = req.headers['stripe-signature'];
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig as string, STRIPE_WEBHOOK_SECRET);
+  } catch (err: any) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    switch (event.type) {
+      case 'customer.subscription.created':
+        await handleSubscriptionCreated(event.data.object);
+        break;
+      case 'customer.subscription.updated':
+        await handleSubscriptionUpdated(event.data.object);
+        break;
+      case 'customer.subscription.deleted':
+        await handleSubscriptionDeleted(event.data.object);
+        break;
+      case 'invoice.payment_succeeded':
+        await handlePaymentSucceeded(event.data.object);
+        break;
+      case 'invoice.payment_failed':
+        await handlePaymentFailed(event.data.object);
+        break;
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('Error handling webhook:', error);
+    res.status(500).json({ error: 'Webhook handler failed' });
+  }
+});
+
+// Webhook handlers
+async function handleSubscriptionCreated(subscription: any) {
+  const teamId = subscription.metadata?.teamId;
+  if (teamId) {
+    const team = await Team.findById(teamId);
+    if (team) {
+      team.membershipType = 'pro';
+      team.membershipExpiresAt = new Date((subscription as any).current_period_end * 1000);
+      await team.save();
+      console.log(`Team ${teamId} subscription created, membership updated to pro`);
+    }
+  }
+}
+
+async function handleSubscriptionUpdated(subscription: any) {
+  const teamId = subscription.metadata?.teamId;
+  if (teamId) {
+    const team = await Team.findById(teamId);
+    if (team) {
+      if (subscription.status === 'active') {
+        team.membershipType = 'pro';
+        team.membershipExpiresAt = new Date((subscription as any).current_period_end * 1000);
+      } else if (subscription.status === 'canceled' || subscription.status === 'unpaid') {
+        team.membershipType = 'free';
+        team.membershipExpiresAt = undefined;
+      }
+      await team.save();
+      console.log(`Team ${teamId} subscription updated, membership status: ${subscription.status}`);
+    }
+  }
+}
+
+async function handleSubscriptionDeleted(subscription: any) {
+  const teamId = subscription.metadata?.teamId;
+  if (teamId) {
+    const team = await Team.findById(teamId);
+    if (team) {
+      team.membershipType = 'free';
+      team.membershipExpiresAt = undefined;
+      await team.save();
+      console.log(`Team ${teamId} subscription deleted, membership reverted to free`);
+    }
+  }
+}
+
+async function handlePaymentSucceeded(invoice: any) {
+  const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
+  const teamId = subscription.metadata?.teamId;
+  
+  if (teamId) {
+    const team = await Team.findById(teamId);
+    if (team) {
+      team.membershipType = 'pro';
+      team.membershipExpiresAt = new Date((subscription as any).current_period_end * 1000);
+      await team.save();
+      console.log(`Team ${teamId} payment succeeded, membership extended`);
+    }
+  }
+}
+
+async function handlePaymentFailed(invoice: any) {
+  const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
+  const teamId = subscription.metadata?.teamId;
+  
+  if (teamId) {
+    console.log(`Team ${teamId} payment failed, subscription status: ${subscription.status}`);
+    // You might want to send notification emails here
+  }
+}
+
+// ===== MEMBERSHIP API ENDPOINTS =====
+
+// Check and upgrade membership
+app.post('/api/teams/:id/check-membership-upgrade', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await MembershipService.checkAndUpgradeMembership(id);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error checking membership upgrade:', error);
+    res.status(500).json({ error: error.message || 'Failed to check membership upgrade' });
+  }
+});
+
+// Apply referral code
+app.post('/api/teams/:id/apply-referral', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { referralCode } = req.body;
+    
+    if (!referralCode) {
+      return res.status(400).json({ error: 'Referral code is required' });
+    }
+
+    const result = await MembershipService.applyReferralCode(id, referralCode);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error applying referral code:', error);
+    res.status(500).json({ error: error.message || 'Failed to apply referral code' });
+  }
+});
+
+// Get membership status
+app.get('/api/teams/:id/membership-status', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const status = await MembershipService.getMembershipStatus(id);
+    res.json(status);
+  } catch (error: any) {
+    console.error('Error getting membership status:', error);
+    res.status(500).json({ error: error.message || 'Failed to get membership status' });
+  }
+});
+
+// Get registered user count
+app.get('/api/teams/:id/registered-user-count', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const count = await MembershipService.getRegisteredUserCount(id);
+    res.json({ registeredUserCount: count });
+  } catch (error: any) {
+    console.error('Error getting registered user count:', error);
+    res.status(500).json({ error: error.message || 'Failed to get registered user count' });
+  }
+});
+
+// Check if membership is active
+app.get('/api/teams/:id/membership-active', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const isActive = await MembershipService.isMembershipActive(id);
+    res.json({ isActive });
+  } catch (error: any) {
+    console.error('Error checking membership status:', error);
+    res.status(500).json({ error: error.message || 'Failed to check membership status' });
   }
 });
 

@@ -77,6 +77,10 @@ export class DashboardComponent implements OnInit {
       this.teamService.getTeamById(currentUser.team._id).subscribe({
         next: (res) => {
           this.team = res.team;
+          // Set teamId in localStorage for membership plan page
+          if (res.team && res.team._id) {
+            localStorage.setItem('teamId', res.team._id);
+          }
         }
       });
       this.loadSets();

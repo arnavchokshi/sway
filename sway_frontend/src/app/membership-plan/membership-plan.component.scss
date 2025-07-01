@@ -1,6 +1,6 @@
 .pricing-bg {
   min-height: 100vh;
-  background: linear-gradient(135deg, #6d28d9 0%, #a78bfa 100%);
+  background: linear-gradient(135deg, #5303a4 0%, #6f5d1d 100%);
   padding: 48px 0 64px 0;
 }
 
@@ -18,7 +18,7 @@
   color: #fff;
 }
 .yellow-text {
-  color: #ffd600;
+  color: #f1cc17dc;
 }
 .pricing-subtitle {
   font-size: 1.18rem;
@@ -100,6 +100,14 @@
   position: relative;
   margin-bottom: 24px;
   transition: box-shadow 0.2s;
+  opacity: 0;
+  animation: fadeInUp 0.7s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+.plan-card:nth-child(1) {
+  animation-delay: 0.2s;
+}
+.plan-card:nth-child(2) {
+  animation-delay: 0.4s;
 }
 .plan-card.pro {
   border: 2.5px solid #ffd600;
@@ -230,4 +238,360 @@
     min-width: 260px;
     max-width: 98vw;
   }
+}
+
+.back-btn-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  padding: 32px 0 0 48px;
+}
+.back-btn {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 12px;
+  padding: 0.5rem 1.4rem;
+  font-size: 1.08rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  margin-bottom: 12px;
+}
+.back-btn:hover {
+  background: rgba(255,255,255,0.25);
+  border-color: rgba(255,255,255,0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Membership Status Styles
+.membership-status {
+  margin-bottom: 2rem;
+  
+  .status-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    
+    .status-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      
+      h2 {
+        color: white;
+        margin: 0;
+        font-size: 1.5rem;
+      }
+      
+      .membership-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 0.9rem;
+        
+        &.badge-gray {
+          background: #6b7280;
+          color: white;
+        }
+        
+        &.badge-green {
+          background: #10b981;
+          color: white;
+        }
+        
+        &.badge-orange {
+          background: #f59e0b;
+          color: white;
+        }
+        
+        &.badge-red {
+          background: #ef4444;
+          color: white;
+        }
+      }
+    }
+    
+    .status-details {
+      color: white;
+      
+      p {
+        margin-bottom: 1rem;
+        font-size: 1rem;
+      }
+      
+      strong {
+        color: #fbbf24;
+      }
+    }
+  }
+}
+
+// Upgrade Progress Styles
+.upgrade-progress {
+  margin: 1.5rem 0;
+  
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #fbbf24, #f59e0b);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+  }
+  
+  .progress-text {
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    
+    .close-to-upgrade {
+      color: #fbbf24;
+      font-weight: bold;
+    }
+  }
+  
+  .upgrade-check-btn {
+    background: #fbbf24;
+    color: #1f2937;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    
+    &:hover:not(:disabled) {
+      background: #f59e0b;
+      transform: translateY(-2px);
+    }
+    
+    &:disabled {
+      background: #6b7280;
+      cursor: not-allowed;
+      transform: none;
+    }
+  }
+}
+
+// Referral Code Styles
+.referral-section {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 12px;
+  
+  h3 {
+    color: #fbbf24;
+    margin: 0 0 0.5rem 0;
+    font-size: 1.2rem;
+  }
+  
+  p {
+    color: white;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .referral-input {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    
+    input {
+      flex: 1;
+      padding: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 1rem;
+      
+      &::placeholder {
+        color: rgba(255, 255, 255, 0.6);
+      }
+      
+      &:focus {
+        outline: none;
+        border-color: #fbbf24;
+      }
+      
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    }
+    
+    button {
+      background: #fbbf24;
+      color: #1f2937;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+      
+      &:hover:not(:disabled) {
+        background: #f59e0b;
+      }
+      
+      &:disabled {
+        background: #6b7280;
+        cursor: not-allowed;
+      }
+    }
+  }
+  
+  .referral-message {
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    
+    &.success {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #10b981;
+    }
+    
+    &.error {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+  }
+}
+
+// Pro Membership Details
+.pro-details {
+  margin: 1.5rem 0;
+  
+  p {
+    color: white;
+    margin-bottom: 1rem;
+  }
+}
+
+// Referral Code Display
+.referral-code-display {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+  
+  h3 {
+    color: #10b981;
+    margin: 0 0 0.5rem 0;
+    font-size: 1.2rem;
+  }
+  
+  p {
+    color: white;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .code-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    
+    .code {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+      color: #fbbf24;
+      font-size: 1.1rem;
+      letter-spacing: 1px;
+    }
+    
+    .copy-btn {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      
+      &:hover {
+        background: #059669;
+      }
+    }
+  }
+}
+
+// Current Plan Indicator
+.plan-card.current-plan {
+  border: 2px solid #fbbf24;
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+  
+  .plan-title::after {
+    content: ' (Current)';
+    color: #fbbf24;
+    font-size: 0.8em;
+  }
+}
+
+// Loading State
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: white;
+  
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid #fbbf24;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+  }
+  
+  p {
+    font-size: 1.1rem;
+    margin: 0;
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 } 

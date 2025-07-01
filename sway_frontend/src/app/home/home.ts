@@ -6,7 +6,6 @@ import { HttpClient } from '@angular/common/http';
 import { Login } from '../login/login';
 import { AuthService } from '../services/auth.service';
 import { environment } from '../../environments/environment';
-import { ThreeDModelsComponent } from './3d-models/3d-models.component';
 
 interface TeamMember {
   _id: string;
@@ -19,7 +18,7 @@ interface TeamMember {
   templateUrl: './home.html',
   styleUrls: ['./home.scss'],
   standalone: true,
-  imports: [CommonModule, FormsModule, Login, ThreeDModelsComponent]
+  imports: [CommonModule, FormsModule, Login]
 })
 export class HomeComponent implements OnInit {
   showSplit = false;

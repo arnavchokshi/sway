@@ -1,24 +1,93 @@
 <div class="pricing-bg">
-  <div class="pricing-header">
-    <h1 class="pricing-title">
-      <span class="white-text">Pricing</span> <span class="yellow-text">Plans</span>
-    </h1>
-    <div class="pricing-subtitle">
-      Seamlessly share formations with your dancers, making complex choreography instantly clear and rehearsals flow naturally.
-    </div>
-    <div class="toggle-row modern-toggle">
-      <div class="toggle-switch pill-toggle">
-        <button class="toggle-btn" [class.active]="!annual" (click)="annual = false">Monthly</button>
-        <button class="toggle-btn" [class.active]="annual" (click)="annual = true">
-          Annual <span class="arrow">→</span>
-        </button>
-        <span class="save-badge">Save $$$</span>
+  <div class="back-btn-row">
+    <button class="back-btn" (click)="goToDashboard()">
+      ← Back to Dashboard
+    </button>
+  </div>
+
+  <!-- Current Membership Status -->
+  <div class="membership-status" *ngIf="!loading && membershipStatus">
+    <div class="status-card frosted-glass">
+      <div class="status-header">
+        <h2>Current Membership</h2>
+        <div class="membership-badge" [class]="'badge-' + getMembershipBadgeColor()">
+          {{ getMembershipBadgeText() }}
+        </div>
+      </div>
+      
+      <div class="status-details">
+        <p><strong>Team Members with Emails:</strong> {{ membershipStatus.registeredUserCount }}/10</p>
+        
+        <!-- Upgrade Progress Bar -->
+        <div class="upgrade-progress" *ngIf="membershipStatus.membershipType === 'free'">
+          <div class="progress-bar">
+            <div class="progress-fill" [style.width.%]="getUpgradeProgress()"></div>
+          </div>
+          <p class="progress-text">
+            <span *ngIf="isCloseToUpgrade()" class="close-to-upgrade">🎉 Almost there! Add {{ 10 - membershipStatus.registeredUserCount }} more team members with emails to get 2 months of Pro for free!</span>
+            <span *ngIf="!isCloseToUpgrade() && membershipStatus.registeredUserCount < 10">Add team members with emails to unlock free Pro upgrade</span>
+            <span *ngIf="membershipStatus.registeredUserCount >= 10">Ready for upgrade! Click "Check for Upgrade" below.</span>
+          </p>
+          <button class="upgrade-check-btn" (click)="checkForUpgrade()" 
+                  [disabled]="membershipStatus.registeredUserCount < 10">
+            Check for Upgrade
+          </button>
+        </div>
+
+        <!-- Referral Code Section -->
+        <div class="referral-section" *ngIf="canApplyReferral()">
+          <h3>Have a Referral Code?</h3>
+          <p>Get 1 month of Pro membership for free!</p>
+          <div class="referral-input">
+            <input type="text" [(ngModel)]="referralCode" placeholder="Enter referral code" 
+                   [disabled]="applyingReferral">
+            <button (click)="applyReferralCode()" [disabled]="applyingReferral || !referralCode.trim()">
+              {{ applyingReferral ? 'Applying...' : 'Apply Code' }}
+            </button>
+          </div>
+          <div class="referral-message" *ngIf="referralMessage" 
+               [class]="referralSuccess ? 'success' : 'error'">
+            {{ referralMessage }}
+          </div>
+        </div>
+
+        <!-- Pro Membership Details -->
+        <div class="pro-details" *ngIf="membershipStatus.membershipType === 'pro'">
+          <p *ngIf="membershipStatus.expiresAt">
+            <strong>Expires:</strong> {{ membershipStatus.expiresAt | date:'mediumDate' }}
+            <span *ngIf="membershipStatus.daysUntilExpiry">
+              ({{ membershipStatus.daysUntilExpiry }} days remaining)
+            </span>
+          </p>
+          
+          <!-- Referral Code Display -->
+          <div class="referral-code-display" *ngIf="membershipStatus.referralCode">
+            <h3>Your Referral Code</h3>
+            <p>Share this code with other teams to give them 1 month of Pro for free!</p>
+            <div class="code-display">
+              <span class="code">{{ membershipStatus.referralCode }}</span>
+              <button class="copy-btn" (click)="navigator.clipboard.writeText(membershipStatus.referralCode!)">
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
+
+  <div class="pricing-header">
+    <h1 class="pricing-title">
+      <span class="white-text">Pricing</span> <span class="yellow-text"> Plans</span>
+    </h1>
+    <div class="pricing-subtitle">
+      Consider upgrading to a paid plan to unlock all features and scale your team to the next level
+    </div>
+  </div>
+
   <div class="plans-row modern-layout">
     <!-- Free Plan -->
-    <div class="plan-card frosted-glass">
+    <div class="plan-card frosted-glass" [class.current-plan]="membershipStatus?.membershipType === 'free'">
       <div class="plan-card-inner">
         <div class="plan-title">Free</div>
         <div class="plan-desc">Everything to start</div>
@@ -31,23 +100,24 @@
           <li><span class="check yellow">✔</span> Up to 30 Team Members</li>
           <li><span class="check yellow">✔</span> Up to 10 Segments</li>
           <li><span class="check yellow">✔</span> Up to 3 Sets</li>
-          <li><span class="check yellow">✔</span> 1 Workspace</li>
           <li><span class="cross">✖</span> AI Features</li>
           <li><span class="cross">✖</span> Backdrop Render</li>
         </ul>
-        <button class="try-btn outline-btn">
-          <span class="play-icon">▶</span> SIGN UP FREE
+        <button class="try-btn outline-btn" [disabled]="membershipStatus?.membershipType === 'free'">
+          <span class="play-icon">▶</span> 
+          {{ membershipStatus?.membershipType === 'free' ? 'CURRENT PLAN' : 'SIGN UP FREE' }}
         </button>
       </div>
     </div>
+
     <!-- Pro Plan -->
-    <div class="plan-card pro frosted-glass">
-      <div class="most-popular-badge">Most Popular</div>
+    <div class="plan-card pro frosted-glass" [class.current-plan]="membershipStatus?.membershipType === 'pro'">
+      <div class="most-popular-badge">Premium</div>
       <div class="plan-card-inner">
         <div class="plan-title">Pro</div>
         <div class="plan-desc">Everything to scale</div>
         <div class="plan-price-row">
-          <span class="plan-price highlight">{{ annual ? '$3.99' : '$4.99' }}</span>
+          <span class="plan-price highlight">$4.99</span>
           <span class="plan-per">/month</span>
         </div>
         <ul class="plan-features">
@@ -55,14 +125,21 @@
           <li><span class="check yellow">✔</span> Unlimited Team Members</li>
           <li><span class="check yellow">✔</span> Unlimited Segments</li>
           <li><span class="check yellow">✔</span> Unlimited Sets</li>
-          <li><span class="check yellow">✔</span> Unlimited Workspaces</li>
           <li><span class="check yellow">✔</span> All AI-powered choreography tools</li>
           <li><span class="check yellow">✔</span> Backdrop Render Included</li>
         </ul>
-        <button class="try-btn yellow-btn" (click)="goToPayment()">
-          <span class="play-icon">▶</span> SIGN UP PRO
+        <button class="try-btn yellow-btn" (click)="goToPayment()" 
+                [disabled]="membershipStatus?.membershipType === 'pro'">
+          <span class="play-icon">▶</span> 
+          {{ membershipStatus?.membershipType === 'pro' ? 'CURRENT PLAN' : 'SIGN UP PRO' }}
         </button>
       </div>
     </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Loading membership status...</p>
   </div>
 </div> 

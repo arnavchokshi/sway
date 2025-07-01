@@ -14,6 +14,12 @@ export interface ITeam extends Document {
   owner: mongoose.Types.ObjectId; // User ID of the team owner
   joinCode: string;
   styles: IStyle[]; // Array of styles with colors
+  // Membership fields
+  membershipType: 'free' | 'pro';
+  membershipExpiresAt?: Date;
+  referralCode?: string;
+  referralCodeUsed?: string;
+  lastMembershipCheck?: Date;
 }
 
 // Team Schema
@@ -55,6 +61,29 @@ const TeamSchema = new Schema<ITeam>(
         trim: true,
       }
     }],
+    // Membership fields
+    membershipType: {
+      type: String,
+      enum: ['free', 'pro'],
+      default: 'free',
+    },
+    membershipExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    referralCode: {
+      type: String,
+      unique: true,
+      sparse: true, // Allows multiple null values
+    },
+    referralCodeUsed: {
+      type: String,
+      default: null,
+    },
+    lastMembershipCheck: {
+      type: Date,
+      default: null,
+    },
   },
 );
 
