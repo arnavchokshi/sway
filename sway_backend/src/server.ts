@@ -754,6 +754,41 @@ app.delete('/api/teams/:teamId/members/:memberId', async (req: Request, res: Res
   }
 });
 
+// Delete team with cascading deletes for sets and segments
+app.delete('/api/teams/:teamId', async (req: Request, res: Response) => {
+  try {
+    const { teamId } = req.params;
+
+    // Find the team to verify it exists
+    const team = await Team.findById(teamId);
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    // Delete all segments associated with this team
+    const deletedSegments = await Segment.deleteMany({ team: teamId });
+    console.log(`Deleted ${deletedSegments.deletedCount} segments for team ${teamId}`);
+
+    // Delete all sets associated with this team
+    const deletedSets = await Set.deleteMany({ team: teamId });
+    console.log(`Deleted ${deletedSets.deletedCount} sets for team ${teamId}`);
+
+    // Delete the team itself
+    const deletedTeam = await Team.findByIdAndDelete(teamId);
+    console.log(`Deleted team: ${deletedTeam?.name} (${teamId})`);
+
+    res.json({ 
+      message: 'Team and all associated data deleted successfully',
+      deletedTeam,
+      deletedSegments: deletedSegments.deletedCount,
+      deletedSets: deletedSets.deletedCount
+    });
+  } catch (error: any) {
+    console.error('Error deleting team:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete team' });
+  }
+});
+
 // Sets API endpoints
 app.post('/api/sets', async (req: Request, res: Response) => {
   try {

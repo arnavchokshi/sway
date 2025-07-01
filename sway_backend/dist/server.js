@@ -68,8 +68,6 @@ const Set_1 = require("./models/Set");
 const aws_sdk_1 = __importDefault(require("aws-sdk"));
 const stripe_1 = __importDefault(require("stripe"));
 const membership_service_1 = require("./services/membership.service");
-const nodemailer_1 = __importDefault(require("nodemailer"));
-const crypto_1 = __importDefault(require("crypto"));
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3000;
 app.use((0, cors_1.default)());
@@ -289,87 +287,6 @@ app.post('/api/login', (req, res) => __awaiter(void 0, void 0, void 0, function*
     catch (err) {
         console.error('Login error:', err);
         res.status(500).json({ error: 'Server error' });
-    }
-}));
-app.post('/api/forgot-password', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const { email } = req.body;
-        if (!email) {
-            return res.status(400).json({ error: 'Email is required' });
-        }
-        // Find user by email
-        const user = yield User_1.User.findOne({ email });
-        if (!user) {
-            // Don't reveal if user exists or not for security
-            return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
-        }
-        // Generate reset token
-        const resetToken = crypto_1.default.randomBytes(32).toString('hex');
-        const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
-        // Store reset token in user document (you might want to add these fields to your User model)
-        user.resetPasswordToken = resetToken;
-        user.resetPasswordExpires = resetTokenExpiry;
-        yield user.save();
-        // Create email transporter (using Gmail for this example)
-        const transporter = nodemailer_1.default.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER, // Add this to your .env file
-                pass: process.env.EMAIL_PASS // Add this to your .env file (use app password)
-            }
-        });
-        // Create reset URL
-        const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:4200'}/reset-password?token=${resetToken}`;
-        // Email content
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: 'Password Reset Request - Sway',
-            html: `
-        <h2>Password Reset Request</h2>
-        <p>You requested a password reset for your Sway account.</p>
-        <p>Click the link below to reset your password:</p>
-        <a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a>
-        <p>This link will expire in 1 hour.</p>
-        <p>If you didn't request this, please ignore this email.</p>
-        <p>Best regards,<br>The Sway Team</p>
-      `
-        };
-        // Send email
-        yield transporter.sendMail(mailOptions);
-        res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
-    }
-    catch (error) {
-        console.error('Error in forgot password:', error);
-        res.status(500).json({ error: 'Failed to process password reset request' });
-    }
-}));
-app.post('/api/reset-password', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const { token, newPassword } = req.body;
-        if (!token || !newPassword) {
-            return res.status(400).json({ error: 'Token and new password are required' });
-        }
-        // Find user with the reset token and check if it's not expired
-        const user = yield User_1.User.findOne({
-            resetPasswordToken: token,
-            resetPasswordExpires: { $gt: Date.now() }
-        });
-        if (!user) {
-            return res.status(400).json({ error: 'Invalid or expired reset token' });
-        }
-        // Hash the new password
-        const hashedPassword = yield bcrypt_1.default.hash(newPassword, 10);
-        // Update user's password and clear reset token
-        user.password = hashedPassword;
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
-        yield user.save();
-        res.json({ message: 'Password has been reset successfully' });
-    }
-    catch (error) {
-        console.error('Error in reset password:', error);
-        res.status(500).json({ error: 'Failed to reset password' });
     }
 }));
 app.get('/api/segments/:teamId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -796,6 +713,36 @@ app.delete('/api/teams/:teamId/members/:memberId', (req, res) => __awaiter(void 
     }
     catch (error) {
         res.status(500).json({ error: error.message || 'Failed to remove member' });
+    }
+}));
+// Delete team with cascading deletes for sets and segments
+app.delete('/api/teams/:teamId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { teamId } = req.params;
+        // Find the team to verify it exists
+        const team = yield Team_1.Team.findById(teamId);
+        if (!team) {
+            return res.status(404).json({ error: 'Team not found' });
+        }
+        // Delete all segments associated with this team
+        const deletedSegments = yield Segment_1.Segment.deleteMany({ team: teamId });
+        console.log(`Deleted ${deletedSegments.deletedCount} segments for team ${teamId}`);
+        // Delete all sets associated with this team
+        const deletedSets = yield Set_1.Set.deleteMany({ team: teamId });
+        console.log(`Deleted ${deletedSets.deletedCount} sets for team ${teamId}`);
+        // Delete the team itself
+        const deletedTeam = yield Team_1.Team.findByIdAndDelete(teamId);
+        console.log(`Deleted team: ${deletedTeam === null || deletedTeam === void 0 ? void 0 : deletedTeam.name} (${teamId})`);
+        res.json({
+            message: 'Team and all associated data deleted successfully',
+            deletedTeam,
+            deletedSegments: deletedSegments.deletedCount,
+            deletedSets: deletedSets.deletedCount
+        });
+    }
+    catch (error) {
+        console.error('Error deleting team:', error);
+        res.status(500).json({ error: error.message || 'Failed to delete team' });
     }
 }));
 // Sets API endpoints

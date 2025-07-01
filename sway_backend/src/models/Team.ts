@@ -87,5 +87,26 @@ const TeamSchema = new Schema<ITeam>(
   },
 );
 
+// Pre-delete middleware to handle cascading deletes
+TeamSchema.pre('deleteOne', { document: true, query: false }, async function(next) {
+  try {
+    const teamId = this._id;
+    
+    // Import models here to avoid circular dependencies
+    const { Segment } = await import('./Segment');
+    const { Set } = await import('./Set');
+    
+    // Delete all segments associated with this team
+    await Segment.deleteMany({ team: teamId });
+    
+    // Delete all sets associated with this team
+    await Set.deleteMany({ team: teamId });
+    
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
+});
+
 // Create and export the Team model
 export const Team = mongoose.model<ITeam>('Team', TeamSchema); 

@@ -75,12 +75,6 @@ const UserSchema = new mongoose_1.Schema({
         type: Boolean,
         default: false,
     },
-    resetPasswordToken: {
-        type: String,
-    },
-    resetPasswordExpires: {
-        type: Date,
-    },
 });
 // Create and export the User model
 exports.User = mongoose_1.default.model('User', UserSchema);
