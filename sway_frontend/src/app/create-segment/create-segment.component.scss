@@ -16,7 +16,7 @@ body {
   flex-direction: column;
   height: 100vh;
   background: linear-gradient(135deg, #161647 0%, #1c0404f2 50%, #18184d 100%);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
   overflow: hidden;
   animation: fadeInBackground 0.8s ease-out;
   overscroll-behavior: none;
@@ -4816,4 +4816,82 @@ body {
   // Add overflow-wrap if text is long
   overflow-wrap: break-word;
 }
+
+// --- Public/Private Toggle Styles (copied from dashboard.scss) ---
+.visibility-toggle {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+
+  .toggle-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(99, 102, 241, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    i {
+      color: #6366f1;
+      font-size: 1.25rem;
+    }
+  }
+
+  .toggle-content {
+    flex: 1;
+
+    h3 {
+      margin: 0 0 0.25rem 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.7);
+    }
+  }
+
+  .toggle-switch {
+    cursor: pointer;
+    
+    .toggle-track {
+      width: 50px;
+      height: 28px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 14px;
+      position: relative;
+      transition: all 0.2s ease;
+
+      &.active {
+        background: #10b981;
+      }
+
+      .toggle-thumb {
+        width: 24px;
+        height: 24px;
+        background: #fff;
+        border-radius: 50%;
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      &.active .toggle-thumb {
+        transform: translateX(22px);
+      }
+    }
+  }
+}
+// ... existing code ...
 

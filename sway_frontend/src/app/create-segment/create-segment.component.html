@@ -230,9 +230,14 @@
       <ng-container *ngIf="sidePanelMode === 'performer'; else rosterPanel">
         <div class="performer-details" *ngIf="selectedPerformer; else noPerformerSelected">
           <div class="performer-header">
-            <input type="text" class="performer-name" [ngModel]="selectedPerformer.name" (ngModelChange)="updatePerformerName()">
+            <input type="text" class="performer-name" [(ngModel)]="editablePerformerName" (blur)="commitPerformerNameEdit()" (keydown.enter)="commitPerformerNameEdit()">
             <button class="remove-performer-btn" (click)="removePerformer()">
-              <span class="material-icons">delete</span>
+              <ng-container *ngIf="!confirmRemovePerformer">
+                <span class="material-icons">delete</span>
+              </ng-container>
+              <ng-container *ngIf="confirmRemovePerformer">
+                <span style="white-space:nowrap">Remove from segment</span>
+              </ng-container>
             </button>
           </div>
           <div class="performer-info">
@@ -250,7 +255,7 @@
                   <button class="dropdown-item" *ngFor="let user of availableUsers" 
                           (click)="convertToUser(user)">
                     <span class="material-icons">person</span>
-                    {{ user.name }}
+                    {{ formatPerformerName(user.name) }}
                   </button>
                 </div>
               </div>
@@ -353,7 +358,7 @@
                  [style.animation-delay.s]="!hasPlayedInitialAnimation ? (0.8 + i * 0.1) : null"
                  (click)="selectPerformer(performer)">
               <span class="performer-number">{{i + 1}}</span>
-              <span class="performer-name">{{performer.name}}</span>
+              <span class="performer-name">{{formatPerformerName(performer.name)}}</span>
             </div>
           </div>
           <!-- Add Performer Row -->
@@ -373,7 +378,7 @@
               <button class="dropdown-item" *ngFor="let member of availableUsers" 
                       (click)="addPerformerFromRoster(member)">
                 <span class="material-icons">person</span>
-                {{ member.name }}
+                {{ formatPerformerName(member.name) }}
               </button>
               
               <!-- Add New User to Roster Section -->
@@ -494,7 +499,7 @@
                  class="performer previous-position"
                  [ngStyle]="getPreviousPositionStyle(performer.id)"
                  [style.display]="(showTransitions || selectedPerformerForPreviousPosition === performer.id || selectedPerformersForPreviousPosition.has(performer.id)) && getPreviousPosition(performer.id) ? 'flex' : 'none'">
-              {{performer.name}}
+              {{formatPerformerName(performer.name)}}
             </div>
             <!-- Current performers -->
             <div class="performer"
@@ -509,7 +514,7 @@
                  (mouseenter)="isCaptain && onPerformerMouseEnter(performer)"
                  (mouseleave)="isCaptain && onPerformerMouseLeave()"
                  [attr.data-id]="performer.id">
-              {{performer.name}}
+              {{formatPerformerName(performer.name)}}
               <div *ngIf="isPerformerSelectionLoading" class="loading-spinner"></div>
             </div>
             <!-- Stage border -->
@@ -597,7 +602,7 @@
                        [class.draft-formation]="isDraftFormationDraftColored(i)"
                        [class.main-formation-colored-as-draft]="!isDraftFormationDraftColored(i)"
                        [class.active]="currentFormationIndex === i && isViewingDraft"
-                       (click)="jumpToFormation(i, true)"
+                       (click)="handleFormationClick(i, true)"
                        (mouseenter)="hoveredFormationIndex = i"
                        (mouseleave)="hoveredFormationIndex = null">
                     <div class="formation-label">F {{ i + 1 }} Draft</div>
@@ -623,7 +628,7 @@
                        [class.main-formation-colored-as-draft]="isMainFormationDraftColored(i)"
                        [class.active]="currentFormationIndex === i && !isViewingDraft"
                        [class.has-draft]="hasDraft(i)"
-                       (click)="jumpToFormation(i, false)"
+                       (click)="handleFormationClick(i, false)"
                        (contextmenu)="onFormationRightClick($event, i)"
                        (mouseenter)="hoveredFormationIndex = i"
                        (mouseleave)="hoveredFormationIndex = null">
@@ -713,6 +718,24 @@
                 class="form-input"
                 placeholder="e.g., Opening Formation, Finale"
               />
+            </div>
+
+            <!-- Public/Private Toggle -->
+            <div class="form-group">
+              <div class="visibility-toggle">
+                <div class="toggle-icon">
+                  <i class="fas" [class.fa-eye]="editIsPublic" [class.fa-eye-slash]="!editIsPublic"></i>
+                </div>
+                <div class="toggle-content">
+                  <h3>{{ editIsPublic ? 'Public Segment' : 'Private Segment' }}</h3>
+                  <p>{{ editIsPublic ? 'Visible to the full team' : 'Only visible to captains' }}</p>
+                </div>
+                <div class="toggle-switch" (click)="editIsPublic = !editIsPublic">
+                  <div class="toggle-track" [class.active]="editIsPublic">
+                    <div class="toggle-thumb"></div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Dimensions -->

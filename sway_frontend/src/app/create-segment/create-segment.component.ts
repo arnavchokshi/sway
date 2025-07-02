@@ -132,6 +132,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   editSegmentName = 'New Segment';
   editSelectedStyles: Style[] = [];
   teamStyles: Style[] = [];
+  editIsPublic: boolean = true; // Add this property for the modal
 
   selectedAddPerformer: any = null;
 
@@ -432,6 +433,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private readonly TIP_UPDATE_THROTTLE_MS = 300;
 
   isHoveringSeekBar = false;
+
+  editablePerformerName: string = '';
 
   onSeekBarMouseEnter() {
     this.isHoveringSeekBar = true;
@@ -2369,6 +2372,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.editDepth = this.depth;
     this.editDivisions = this.divisions;
     this.editSegmentName = this.segmentName;
+    this.editIsPublic = this.segment?.isPublic ?? true; // Initialize from segment or default
     
     // Initialize editSelectedStyles with the segment's styles
     this.editSelectedStyles = this.segment?.stylesInSegment?.map((styleName: string) => {
@@ -2415,9 +2419,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.calculateStage();
     this.closeEditModal();
 
-    // Update the segment object with the new styles
+    // Update the segment object with the new styles and privacy
     if (this.segment) {
       this.segment.stylesInSegment = this.editSelectedStyles.map(s => s.name);
+      this.segment.isPublic = this.editIsPublic;
     }
 
     // Save changes to backend
@@ -2427,7 +2432,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         depth: this.depth,
         width: this.width,
         divisions: this.divisions,
-        stylesInSegment: this.editSelectedStyles.map(s => s.name)
+        stylesInSegment: this.editSelectedStyles.map(s => s.name),
+        isPublic: this.editIsPublic // Include privacy
       }).subscribe({
         next: () => {
           this.lastSaveTime = new Date();
@@ -3750,23 +3756,25 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.triggerAutoSave();
   }
 
+  confirmRemovePerformer: boolean = false;
+
   removePerformer() {
+    if (!this.confirmRemovePerformer) {
+      this.confirmRemovePerformer = true;
+      return;
+    }
     if (!this.selectedPerformer) return;
     const performerId = this.selectedPerformer.id;
     const isDummy = this.selectedPerformer.isDummy;
     const performerName = this.selectedPerformer.name || this.selectedPerformer.dummyName || 'Unknown';
-    
     // Save state before making changes
     this.saveState(`Remove performer: ${performerName}`);
-    
     // Remove from all formations
     this.formations = this.formations.map(formation => 
       formation.filter(p => p.id !== performerId)
     );
-    
     // Remove from segment roster if present
     this.segmentRoster = this.segmentRoster.filter(m => m._id !== performerId);
-    
     // If dummy and segment exists, delete dummy template from backend
     if (isDummy && this.segment?._id) {
       this.teamService.deleteDummyTemplate(this.segment._id, performerId).subscribe({
@@ -3774,18 +3782,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         error: (err) => console.error('Failed to delete dummy template from backend', err)
       });
     }
-    
     // Clear selection
     this.selectedPerformerIds.delete(performerId);
     this.selectedPerformersForPreviousPosition.delete(performerId);
     this.selectedPerformerId = null;
-    
     // Switch back to roster panel
     this.sidePanelMode = 'roster';
-    
+    this.confirmRemovePerformer = false;
     // Calculate selection rectangle (will clear it since performer was removed)
     this.calculateSelectionRectangle();
-    
     // Trigger auto-save
     this.triggerAutoSave();
   }
@@ -4519,6 +4524,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (event.key === 'Delete' || event.key === 'Backspace') {
       if (this.selectedPerformerIds.size > 0) {
         event.preventDefault();
+        if (!this.confirmRemovePerformer) {
+          this.confirmRemovePerformer = true;
+          return;
+        }
         // Remove selected performers from current formation
         const currentFormation = this.formations[this.currentFormationIndex];
         this.selectedPerformerIds.forEach(performerId => {
@@ -4528,8 +4537,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           }
         });
         this.selectedPerformerIds.clear();
+        this.confirmRemovePerformer = false;
         this.triggerAutoSave();
       }
+    }
+    
+    // Handle spacebar for play/pause
+    if (event.key === ' ' || event.code === 'Space') {
+      // Only trigger if not focused on an input, textarea, or button
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'BUTTON' || (active as HTMLElement).isContentEditable)) {
+        return;
+      }
+      event.preventDefault();
+      this.onControlBarPlayPause();
+      return;
     }
   }
 
@@ -5196,7 +5218,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           context.fillStyle = '#fff';
           context.font = 'bold 90px Arial'; // Increased from 24px
           context.textAlign = 'center';
-          context.fillText(performer.name, 256, 80); // Adjusted position for new canvas size
+          context.fillText(this.formatPerformerName(performer.name), 256, 80); // Adjusted position for new canvas size
           const texture = new THREE.CanvasTexture(canvas);
           const labelMaterial = new THREE.SpriteMaterial({ map: texture });
           const label = new THREE.Sprite(labelMaterial);
@@ -6042,6 +6064,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (!target.closest('.stage-tools-dropdown')) {
       this.showStageToolsDropdown = false;
     }
+    if (!target.closest('.remove-performer-btn')) {
+      this.confirmRemovePerformer = false;
+    }
   }
 
   triggerAudioUpload() {
@@ -6467,6 +6492,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     
     console.log('✅ DEBUG setSelectedPerformer completed for:', performer.name);
+    // Set editable name
+    this.editablePerformerName = performer.name;
   }
 
   /**
@@ -7336,6 +7363,41 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // Dismiss upload success popup
   dismissUploadSuccess() {
     this.uploadSuccess = null;
+  }
+
+  // Helper to format performer name as 'FirstName L.'
+  formatPerformerName(name: string): string {
+    if (!name) return '';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0];
+    return `${parts[0]} ${parts[1][0]}.`;
+  }
+
+  commitPerformerNameEdit() {
+    if (!this.selectedPerformerId) return;
+    const user = this.teamRoster.find(m => m._id === this.selectedPerformerId);
+    if (user && this.editablePerformerName.trim() && user.name !== this.editablePerformerName.trim()) {
+      user.name = this.editablePerformerName.trim();
+      this.teamService.updateUser(user._id, { name: user.name }).subscribe({
+        next: (res) => this.refreshTeamRoster(),
+        error: (err) => console.error('Name update failed:', err)
+      });
+    }
+    this.triggerAutoSave();
+  }
+
+  // Handles clicking on a formation in the timeline
+  handleFormationClick(index: number, isDraft: boolean = false) {
+    // If no audio is connected, move playhead to the start of the formation
+    if (!this.signedMusicUrl || !this.waveSurfer || !this.waveSurfer.getDuration || this.waveSurfer.getDuration() === 0) {
+      this.playbackTime = this.getFormationStartTimelineTime(index);
+      this.currentFormationIndex = index;
+      this.playingFormationIndex = index;
+      this.isViewingDraft = isDraft;
+      this.cdr.detectChanges();
+      return;
+    }
+    this.jumpToFormation(index, isDraft);
   }
 }
  
