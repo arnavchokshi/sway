@@ -845,5 +845,16 @@
       </button>
     </div>
   </div>
+
+  <!-- Membership Plan and Edit Team controls (example, adjust selector as needed) -->
+  <div *ngIf="!isIphone">
+    <!-- Place the membership plan and edit team button here as normal -->
+    <!-- Example: -->
+    <!-- <button class="membership-plan-btn">Membership Plan</button> -->
+    <!-- <button class="edit-team-btn">Edit Team</button> -->
+  </div>
+  <div *ngIf="isIphone" class="iphone-only-message" style="text-align:center; color:#e4c31f; font-weight:600; margin: 1.5rem 0;">
+    View on laptop for full access to features.
+  </div>
 </div>
  

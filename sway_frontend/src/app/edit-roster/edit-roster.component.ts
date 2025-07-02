@@ -7,6 +7,8 @@ import { AuthService } from '../services/auth.service';
 import { HttpClient } from '@angular/common/http';
 import { forkJoin } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { SegmentService, ISegment } from '../services/segment.service';
+import { SetService, ISet } from '../services/set.service';
 
 interface UserResponse {
   message: string;
@@ -58,12 +60,20 @@ export class EditRosterComponent implements OnInit {
   dragStartHeight = 0;
   dragMember: any = null;
 
+  // Segment assignment table properties
+  segments: ISegment[] = [];
+  sets: ISet[] = [];
+  selectedSetId: string = '';
+  filteredSegments: ISegment[] = [];
+
   constructor(
     private teamService: TeamService, 
     private authService: AuthService, 
     private http: HttpClient,
     private router: Router,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private segmentService: SegmentService,
+    private setService: SetService
   ) {}
 
   isCaptain = false;
@@ -95,14 +105,17 @@ export class EditRosterComponent implements OnInit {
   }
 
   loadTeamMembers(teamId: string) {
-    // Get team data and segments data in parallel
+    // Get team data, segments data, and sets data in parallel
     const teamData$ = this.http.get<any>(`${environment.apiUrl}/teams/${teamId}`);
-    const segmentsData$ = this.http.get<any>(`${environment.apiUrl}/segments/${teamId}`);
+    const segmentsData$ = this.segmentService.getSegmentsForTeam(teamId);
+    const setsData$ = this.setService.getSetsForTeam(teamId);
 
-    forkJoin([teamData$, segmentsData$]).subscribe({
-      next: ([teamResponse, segmentsResponse]) => {
+    forkJoin([teamData$, segmentsData$, setsData$]).subscribe({
+      next: ([teamResponse, segmentsResponse, setsResponse]) => {
         this.members = teamResponse.team.members || [];
         this.styles = teamResponse.team.styles || [];
+        this.segments = segmentsResponse.segments || [];
+        this.sets = setsResponse.sets || [];
         
         // Convert height from inches to feet/inches for display
         this.members.forEach(member => {
@@ -114,37 +127,43 @@ export class EditRosterComponent implements OnInit {
           }
           
           // Calculate segment count for each member
-          member.segmentCount = this.calculateMemberSegmentCount(member._id, segmentsResponse.segments || []);
+          member.segmentCount = this.calculateMemberSegmentCount(member._id, this.segments);
         });
+        
+        // Initialize filtered segments to show all segments
+        this.filteredSegments = [...this.segments];
         
         // Skill levels are already included in the team members data
       },
       error: (err) => {
-        console.error('Error loading segments:', err);
-        // Fallback to just team data if segments endpoint fails
-    this.http.get<any>(`${environment.apiUrl}/teams/${teamId}`)
-      .subscribe({
-        next: (response) => {
-          this.members = response.team.members || [];
-          this.styles = response.team.styles || [];
-          
-          // Convert height from inches to feet/inches for display
-          this.members.forEach(member => {
-            if (member.height && typeof member.height === 'number') {
-              const feet = Math.floor(member.height / 12);
-              const inches = member.height % 12;
-              member.feet = feet;
-              member.inches = inches;
-            }
-                
+        console.error('Error loading data:', err);
+        // Fallback to just team data if other endpoints fail
+        this.http.get<any>(`${environment.apiUrl}/teams/${teamId}`)
+          .subscribe({
+            next: (response) => {
+              this.members = response.team.members || [];
+              this.styles = response.team.styles || [];
+              this.segments = [];
+              this.sets = [];
+              this.filteredSegments = [];
+              
+              // Convert height from inches to feet/inches for display
+              this.members.forEach(member => {
+                if (member.height && typeof member.height === 'number') {
+                  const feet = Math.floor(member.height / 12);
+                  const inches = member.height % 12;
+                  member.feet = feet;
+                  member.inches = inches;
+                }
+                    
                 // Set default segment count if we can't fetch segments
                 member.segmentCount = 0;
+              });
+            },
+            error: (err) => {
+              alert('Failed to load team members: ' + (err.error?.error || err.message));
+            }
           });
-        },
-        error: (err) => {
-          alert('Failed to load team members: ' + (err.error?.error || err.message));
-        }
-      });
       }
     });
   }
@@ -829,5 +848,101 @@ export class EditRosterComponent implements OnInit {
 
   navigateBack() {
     this.router.navigate(['/dashboard']);
+  }
+
+  // Segment assignment table methods
+  onSetChange() {
+    if (this.selectedSetId) {
+      // Filter segments to only show those in the selected set
+      const selectedSet = this.sets.find(set => set._id === this.selectedSetId);
+      if (selectedSet) {
+        this.filteredSegments = this.segments.filter(segment => 
+          selectedSet.segments.includes(segment._id)
+        );
+      }
+    } else {
+      // Show all segments
+      this.filteredSegments = [...this.segments];
+    }
+  }
+
+  isMemberInSegment(memberId: string, segment: ISegment): boolean {
+    // Check if user is in the segment's roster
+    const isInRoster = segment.roster && segment.roster.includes(memberId);
+    
+    // Check if user appears in any formation positions
+    const isInFormations = segment.formations && segment.formations.some((formation: any[]) => 
+      formation.some((position: any) => position.user && position.user.toString() === memberId)
+    );
+    
+    return isInRoster || isInFormations;
+  }
+
+  toggleSegmentAssignment(memberId: string, segmentId: string) {
+    const segment = this.segments.find(s => s._id === segmentId);
+    if (!segment) return;
+
+    const isCurrentlyAssigned = this.isMemberInSegment(memberId, segment);
+    
+    if (isCurrentlyAssigned) {
+      // Remove from segment
+      this.removeMemberFromSegment(memberId, segmentId);
+    } else {
+      // Add to segment
+      this.addMemberToSegment(memberId, segmentId);
+    }
+  }
+
+  addMemberToSegment(memberId: string, segmentId: string) {
+    const segment = this.segments.find(s => s._id === segmentId);
+    if (!segment) return;
+
+    // Add to roster if not already there
+    if (!segment.roster.includes(memberId)) {
+      segment.roster.push(memberId);
+      
+      // Update the segment on the backend
+      this.segmentService.updateSegment(segmentId, { roster: segment.roster })
+        .subscribe({
+          next: () => {
+            // Update member's segment count
+            const member = this.members.find(m => m._id === memberId);
+            if (member) {
+              member.segmentCount = this.calculateMemberSegmentCount(memberId, this.segments);
+            }
+          },
+          error: (err) => {
+            console.error('Error adding member to segment:', err);
+            // Revert the change on error
+            segment.roster = segment.roster.filter(id => id !== memberId);
+          }
+        });
+    }
+  }
+
+  removeMemberFromSegment(memberId: string, segmentId: string) {
+    const segment = this.segments.find(s => s._id === segmentId);
+    if (!segment) return;
+
+    // Remove from roster
+    const originalRoster = [...segment.roster];
+    segment.roster = segment.roster.filter(id => id !== memberId);
+    
+    // Update the segment on the backend
+    this.segmentService.updateSegment(segmentId, { roster: segment.roster })
+      .subscribe({
+        next: () => {
+          // Update member's segment count
+          const member = this.members.find(m => m._id === memberId);
+          if (member) {
+            member.segmentCount = this.calculateMemberSegmentCount(memberId, this.segments);
+          }
+        },
+        error: (err) => {
+          console.error('Error removing member from segment:', err);
+          // Revert the change on error
+          segment.roster = originalRoster;
+        }
+      });
   }
 } 

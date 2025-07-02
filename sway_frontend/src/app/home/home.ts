@@ -31,6 +31,9 @@ export class HomeComponent implements OnInit, AfterViewInit {
   joinStep = 1;
   showScrollToTop = false;
   isCheckingAuth = false;
+  hideWhyUseSway = false;
+  private lastScrollY = 0;
+  private ticking = false;
 
   // Join team form fields
   joinCode = '';
@@ -150,6 +153,7 @@ export class HomeComponent implements OnInit, AfterViewInit {
 
     // Add scroll listener for navigation effect
     window.addEventListener('scroll', this.onScroll.bind(this));
+    this.lastScrollY = window.scrollY;
   }
 
   ngAfterViewInit() {
@@ -204,6 +208,23 @@ export class HomeComponent implements OnInit, AfterViewInit {
     
     // Show/hide scroll to top button
     this.showScrollToTop = window.scrollY > 300;
+
+    // Why Use Sway fade logic
+    if (!this.ticking) {
+      window.requestAnimationFrame(() => {
+        const currentY = window.scrollY;
+        if (currentY > this.lastScrollY && currentY > 40) {
+          // Scrolling down
+          this.hideWhyUseSway = true;
+        } else {
+          // Scrolling up
+          this.hideWhyUseSway = false;
+        }
+        this.lastScrollY = currentY;
+        this.ticking = false;
+      });
+      this.ticking = true;
+    }
   }
 
   onButtonClick() {

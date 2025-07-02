@@ -1,7 +1,7 @@
 :host {
   display: block;
-  height: 100vh; /* Full viewport height */
-  overflow: hidden; /* Prevent scrolling on this component */
+  /* height: 100vh; */   /* Remove or comment out */
+  /* overflow: hidden; */ /* Remove or comment out */
 }
 
 /* Main container */
@@ -1858,4 +1858,243 @@ body.height-dragging {
   * {
     pointer-events: none !important;
   }
+}
+
+/* Segment Assignment Table Styles */
+.segment-assignment-container {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  margin-top: 2rem;
+  padding: 1.5rem;
+  backdrop-filter: blur(12px);
+}
+
+.segment-assignment-container .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.segment-assignment-container .section-header h2 {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.set-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.set-selector label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.set-dropdown {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.375rem;
+  color: white;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  min-width: 150px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.set-dropdown:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.set-dropdown:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.set-dropdown option {
+  background: #1f2937;
+  color: white;
+}
+
+.table-container {
+  overflow-x: auto;
+  border-radius: 0.375rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.segment-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+
+.segment-table th,
+.segment-table td {
+  padding: 0.75rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.segment-table th {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+  font-size: 0.875rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.segment-table th:first-child {
+  text-align: left;
+  min-width: 200px;
+}
+
+.segment-header {
+  min-width: 120px;
+  max-width: 150px;
+  word-wrap: break-word;
+  vertical-align: top;
+}
+
+.member-header {
+  text-align: left !important;
+  min-width: 200px;
+}
+
+.member-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.member-name-cell {
+  text-align: left !important;
+  padding-left: 1rem !important;
+}
+
+.member-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.member-avatar-small {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #7c3aed);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.member-name-text {
+  color: white;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.crown-icon-small {
+  color: #facc15;
+  font-size: 0.75rem;
+  margin-left: 0.25rem;
+}
+
+.segment-cell {
+  text-align: center;
+  padding: 0.5rem !important;
+  transition: background 0.2s, border-color 0.2s;
+  min-width: 2.5rem;
+  border-left: none;
+}
+
+.segment-cell.segment-border {
+  border-left: 2px solid rgba(255,255,255,0.12);
+}
+
+.segment-cell.assigned {
+  background: rgba(34, 197, 94, 0.25); /* green fill */
+  color: #22c55e;
+}
+
+.segment-cell.not-assigned {
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.3);
+}
+
+.segment-cell.assigned:hover {
+  background: rgba(34, 197, 94, 0.35);
+}
+
+.segment-cell.not-assigned:hover {
+  background: rgba(255,255,255,0.09);
+}
+
+/* Responsive adjustments for segment table */
+@media (max-width: 768px) {
+  .segment-assignment-container .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .set-selector {
+    width: 100%;
+  }
+  
+  .set-dropdown {
+    width: 100%;
+    min-width: auto;
+  }
+  
+  .member-info-cell {
+    gap: 0.5rem;
+  }
+  
+  .member-avatar-small {
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: 0.75rem;
+  }
+  
+  .member-name-text {
+    font-size: 0.8rem;
+  }
+  
+  .segment-cell {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  
+  .segment-cell i {
+    font-size: 0.75rem;
+  }
+}
+
+.segment-table th.member-header {
+  position: sticky;
+  left: 0;
+  z-index: 20;
+  background: rgba(148, 108, 174, 0.846); /* match table header background */
+  box-shadow: none;
+}
+
+.segment-table td.member-name-cell {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: rgba(255,255,255,0.05); /* match table cell background */
+  box-shadow: none;
 } 

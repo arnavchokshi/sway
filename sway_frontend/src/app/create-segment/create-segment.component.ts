@@ -446,6 +446,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.hoveredTimelineTime = null;
   }
 
+  public isIphone: boolean = false;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -525,6 +527,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   ngOnInit() {
+    this.isIphone = /iPhone/.test(navigator.userAgent);
     // Detect iPhone or small mobile
     this.isMobile = /iPhone|iPod|Android.*Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
     
@@ -5904,7 +5907,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     document.removeEventListener('mouseup', this.onFormationDragEnd);
   }
 
-  // Add this method to get formation drag style
+  // Add method to get formation drag style
   getFormationDragStyle(index: number): any {
     if (this.draggingFormationIndex === index) {
       return {

@@ -280,6 +280,54 @@
         </div>
       </div>
     </div>
+
+    <!-- Segment Assignment Table -->
+    <div class="segment-assignment-container">
+      <div class="section-header">
+        <h2>Segment Assignments</h2>
+        <div class="set-selector">
+          <label for="set-select">Select Set:</label>
+          <select 
+            id="set-select"
+            [(ngModel)]="selectedSetId" 
+            (change)="onSetChange()"
+            class="set-dropdown">
+            <option value="">All Segments</option>
+            <option *ngFor="let set of sets" [value]="set._id">{{ set.name }}</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="table-container">
+        <table class="segment-table">
+          <thead>
+            <tr>
+              <th class="member-header">Team Members</th>
+              <th *ngFor="let segment of filteredSegments" class="segment-header">
+                {{ segment.name }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let member of members" class="member-row">
+              <td class="member-name-cell">
+                <div class="member-info-cell">
+                  <div class="member-avatar-small">{{ member.name.charAt(0) || '?' }}</div>
+                  <span class="member-name-text">{{ member.name }}</span>
+                  <i *ngIf="member.captain" class="fas fa-crown crown-icon-small"></i>
+                </div>
+              </td>
+              <td *ngFor="let segment of filteredSegments; let segIdx = index" 
+                  class="segment-cell"
+                  [class.assigned]="isMemberInSegment(member._id, segment)"
+                  [class.not-assigned]="!isMemberInSegment(member._id, segment)"
+                  [class.segment-border]="segIdx > 0">
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <!-- Single Add Member Dialog -->

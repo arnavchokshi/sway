@@ -36,7 +36,7 @@ export interface LimitsStatus {
 export class LimitsService {
   private readonly FREE_LIMITS: LimitsConfig = {
     maxCaptains: 3,
-    maxTeamMembers: 30,
+    maxTeamMembers: 25,
     maxSegments: 6,
     maxSets: 3
   };

@@ -213,7 +213,7 @@
 
   @media (max-width: 480px) {
     padding: 1rem 1.5rem;
-    margin-left: 20px;
+    /* margin-left: 20px; */ /* Removed to allow full width on mobile */
   }
 
   .dashboard-logo {
@@ -3454,3 +3454,148 @@ html, body {
 }
 
 .landing-bg { position: relative; z-index: 1; }
+
+@media (max-width: 900px) {
+  .home-bg-images {
+    display: none !important;
+  }
+}
+
+// --- MOBILE FOOTER FIX ---
+@media (max-width: 480px) {
+  .footer-section {
+    .container {
+      padding: 0 0.5rem;
+    }
+    .footer-content {
+      gap: 0.5rem;
+      padding: 0.5rem 0 0.3rem 0;
+    }
+    .footer-brand {
+      .footer-logo {
+        height: 32px;
+        margin-bottom: 0.3rem;
+      }
+      .footer-tagline {
+        font-size: 0.85rem;
+      }
+    }
+    .footer-links {
+      gap: 0.3rem;
+    }
+    .footer-column {
+      h4 {
+        font-size: 0.85rem;
+        margin-bottom: 0.3rem;
+      }
+      ul li a {
+        font-size: 0.8rem;
+      }
+    }
+    .footer-bottom {
+      .footer-divider {
+        margin-bottom: 0.4rem;
+      }
+      .footer-legal {
+        flex-direction: column;
+        gap: 0.3rem;
+        padding-bottom: 0.4rem;
+        p {
+          font-size: 0.7rem;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 600px) {
+  .feature-cards-container {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+    padding: 0 0.5rem;
+    box-sizing: border-box;
+    justify-content: flex-start;
+  }
+}
+
+// Why Use Sway Banner
+.why-use-sway-banner {
+  position: absolute;
+  left: 50%;
+  bottom: 94px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+  border-radius: 2rem;
+  padding: 0;
+  box-shadow: none;
+  background: none;
+  animation: fadeInUp 0.7s;
+  transition: opacity 0.4s, visibility 0.4s;
+  opacity: 1;
+  visibility: visible;
+
+  .why-use-sway-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 1.2rem;
+  }
+  .why-use-sway-text {
+    color: #ffffffa6;
+    font-size: 1.2rem;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  }
+  .side-arrow {
+    stroke: #ffd700;
+    stroke-width: 2.5;
+    width: 32px;
+    height: 32px;
+    filter: drop-shadow(0 2px 6px rgba(228,195,31,0.18));
+    animation: bounceDown 1.5s infinite;
+  }
+}
+
+@keyframes bounceDown {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(10px); }
+}
+
+.why-use-sway-banner.hide-why-use-sway {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.4s, visibility 0.4s;
+}
+
+@media (max-width: 600px) {
+  .why-use-sway-banner {
+    padding: 0;
+    .why-use-sway-text {
+      font-size: 1.1rem;
+    }
+    .side-arrow {
+      width: 22px;
+      height: 22px;
+    }
+  }
+}
+
+// Hide on iPhone (iOS)
+@media only screen and (max-device-width: 820px) and (orientation: portrait) and (-webkit-device-pixel-ratio: 2) {
+  .why-use-sway-banner {
+    display: none !important;
+  }
+}
+
+// Hide on all iOS devices (user agent based, fallback)
+@supports (-webkit-touch-callout: none) {
+  .why-use-sway-banner {
+    display: none !important;
+  }
+}
