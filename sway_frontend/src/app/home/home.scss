@@ -3424,12 +3424,19 @@ html, body {
   height: auto;
   margin: 0;
   padding: 0;
-  opacity: 0.25;
+  opacity: 0;
   filter: blur(1.5px) grayscale(0.2);
-  transition: opacity 0.3s;
+  transition: opacity 1.2s cubic-bezier(0.4,0,0.2,1);
   user-select: none;
   -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%);
   mask-image: radial-gradient(circle, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%);
+}
+.bg-img.fade-in {
+  opacity: 0.25;
+}
+@keyframes fadeInBgImg {
+  from { opacity: 0; }
+  to { opacity: 0.25; }
 }
 .bg-img-1 { top: 3%; left: 2%; width: 13vw; }
 .bg-img-2 { top: 18%; left: 5%; width: 10vw; }

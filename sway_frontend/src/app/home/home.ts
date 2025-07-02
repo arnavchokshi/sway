@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, AfterViewInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -20,7 +20,7 @@ interface TeamMember {
   standalone: true,
   imports: [CommonModule, FormsModule, Login]
 })
-export class HomeComponent implements OnInit {
+export class HomeComponent implements OnInit, AfterViewInit {
   showSplit = false;
   showLoginPopup = false;
   showJoinTeamModal = false;
@@ -74,6 +74,41 @@ export class HomeComponent implements OnInit {
   ) {}
 
   ngOnInit() {
+    // Preload all background images
+    const bgImages = [
+      'assets/homeImages/Screenshot 2025-07-02 at 12.32.40 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 12.34.12 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 12.37.29 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 12.38.51 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 12.40.10 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 12.40.38 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 12.55.54 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 12.56.20 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.00.19 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.11.47 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.15.00 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.16.38 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.17.55 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.19.47 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.20.50 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.26.13 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.26.47 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.27.28 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.29.27 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.30.06 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.32.40 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.33.23 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.37.50 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.40.52 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.43.06 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.43.57 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.46.38 PM.png',
+      'assets/homeImages/Screenshot 2025-07-02 at 1.49.02 PM.png',
+    ];
+    bgImages.forEach(src => {
+      const img = new Image();
+      img.src = src;
+    });
     // Auto-login check - if user is already logged in, redirect to dashboard
     this.checkAutoLogin();
     
@@ -115,6 +150,20 @@ export class HomeComponent implements OnInit {
 
     // Add scroll listener for navigation effect
     window.addEventListener('scroll', this.onScroll.bind(this));
+  }
+
+  ngAfterViewInit() {
+    // Fade in each background image when loaded
+    const bgImgs = document.querySelectorAll<HTMLImageElement>('.bg-img');
+    bgImgs.forEach(img => {
+      if (img.complete) {
+        img.classList.add('fade-in');
+      } else {
+        img.addEventListener('load', () => {
+          img.classList.add('fade-in');
+        });
+      }
+    });
   }
 
   /**
