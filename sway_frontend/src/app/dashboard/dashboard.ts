@@ -39,9 +39,9 @@ export class DashboardComponent implements OnInit {
   showAddStyleInput = false;
   newStyleName = '';
   isAddingStyle = false;
-      currentSetId: string | null = null;
-    
-      // UI state
+  currentSetId: string | null = null;
+  
+  // UI state
   activeSetMenu: string | null = null;
   
   // Mobile detection and modal
@@ -57,7 +57,12 @@ export class DashboardComponent implements OnInit {
   dragOverSetId: string | null = null;
 
   segment = {
-    stylesInSegment: ['bhangra', 'HH']
+    name: '',
+    depth: 24,
+    width: 32,
+    divisions: 3,
+    isPublic: true,
+    stylesInSegment: []
   };
 
   currentUser: any = null;
@@ -68,6 +73,11 @@ export class DashboardComponent implements OnInit {
   showLimitsViolationModal = false;
   limitsModalReason: 'roster' | 'segment' | 'set' = 'roster';
   limitsModalTargetName: string | null = null;
+
+  // Delete confirmation state
+  private deleteConfirmationTimeout: any = null;
+  isDeleteConfirming: boolean = false;
+  segmentToDelete: string | null = null;
 
   constructor(
     private authService: AuthService, 
@@ -415,7 +425,29 @@ export class DashboardComponent implements OnInit {
   }
 
   deleteSegment(segmentId: string) {
-    if (!confirm('Are you sure you want to delete this segment?')) return;
+    if (!this.isDeleteConfirming || this.segmentToDelete !== segmentId) {
+      // First click - show confirmation
+      this.isDeleteConfirming = true;
+      this.segmentToDelete = segmentId;
+      
+      // Set timeout to reset confirmation state after 3 seconds
+      if (this.deleteConfirmationTimeout) {
+        clearTimeout(this.deleteConfirmationTimeout);
+      }
+      this.deleteConfirmationTimeout = setTimeout(() => {
+        this.isDeleteConfirming = false;
+        this.segmentToDelete = null;
+      }, 3000);
+      return;
+    }
+
+    // Second click - actually delete
+    this.isDeleteConfirming = false;
+    this.segmentToDelete = null;
+    if (this.deleteConfirmationTimeout) {
+      clearTimeout(this.deleteConfirmationTimeout);
+      this.deleteConfirmationTimeout = null;
+    }
 
     this.segmentService.deleteSegment(segmentId).subscribe({
       next: () => {
@@ -745,5 +777,12 @@ export class DashboardComponent implements OnInit {
 
   closeProfileDropdown() {
     this.showProfileDropdown = false;
+  }
+
+  ngOnDestroy() {
+    // Clean up timeout when component is destroyed
+    if (this.deleteConfirmationTimeout) {
+      clearTimeout(this.deleteConfirmationTimeout);
+    }
   }
 }

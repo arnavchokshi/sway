@@ -594,6 +594,42 @@
   }
 }
 
+// Copy Toast Styles
+.copy-toast {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  background: rgba(16, 185, 129, 0.95);
+  color: white;
+  padding: 16px 24px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
+  z-index: 1000;
+  animation: slideInUp 0.3s ease-out;
+  
+  .material-icons {
+    font-size: 20px;
+    color: white;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 // Loading State
 .loading-state {
   display: flex;
@@ -821,6 +857,17 @@
       }
     }
   }
+
+  .referral-note {
+    font-size: 1.05rem !important;
+    margin-top: 30px !important;
+    margin-bottom: -20px !important;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 400;
+    margin: 8px 0 0 0;
+    font-style: italic;
+  }
+
   .referral-req-card {
     background: rgba(60, 0, 100, 0.22);
     border-radius: 14px;

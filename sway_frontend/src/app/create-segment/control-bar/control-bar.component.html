@@ -81,10 +81,11 @@
         <span class="material-icons">content_copy</span>
       </button>
       <button class="control-btn action-btn delete-btn" 
+              [class.confirming]="isDeleteConfirming"
               (click)="onDeleteFormation()" 
-              title="Delete Formation"
-              [disabled]="totalFormations <= 1">
-        <span class="material-icons">delete</span>
+              [title]="isDeleteConfirming ? 'Click again to confirm delete' : 'Delete Formation'">
+        <span class="material-icons" *ngIf="!isDeleteConfirming">delete</span>
+        <span *ngIf="isDeleteConfirming">Confirm Delete</span>
       </button>
     </div>
   </div>

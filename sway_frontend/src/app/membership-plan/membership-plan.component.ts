@@ -32,6 +32,10 @@ export class MembershipPlanComponent implements OnInit {
   cancelMessage = '';
   cancelSuccess = false;
 
+  // Copy confirmation toast
+  showCopyToast = false;
+  copyToastTimeout: any = null;
+
   constructor(
     private router: Router,
     private route: ActivatedRoute,
@@ -169,6 +173,48 @@ export class MembershipPlanComponent implements OnInit {
 
   canApplyReferral(): boolean {
     return !this.membershipStatus?.referralCodeUsed;
+  }
+
+  async copyReferralCode() {
+    if (!this.membershipStatus?.referralCode) return;
+    
+    try {
+      await navigator.clipboard.writeText(this.membershipStatus.referralCode);
+      this.showCopyToast = true;
+      
+      // Clear any existing timeout
+      if (this.copyToastTimeout) {
+        clearTimeout(this.copyToastTimeout);
+      }
+      
+      // Hide toast after 3 seconds
+      this.copyToastTimeout = setTimeout(() => {
+        this.showCopyToast = false;
+      }, 3000);
+    } catch (error) {
+      console.error('Failed to copy referral code:', error);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = this.membershipStatus.referralCode;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      this.showCopyToast = true;
+      if (this.copyToastTimeout) {
+        clearTimeout(this.copyToastTimeout);
+      }
+      this.copyToastTimeout = setTimeout(() => {
+        this.showCopyToast = false;
+      }, 3000);
+    }
+  }
+
+  ngOnDestroy() {
+    if (this.copyToastTimeout) {
+      clearTimeout(this.copyToastTimeout);
+    }
   }
 
   dismissPaymentBanner() {

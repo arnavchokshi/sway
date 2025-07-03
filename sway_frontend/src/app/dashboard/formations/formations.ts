@@ -35,6 +35,11 @@ export class FormationsComponent implements OnInit {
   showMobileWarningModal = false;
   pendingSegmentId: string | null = null;
 
+  // Delete confirmation state
+  private deleteConfirmationTimeout: any = null;
+  isDeleteConfirming: boolean = false;
+  segmentToDelete: string | null = null;
+
   constructor(
     private segmentService: SegmentService,
     private authService: AuthService,
@@ -166,7 +171,29 @@ export class FormationsComponent implements OnInit {
   }
 
   deleteSegment(segmentId: string) {
-    if (!confirm('Are you sure you want to delete this segment?')) return;
+    if (!this.isDeleteConfirming || this.segmentToDelete !== segmentId) {
+      // First click - show confirmation
+      this.isDeleteConfirming = true;
+      this.segmentToDelete = segmentId;
+      
+      // Set timeout to reset confirmation state after 3 seconds
+      if (this.deleteConfirmationTimeout) {
+        clearTimeout(this.deleteConfirmationTimeout);
+      }
+      this.deleteConfirmationTimeout = setTimeout(() => {
+        this.isDeleteConfirming = false;
+        this.segmentToDelete = null;
+      }, 3000);
+      return;
+    }
+
+    // Second click - actually delete
+    this.isDeleteConfirming = false;
+    this.segmentToDelete = null;
+    if (this.deleteConfirmationTimeout) {
+      clearTimeout(this.deleteConfirmationTimeout);
+      this.deleteConfirmationTimeout = null;
+    }
     
     // Delete the segment directly - dummy templates will be cleaned up automatically by the backend
     this.segmentService.deleteSegment(segmentId).subscribe({
@@ -332,5 +359,12 @@ export class FormationsComponent implements OnInit {
     );
     
     return inRoster || inFormation;
+  }
+
+  ngOnDestroy() {
+    // Clean up timeout when component is destroyed
+    if (this.deleteConfirmationTimeout) {
+      clearTimeout(this.deleteConfirmationTimeout);
+    }
   }
 } 

@@ -23,8 +23,13 @@
           <i class="fas fa-user"></i>
         </div>
 
-        <button class="delete-segment-btn" *ngIf="isCaptain" (click)="deleteSegment(segment._id); $event.stopPropagation()">
-          <span class="material-icons">delete</span>
+        <button class="delete-segment-btn" 
+                *ngIf="isCaptain" 
+                [class.confirming]="isDeleteConfirming && segmentToDelete === segment._id"
+                (click)="deleteSegment(segment._id); $event.stopPropagation()"
+                [title]="(isDeleteConfirming && segmentToDelete === segment._id) ? 'Click again to confirm delete' : 'Delete segment'">
+          <span class="material-icons" *ngIf="!(isDeleteConfirming && segmentToDelete === segment._id)">delete</span>
+          <span *ngIf="isDeleteConfirming && segmentToDelete === segment._id">Confirm Delete</span>
         </button>
         <div class="segment-name">{{ segment.name }}</div>
         <!-- Style pills at the bottom -->

@@ -87,9 +87,9 @@ app.post('/api/teams', async (req: Request, res: Response) => {
       if (!existing) isUnique = true;
     }
 
-    // Set 4 months of Pro and generate referral code
-    const fourMonthsFromNow = new Date();
-    fourMonthsFromNow.setMonth(fourMonthsFromNow.getMonth() + 4);
+    // Set 3 months of Pro and generate referral code
+    const threeMonthsFromNow = new Date();
+    threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
     const referralCode = await import('./services/membership.service').then(m => m.MembershipService.generateUniqueReferralCode());
 
     const team = new Team({
@@ -99,7 +99,7 @@ app.post('/api/teams', async (req: Request, res: Response) => {
       members: [owner],
       joinCode,
       membershipType: 'pro',
-      membershipExpiresAt: fourMonthsFromNow,
+      membershipExpiresAt: threeMonthsFromNow,
       referralCode: await referralCode
     });
     await team.save();

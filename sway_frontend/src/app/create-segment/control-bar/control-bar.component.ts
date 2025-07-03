@@ -27,6 +27,11 @@ export class ControlBarComponent {
   @Input() isMirrorModeEnabled: boolean = false;
   @Input() showTransitions: boolean = true;
 
+
+  // Delete confirmation state
+  private deleteConfirmationTimeout: any = null;
+  isDeleteConfirming: boolean = false;
+
   // Output events to parent component
   @Output() prevFormation = new EventEmitter<void>();
   @Output() playPause = new EventEmitter<void>();
@@ -41,6 +46,7 @@ export class ControlBarComponent {
   @Output() quickSwap = new EventEmitter<void>();
   @Output() mirrorModeToggle = new EventEmitter<void>();
   @Output() transitionsToggle = new EventEmitter<void>();
+
 
   onPrevFormation() {
     this.prevFormation.emit();
@@ -80,7 +86,26 @@ export class ControlBarComponent {
   }
 
   onDeleteFormation() {
-    this.deleteFormation.emit();
+    if (!this.isDeleteConfirming) {
+      // First click - show confirmation
+      this.isDeleteConfirming = true;
+      
+      // Set timeout to reset confirmation state after 3 seconds
+      if (this.deleteConfirmationTimeout) {
+        clearTimeout(this.deleteConfirmationTimeout);
+      }
+      this.deleteConfirmationTimeout = setTimeout(() => {
+        this.isDeleteConfirming = false;
+      }, 3000);
+    } else {
+      // Second click - actually delete
+      this.isDeleteConfirming = false;
+      if (this.deleteConfirmationTimeout) {
+        clearTimeout(this.deleteConfirmationTimeout);
+        this.deleteConfirmationTimeout = null;
+      }
+      this.deleteFormation.emit();
+    }
   }
 
   onCreateDraft() {
@@ -94,6 +119,8 @@ export class ControlBarComponent {
   onTransitionsToggle() {
     this.transitionsToggle.emit();
   }
+
+
 
   formatTime(time: number): string {
     const minutes = Math.floor(time / 60);
@@ -125,6 +152,13 @@ export class ControlBarComponent {
           this.onUndo();
         }
       }
+    }
+  }
+
+  ngOnDestroy() {
+    // Clean up timeout when component is destroyed
+    if (this.deleteConfirmationTimeout) {
+      clearTimeout(this.deleteConfirmationTimeout);
     }
   }
 } 

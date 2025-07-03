@@ -112,8 +112,13 @@
                   </div>
                   
                   <!-- Delete button in top right corner -->
-                  <button class="delete-btn" *ngIf="isCaptain" (click)="deleteSegment(segment._id); $event.stopPropagation()" title="Delete segment">
-                    <i class="fas fa-trash"></i>
+                  <button class="delete-btn" 
+                          *ngIf="isCaptain" 
+                          [class.confirming]="isDeleteConfirming && segmentToDelete === segment._id"
+                          (click)="deleteSegment(segment._id); $event.stopPropagation()" 
+                          [title]="(isDeleteConfirming && segmentToDelete === segment._id) ? 'Click again to confirm delete' : 'Delete segment'">
+                    <i class="fas fa-trash" *ngIf="!(isDeleteConfirming && segmentToDelete === segment._id)"></i>
+                    <span *ngIf="isDeleteConfirming && segmentToDelete === segment._id">Confirm Delete</span>
                   </button>
                   
                   <div class="segment-main-content">

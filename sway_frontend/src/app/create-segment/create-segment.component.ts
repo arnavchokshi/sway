@@ -42,12 +42,18 @@ interface SegmentState {
   action: string; // Description of the action that led to this state
 }
 
+
+
+
+
 declare global {
   interface Window {
     YT: any;
     onYouTubeIframeAPIReady: () => void;
   }
 }
+
+
 
 import { ControlBarComponent } from './control-bar/control-bar.component';
 
@@ -115,6 +121,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // true = draft data is in main position, false = original data is in main position  
   isDraftDataInMainPosition: { [formationIndex: number]: boolean } = {};
 
+
+
   // Selected performer tracking
   selectedPerformerId: string | null = null;
   selectedPerformerFeet: number = 5;
@@ -133,6 +141,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   editSelectedStyles: Style[] = [];
   teamStyles: Style[] = [];
   editIsPublic: boolean = true; // Add this property for the modal
+  editModalError: string = ''; // Add error message property for the modal
 
   selectedAddPerformer: any = null;
 
@@ -2083,9 +2092,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const centerX = this.selectionRectangle.left + this.selectionRectangle.width / 2;
     const centerY = this.selectionRectangle.top + this.selectionRectangle.height / 2;
     
-    // Convert to stage coordinates (feet)
+    // Convert to stage coordinates (feet) using the same logic as getPerformerStyle
+    // The selection rectangle is calculated using totalStageWidthPx, so we need to convert back properly
     this.rotationCenter = {
-      x: (centerX / this.stageWidthPx) * this.width,
+      x: (centerX / this.totalStageWidthPx) * (this.width + 2 * this.offstageWidth) - this.offstageWidth,
       y: (centerY / this.stageHeightPx) * this.depth
     };
     
@@ -2376,6 +2386,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.editDivisions = this.divisions;
     this.editSegmentName = this.segmentName;
     this.editIsPublic = this.segment?.isPublic ?? true; // Initialize from segment or default
+    this.editModalError = ''; // Clear any previous error messages
     
     // Initialize editSelectedStyles with the segment's styles
     this.editSelectedStyles = this.segment?.stylesInSegment?.map((styleName: string) => {
@@ -2411,7 +2422,38 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   submitEditModal() {
-    // Enforce limits on width and depth
+    // Check if width or height is outside the allowed range (15-100)
+    let hasError = false;
+    let errorMessage = '';
+
+    if (this.editWidth < 15 || this.editWidth > 100) {
+      this.editWidth = 32; // Revert to default
+      hasError = true;
+      errorMessage += `Width must be between 15-100 feet. Reverted to 32 feet.\n`;
+    }
+
+    if (this.editDepth < 15 || this.editDepth > 100) {
+      this.editDepth = 24; // Revert to default
+      hasError = true;
+      errorMessage += `Depth must be between 15-100 feet. Reverted to 24 feet.\n`;
+    }
+
+    if (this.editDivisions < 0 || this.editDivisions > 6) {
+      this.editDivisions = 3; // Revert to default
+      hasError = true;
+      errorMessage += `Sub-divisions must be between 0-6. Reverted to 3.\n`;
+    }
+
+    // Show error message in modal if validation failed
+    if (hasError) {
+      this.editModalError = errorMessage.trim();
+      return; // Don't close modal or save if there are errors
+    }
+
+    // Clear any previous error messages
+    this.editModalError = '';
+
+    // Enforce limits on width and depth (existing logic)
     this.editWidth = Math.min(Math.max(this.editWidth, 8), 60);
     this.editDepth = Math.min(Math.max(this.editDepth, 8), 45);
     
@@ -7402,5 +7444,867 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     this.jumpToFormation(index, isDraft);
   }
+
+  // --- Predictive Formation Suggestions ---
+
+  /**
+   * Analyze current formation and generate suggestions
+   */
+  
+  /**
+   * Create a clump formation from current positions
+   */
+  private createClumpFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    const newFormation = currentFormation.map((performer, index) => ({
+      ...performer,
+      x: centerX + (index % 3 - 1) * 1.5, // Arrange in 3x3 grid around center
+      y: centerY + Math.floor(index / 3 - 1) * 1.5
+    }));
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create a spread formation from current positions
+   */
+  private createSpreadFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const stageWidth = this.width;
+    const stageDepth = this.depth;
+    
+    const newFormation = currentFormation.map((performer, index) => ({
+      ...performer,
+      x: (index / (currentFormation.length - 1)) * (stageWidth - 4) + 2, // Spread across width
+      y: (index % 2) * (stageDepth - 4) + 2 // Alternate front/back
+    }));
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create a partial movement formation
+   */
+  private createPartialMoveFormation(groupType: 'front' | 'back') {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const ys = currentFormation.map(p => p.y);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    
+    const newFormation = currentFormation.map(performer => {
+      const isFrontLine = Math.abs(performer.y - minY) < 1;
+      const isBackLine = Math.abs(performer.y - maxY) < 1;
+      
+      if ((groupType === 'front' && isFrontLine) || (groupType === 'back' && isBackLine)) {
+        return { ...performer, y: performer.y + 3 }; // Move forward
+      }
+      return performer; // Stay in place
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create an arc formation
+   */
+  private createArcFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const radius = 6;
+    
+    const newFormation = currentFormation.map((performer, index) => {
+      const angle = (index / (currentFormation.length - 1)) * Math.PI - Math.PI / 2;
+      return {
+        ...performer,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create a rotating circle formation
+   */
+  private createRotatingCircleFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const radius = 6;
+    
+    const newFormation = currentFormation.map((performer, index) => {
+      const angle = (index / currentFormation.length) * 2 * Math.PI;
+      return {
+        ...performer,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create a spiral formation
+   */
+  private createSpiralFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const maxRadius = 8;
+    const spiralTurns = 2;
+    
+    const newFormation = currentFormation.map((performer, index) => {
+      const progress = index / (currentFormation.length - 1);
+      const angle = progress * spiralTurns * 2 * Math.PI;
+      const radius = progress * maxRadius;
+      
+      return {
+        ...performer,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create a window formation (stacked performers)
+   */
+  private createWindowFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    const frontRowCount = Math.ceil(currentFormation.length / 2);
+    const backRowCount = currentFormation.length - frontRowCount;
+    
+    const newFormation = currentFormation.map((performer, index) => {
+      let x, y;
+      
+      if (index < frontRowCount) {
+        // Front row - spread out
+        const spacing = 4;
+        x = centerX + (index - frontRowCount / 2) * spacing;
+        y = centerY - 3; // Front
+      } else {
+        // Back row - fill gaps
+        const backIndex = index - frontRowCount;
+        const spacing = 4;
+        x = centerX + (backIndex - backRowCount / 2) * spacing + 2; // Offset
+        y = centerY + 3; // Back
+      }
+      
+      return {
+        ...performer,
+        x,
+        y
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create back row emerges formation
+   */
+  private createBackRowEmergesFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    // Sort performers by Y position to identify front/back
+    const sortedPerformers = [...currentFormation].sort((a, b) => a.y - b.y);
+    const frontRowCount = Math.ceil(currentFormation.length / 2);
+    
+    const newFormation = currentFormation.map((performer, index) => {
+      const performerIndex = sortedPerformers.findIndex(p => p.id === performer.id);
+      let x, y;
+      
+      if (performerIndex < frontRowCount) {
+        // Front row - move to sides to create openings
+        const spacing = 5;
+        x = centerX + (performerIndex - frontRowCount / 2) * spacing;
+        y = centerY - 4;
+      } else {
+        // Back row - emerge through front
+        const backIndex = performerIndex - frontRowCount;
+        const spacing = 4;
+        x = centerX + (backIndex - (sortedPerformers.length - frontRowCount) / 2) * spacing;
+        y = centerY; // Move to center
+      }
+      
+      return {
+        ...performer,
+        x,
+        y
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create a diamond formation
+   */
+  private createDiamondFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const diamondSize = 6;
+    
+    const newFormation = currentFormation.map((performer, index) => {
+      let x, y;
+      
+      if (index === 0) {
+        // Top point
+        x = centerX;
+        y = centerY - diamondSize;
+      } else if (index === 1) {
+        // Right point
+        x = centerX + diamondSize;
+        y = centerY;
+      } else if (index === 2) {
+        // Bottom point
+        x = centerX;
+        y = centerY + diamondSize;
+      } else if (index === 3) {
+        // Left point
+        x = centerX - diamondSize;
+        y = centerY;
+      } else {
+        // Fill center
+        const centerIndex = index - 4;
+        const centerSpacing = 2;
+        x = centerX + (centerIndex % 2) * centerSpacing - centerSpacing / 2;
+        y = centerY + Math.floor(centerIndex / 2) * centerSpacing - centerSpacing / 2;
+      }
+      
+      return {
+        ...performer,
+        x,
+        y
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create a V formation
+   */
+  private createVFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const vAngle = Math.PI / 3; // 60 degrees
+    const vDepth = 8;
+    
+    const newFormation = currentFormation.map((performer, index) => {
+      const progress = index / (currentFormation.length - 1);
+      const angle = (progress - 0.5) * vAngle;
+      const depth = progress * vDepth;
+      
+      return {
+        ...performer,
+        x: centerX + depth * Math.sin(angle),
+        y: centerY - depth * Math.cos(angle)
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create a cross formation
+   */
+  private createCrossFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const crossSize = 6;
+    
+    const newFormation = currentFormation.map((performer, index) => {
+      let x, y;
+      
+      if (index < currentFormation.length / 4) {
+        // Vertical line (top)
+        const spacing = crossSize / (currentFormation.length / 4);
+        x = centerX;
+        y = centerY - crossSize + index * spacing;
+      } else if (index < currentFormation.length / 2) {
+        // Horizontal line (right)
+        const spacing = crossSize / (currentFormation.length / 4);
+        x = centerX + (index - currentFormation.length / 4) * spacing;
+        y = centerY;
+      } else if (index < 3 * currentFormation.length / 4) {
+        // Vertical line (bottom)
+        const spacing = crossSize / (currentFormation.length / 4);
+        x = centerX;
+        y = centerY + (index - currentFormation.length / 2) * spacing;
+      } else {
+        // Horizontal line (left)
+        const spacing = crossSize / (currentFormation.length / 4);
+        x = centerX - crossSize + (index - 3 * currentFormation.length / 4) * spacing;
+        y = centerY;
+      }
+      
+      return {
+        ...performer,
+        x,
+        y
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create staggered lines formation
+   */
+  private createStaggeredLinesFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    const rows = 3;
+    const performersPerRow = Math.ceil(currentFormation.length / rows);
+    const rowSpacing = 4;
+    const performerSpacing = 3.5;
+    
+    const newFormation = currentFormation.map((performer, index) => {
+      const row = Math.floor(index / performersPerRow);
+      const col = index % performersPerRow;
+      const rowOffset = row * 2; // Stagger offset
+      
+      return {
+        ...performer,
+        x: centerX + (col - performersPerRow / 2) * performerSpacing + rowOffset,
+        y: centerY + (row - rows / 2) * rowSpacing
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create a creative formation
+   */
+  private createCreativeFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const waveRadius = 8;
+    
+    const newFormation = currentFormation.map((performer, index) => {
+      const progress = index / (currentFormation.length - 1);
+      const angle = progress * 2 * Math.PI;
+      const waveOffset = Math.sin(progress * 4 * Math.PI) * 2; // Wave effect
+      
+      return {
+        ...performer,
+        x: centerX + (waveRadius + waveOffset) * Math.cos(angle),
+        y: centerY + (waveRadius + waveOffset) * Math.sin(angle)
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create a rotating outer circle formation
+   */
+  private createRotatingOuterCircleFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    // Create inner and outer circles
+    const innerRadius = 4;
+    const outerRadius = 10;
+    const innerCount = Math.ceil(currentFormation.length / 3);
+    const outerCount = currentFormation.length - innerCount;
+    
+    const newFormation = currentFormation.map((performer, index) => {
+      let x, y;
+      
+      if (index < innerCount) {
+        // Inner circle (stationary)
+        const angle = (index / innerCount) * 2 * Math.PI;
+        x = centerX + innerRadius * Math.cos(angle);
+        y = centerY + innerRadius * Math.sin(angle);
+      } else {
+        // Outer circle (rotated)
+        const outerIndex = index - innerCount;
+        const angle = (outerIndex / outerCount) * 2 * Math.PI + Math.PI / 4; // Offset by 45 degrees
+        x = centerX + outerRadius * Math.cos(angle);
+        y = centerY + outerRadius * Math.sin(angle);
+      }
+      
+      return {
+        ...performer,
+        x,
+        y
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create an expanding formation
+   */
+  private createExpandingFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    // Create expanding pattern
+    const newFormation = currentFormation.map((performer, index) => {
+      const progress = index / (currentFormation.length - 1);
+      const angle = (index / currentFormation.length) * 2 * Math.PI;
+      const radius = 3 + progress * 8; // Expand from 3 to 11 feet
+      
+      return {
+        ...performer,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Create a wave formation
+   */
+  private createWaveFormation() {
+    const currentFormation = this.formations[this.currentFormationIndex];
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    // Create wave pattern
+    const waveWidth = 12;
+    const waveHeight = 4;
+    const newFormation = currentFormation.map((performer, index) => {
+      const progress = index / (currentFormation.length - 1);
+      const x = centerX + (progress - 0.5) * waveWidth;
+      const waveOffset = Math.sin(progress * 3 * Math.PI) * waveHeight;
+      
+      return {
+        ...performer,
+        x,
+        y: centerY + waveOffset
+      };
+    });
+
+    this.addFormation();
+    this.formations[this.currentFormationIndex] = newFormation;
+    this.triggerAutoSave();
+  }
+
+  /**
+   * Generate preview formations for suggestions
+   */
+  private generateClumpPreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    return currentFormation.map((performer, index) => ({
+      ...performer,
+      x: centerX + (index % 3 - 1) * 1.5,
+      y: centerY + Math.floor(index / 3 - 1) * 1.5
+    }));
+  }
+
+  private generateSpreadPreview(currentFormation: Performer[]): Performer[] {
+    const stageWidth = this.width;
+    const stageDepth = this.depth;
+    
+    return currentFormation.map((performer, index) => ({
+      ...performer,
+      x: (index / (currentFormation.length - 1)) * (stageWidth - 4) + 2,
+      y: (index % 2) * (stageDepth - 4) + 2
+    }));
+  }
+
+  private generatePartialMovePreview(currentFormation: Performer[], groupType: 'front' | 'back'): Performer[] {
+    const ys = currentFormation.map(p => p.y);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    
+    return currentFormation.map(performer => {
+      const isFrontLine = Math.abs(performer.y - minY) < 1;
+      const isBackLine = Math.abs(performer.y - maxY) < 1;
+      
+      if ((groupType === 'front' && isFrontLine) || (groupType === 'back' && isBackLine)) {
+        return { ...performer, y: performer.y + 3 };
+      }
+      return performer;
+    });
+  }
+
+  private generateArcPreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const radius = 6;
+    
+    return currentFormation.map((performer, index) => {
+      const angle = (index / (currentFormation.length - 1)) * Math.PI - Math.PI / 2;
+      return {
+        ...performer,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+  }
+
+  private generateRotatingCirclePreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const radius = 6;
+    
+    return currentFormation.map((performer, index) => {
+      const angle = (index / currentFormation.length) * 2 * Math.PI;
+      return {
+        ...performer,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+  }
+
+  private generateSpiralPreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const maxRadius = 8;
+    const spiralTurns = 2;
+    
+    return currentFormation.map((performer, index) => {
+      const progress = index / (currentFormation.length - 1);
+      const angle = progress * spiralTurns * 2 * Math.PI;
+      const radius = progress * maxRadius;
+      
+      return {
+        ...performer,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+  }
+
+  private generateWindowPreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    const frontRowCount = Math.ceil(currentFormation.length / 2);
+    const backRowCount = currentFormation.length - frontRowCount;
+    
+    return currentFormation.map((performer, index) => {
+      let x, y;
+      
+      if (index < frontRowCount) {
+        // Front row - spread out
+        const spacing = 4;
+        x = centerX + (index - frontRowCount / 2) * spacing;
+        y = centerY - 3; // Front
+      } else {
+        // Back row - fill gaps
+        const backIndex = index - frontRowCount;
+        const spacing = 4;
+        x = centerX + (backIndex - backRowCount / 2) * spacing + 2; // Offset
+        y = centerY + 3; // Back
+      }
+      
+      return {
+        ...performer,
+        x,
+        y
+      };
+    });
+  }
+
+  private generateBackRowEmergesPreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    // Sort performers by Y position to identify front/back
+    const sortedPerformers = [...currentFormation].sort((a, b) => a.y - b.y);
+    const frontRowCount = Math.ceil(currentFormation.length / 2);
+    
+    return currentFormation.map((performer, index) => {
+      const performerIndex = sortedPerformers.findIndex(p => p.id === performer.id);
+      let x, y;
+      
+      if (performerIndex < frontRowCount) {
+        // Front row - move to sides to create openings
+        const spacing = 5;
+        x = centerX + (performerIndex - frontRowCount / 2) * spacing;
+        y = centerY - 4;
+      } else {
+        // Back row - emerge through front
+        const backIndex = performerIndex - frontRowCount;
+        const spacing = 4;
+        x = centerX + (backIndex - (sortedPerformers.length - frontRowCount) / 2) * spacing;
+        y = centerY; // Move to center
+      }
+      
+      return {
+        ...performer,
+        x,
+        y
+      };
+    });
+  }
+
+  private generateDiamondPreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const diamondSize = 6;
+    
+    return currentFormation.map((performer, index) => {
+      let x, y;
+      
+      if (index === 0) {
+        // Top point
+        x = centerX;
+        y = centerY - diamondSize;
+      } else if (index === 1) {
+        // Right point
+        x = centerX + diamondSize;
+        y = centerY;
+      } else if (index === 2) {
+        // Bottom point
+        x = centerX;
+        y = centerY + diamondSize;
+      } else if (index === 3) {
+        // Left point
+        x = centerX - diamondSize;
+        y = centerY;
+      } else {
+        // Fill center
+        const centerIndex = index - 4;
+        const centerSpacing = 2;
+        x = centerX + (centerIndex % 2) * centerSpacing - centerSpacing / 2;
+        y = centerY + Math.floor(centerIndex / 2) * centerSpacing - centerSpacing / 2;
+      }
+      
+      return {
+        ...performer,
+        x,
+        y
+      };
+    });
+  }
+
+  private generateVPreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const vAngle = Math.PI / 3; // 60 degrees
+    const vDepth = 8;
+    
+    return currentFormation.map((performer, index) => {
+      const progress = index / (currentFormation.length - 1);
+      const angle = (progress - 0.5) * vAngle;
+      const depth = progress * vDepth;
+      
+      return {
+        ...performer,
+        x: centerX + depth * Math.sin(angle),
+        y: centerY - depth * Math.cos(angle)
+      };
+    });
+  }
+
+  private generateCrossPreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const crossSize = 6;
+    
+    return currentFormation.map((performer, index) => {
+      let x, y;
+      
+      if (index < currentFormation.length / 4) {
+        // Vertical line (top)
+        const spacing = crossSize / (currentFormation.length / 4);
+        x = centerX;
+        y = centerY - crossSize + index * spacing;
+      } else if (index < currentFormation.length / 2) {
+        // Horizontal line (right)
+        const spacing = crossSize / (currentFormation.length / 4);
+        x = centerX + (index - currentFormation.length / 4) * spacing;
+        y = centerY;
+      } else if (index < 3 * currentFormation.length / 4) {
+        // Vertical line (bottom)
+        const spacing = crossSize / (currentFormation.length / 4);
+        x = centerX;
+        y = centerY + (index - currentFormation.length / 2) * spacing;
+      } else {
+        // Horizontal line (left)
+        const spacing = crossSize / (currentFormation.length / 4);
+        x = centerX - crossSize + (index - 3 * currentFormation.length / 4) * spacing;
+        y = centerY;
+      }
+      
+      return {
+        ...performer,
+        x,
+        y
+      };
+    });
+  }
+
+  private generateStaggeredLinesPreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    const rows = 3;
+    const performersPerRow = Math.ceil(currentFormation.length / rows);
+    const rowSpacing = 4;
+    const performerSpacing = 3.5;
+    
+    return currentFormation.map((performer, index) => {
+      const row = Math.floor(index / performersPerRow);
+      const col = index % performersPerRow;
+      const rowOffset = row * 2; // Stagger offset
+      
+      return {
+        ...performer,
+        x: centerX + (col - performersPerRow / 2) * performerSpacing + rowOffset,
+        y: centerY + (row - rows / 2) * rowSpacing
+      };
+    });
+  }
+
+  private generateCreativePreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    const waveRadius = 8;
+    
+    return currentFormation.map((performer, index) => {
+      const progress = index / (currentFormation.length - 1);
+      const angle = progress * 2 * Math.PI;
+      const waveOffset = Math.sin(progress * 4 * Math.PI) * 2; // Wave effect
+      
+      return {
+        ...performer,
+        x: centerX + (waveRadius + waveOffset) * Math.cos(angle),
+        y: centerY + (waveRadius + waveOffset) * Math.sin(angle)
+      };
+    });
+  }
+
+  private generateRotatingOuterCirclePreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    // Create inner and outer circles
+    const innerRadius = 4;
+    const outerRadius = 10;
+    const innerCount = Math.ceil(currentFormation.length / 3);
+    const outerCount = currentFormation.length - innerCount;
+    
+    return currentFormation.map((performer, index) => {
+      let x, y;
+      
+      if (index < innerCount) {
+        // Inner circle (stationary)
+        const angle = (index / innerCount) * 2 * Math.PI;
+        x = centerX + innerRadius * Math.cos(angle);
+        y = centerY + innerRadius * Math.sin(angle);
+      } else {
+        // Outer circle (rotated)
+        const outerIndex = index - innerCount;
+        const angle = (outerIndex / outerCount) * 2 * Math.PI + Math.PI / 4; // Offset by 45 degrees
+        x = centerX + outerRadius * Math.cos(angle);
+        y = centerY + outerRadius * Math.sin(angle);
+      }
+      
+      return {
+        ...performer,
+        x,
+        y
+      };
+    });
+  }
+
+  private generateExpandingPreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    // Create expanding pattern
+    return currentFormation.map((performer, index) => {
+      const progress = index / (currentFormation.length - 1);
+      const angle = (index / currentFormation.length) * 2 * Math.PI;
+      const radius = 3 + progress * 8; // Expand from 3 to 11 feet
+      
+      return {
+        ...performer,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+  }
+
+  private generateWavePreview(currentFormation: Performer[]): Performer[] {
+    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
+    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
+    
+    // Create wave pattern
+    const waveWidth = 12;
+    const waveHeight = 4;
+    return currentFormation.map((performer, index) => {
+      const progress = index / (currentFormation.length - 1);
+      const x = centerX + (progress - 0.5) * waveWidth;
+      const waveOffset = Math.sin(progress * 3 * Math.PI) * waveHeight;
+      
+      return {
+        ...performer,
+        x,
+        y: centerY + waveOffset
+      };
+    });
+  }
+
+  /**
+   * Toggle formation suggestions panel
+   */
+  
 }
  

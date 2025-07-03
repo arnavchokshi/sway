@@ -100,6 +100,36 @@
   width: 32px;
   height: 32px;
   flex-shrink: 0;
+
+  &.confirming {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #ef4444;
+    animation: pulse 1.5s infinite;
+    width: auto;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+
+    &:hover {
+      background: rgba(239, 68, 68, 0.3);
+      border-color: rgba(239, 68, 68, 0.7);
+    }
+
+    .material-icons {
+      display: none;
+    }
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+  }
 }
 
 .play-pause-btn {
@@ -304,6 +334,37 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+
+  .ai-suggestions-btn {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: #1e293b;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    width: auto;
+    height: 32px;
+
+    &:hover {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
+    }
+
+    &.active {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .ai-label {
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+  }
 }
 
 .add-btn {

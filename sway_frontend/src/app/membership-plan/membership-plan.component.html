@@ -108,11 +108,11 @@
       <div class="referral-card-header">
         <h3>Your Referral Code</h3>
         <p>Share this code with other teams! When they use it, you get 1 month of Pro for free!</p>
-        <p>You can only use your referral code once. (max of 1 extra free month)</p>
+        <p class="referral-note">You can only use your referral code once. (max of 1 extra free month)</p>
       </div>
       <div class="code-display-large">
         <span class="code-large">{{ membershipStatus.referralCode }}</span>
-        <button class="copy-btn-large" (click)="navigator.clipboard.writeText(membershipStatus.referralCode!)">
+        <button class="copy-btn-large" (click)="copyReferralCode()">
           Copy
         </button>
       </div>
@@ -192,5 +192,11 @@
   <div class="message-banner" *ngIf="cancelMessage" [class.success]="cancelSuccess" [class.error]="!cancelSuccess">
     <span>{{ cancelMessage }}</span>
     <button class="close-message" (click)="dismissCancelMessage()">&times;</button>
+  </div>
+
+  <!-- Copy Confirmation Toast -->
+  <div class="copy-toast" *ngIf="showCopyToast">
+    <span class="material-icons">check_circle</span>
+    <span>Referral code copied to clipboard!</span>
   </div>
 </div> 

@@ -103,28 +103,30 @@
         <span class="material-icons">video_library</span>
         Add Backdrop
       </button>
-      <input type="file" accept="video/mp4,video/webm" (change)="onDirectVideoFileSelected($event)" hidden #backdropFileInput>
+      <input type="file" accept="video/mp4,video/webm,video/quicktime" (change)="onDirectVideoFileSelected($event)" hidden #backdropFileInput>
       
-      <!-- Pro Account Popup for Backdrop -->
-      <div class="pro-popup-backdrop" *ngIf="showProPopup" (click)="closeProPopup()">
-        <div class="pro-popup-content" (click)="$event.stopPropagation()">
-          <div class="pro-popup-header">
-            <span class="material-icons">star</span>
-            <h3>Pro Feature</h3>
-            <button class="pro-popup-close" (click)="closeProPopup()">
-              <span class="material-icons">close</span>
-            </button>
-          </div>
-          <div class="pro-popup-body">
-            <p>Backdrop videos are only available for Pro members.</p>
-            <p>Upgrade to Pro to add immersive video backdrops to your formations!</p>
-          </div>
-          <div class="pro-popup-footer">
-            <button class="pro-popup-btn secondary" (click)="closeProPopup()">Cancel</button>
-            <button class="pro-popup-btn primary" (click)="upgradeToPro()">Upgrade to Pro</button>
-          </div>
-        </div>
+        <!-- Pro Account Popup for Backdrop -->
+  <div class="pro-popup-backdrop" *ngIf="showProPopup" (click)="closeProPopup()">
+    <div class="pro-popup-content" (click)="$event.stopPropagation()">
+      <div class="pro-popup-header">
+        <span class="material-icons">star</span>
+        <h3>Pro Feature</h3>
+        <button class="pro-popup-close" (click)="closeProPopup()">
+          <span class="material-icons">close</span>
+        </button>
       </div>
+      <div class="pro-popup-body">
+        <p>Backdrop videos are only available for Pro members.</p>
+        <p>Upgrade to Pro to add immersive video backdrops to your formations!</p>
+      </div>
+      <div class="pro-popup-footer">
+        <button class="pro-popup-btn secondary" (click)="closeProPopup()">Cancel</button>
+        <button class="pro-popup-btn primary" (click)="upgradeToPro()">Upgrade to Pro</button>
+      </div>
+    </div>
+  </div>
+
+
       
       <!-- Stage Tools Dropdown -->
       <div class="stage-tools-dropdown">
@@ -363,7 +365,7 @@
           </div>
           <!-- Add Performer Row -->
           <div class="add-performer-row-link" (click)="toggleAddPerformerDropdown()">
-            Available Team Memmbers <span class="plus-sign">+</span>
+            Available Team Members <span class="plus-sign">+</span>
           </div>
           <hr class="add-performer-divider" />
           <div class="add-performer-dropdown" 
@@ -499,7 +501,6 @@
                  class="performer previous-position"
                  [ngStyle]="getPreviousPositionStyle(performer.id)"
                  [style.display]="(showTransitions || selectedPerformerForPreviousPosition === performer.id || selectedPerformersForPreviousPosition.has(performer.id)) && getPreviousPosition(performer.id) ? 'flex' : 'none'">
-              {{formatPerformerName(performer.name)}}
             </div>
             <!-- Current performers -->
             <div class="performer"
@@ -525,36 +526,37 @@
       </div>
 
       <!-- Control Bar -->
-      <app-control-bar
-        [currentFormationIndex]="currentFormationIndex"
-        [totalFormations]="formations.length"
-        [isPlaying]="isPlaying"
-        [playbackTime]="playbackTime"
-        [totalSegmentDuration]="getTotalSegmentDuration()"
-        [timelineZoom]="timelineZoom"
-        [minTimelineZoom]="minTimelineZoom"
-        [maxTimelineZoom]="maxTimelineZoom"
-        [timelineZoomStep]="timelineZoomStep"
-        [isCaptain]="isCaptain"
-        [canUndo]="canUndo"
-        [canRedo]="canRedo"
-        [selectedPerformerCount]="selectedPerformerIds.size"
-        [isMirrorModeEnabled]="isMirrorModeEnabled"
-        [showTransitions]="showTransitions"
-        (prevFormation)="onControlBarPrevFormation()"
-        (playPause)="onControlBarPlayPause()"
-        (nextFormation)="onControlBarNextFormation()"
-        (zoomChange)="onControlBarZoomChange($event)"
-        (addFormation)="onControlBarAddFormation()"
-        (duplicateFormation)="onControlBarDuplicateFormation()"
-        (deleteFormation)="onControlBarDeleteFormation()"
-        (createDraft)="onControlBarCreateDraft()"
-        (undo)="onControlBarUndo()"
-        (redo)="onControlBarRedo()"
-        (quickSwap)="onControlBarQuickSwap()"
-        (mirrorModeToggle)="onControlBarMirrorModeToggle()"
-        (transitionsToggle)="toggleShowTransitions()">
-      </app-control-bar>
+        <app-control-bar
+    [currentFormationIndex]="currentFormationIndex"
+    [totalFormations]="formations.length"
+    [isPlaying]="isPlaying"
+    [playbackTime]="playbackTime"
+    [totalSegmentDuration]="getTotalSegmentDuration()"
+    [timelineZoom]="timelineZoom"
+    [minTimelineZoom]="minTimelineZoom"
+    [maxTimelineZoom]="maxTimelineZoom"
+    [timelineZoomStep]="timelineZoomStep"
+    [isCaptain]="isCaptain"
+    [canUndo]="canUndo"
+    [canRedo]="canRedo"
+    [selectedPerformerCount]="selectedPerformerIds.size"
+    [isMirrorModeEnabled]="isMirrorModeEnabled"
+    [showTransitions]="showTransitions"
+    (prevFormation)="onControlBarPrevFormation()"
+    (playPause)="onControlBarPlayPause()"
+    (nextFormation)="onControlBarNextFormation()"
+    (zoomChange)="onControlBarZoomChange($event)"
+    (addFormation)="onControlBarAddFormation()"
+    (duplicateFormation)="onControlBarDuplicateFormation()"
+    (deleteFormation)="onControlBarDeleteFormation()"
+    (createDraft)="onControlBarCreateDraft()"
+    (undo)="onControlBarUndo()"
+    (redo)="onControlBarRedo()"
+    (quickSwap)="onControlBarQuickSwap()"
+    (mirrorModeToggle)="onControlBarMirrorModeToggle()"
+    (transitionsToggle)="toggleShowTransitions()"
+    >
+  </app-control-bar>
       <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl }">
         <div class="timeline-audio-stack" 
              [class.no-audio]="!signedMusicUrl"
@@ -746,8 +748,8 @@
                   <label class="form-label-small">Width (ft)</label>
                   <input 
                     type="number" 
-                    min="8" 
-                    max="60" 
+                    min="15" 
+                    max="100" 
                     [(ngModel)]="editWidth" 
                     name="editWidth" 
                     required
@@ -758,8 +760,8 @@
                   <label class="form-label-small">Depth (ft)</label>
                   <input 
                     type="number" 
-                    min="8" 
-                    max="60" 
+                    min="15" 
+                    max="100" 
                     [(ngModel)]="editDepth" 
                     name="editDepth" 
                     required
@@ -770,14 +772,19 @@
                   <label class="form-label-small">Sub-Divisions</label>
                   <input 
                     type="number" 
-                    min="1" 
-                    max="8" 
+                    min="0" 
+                    max="6" 
                     [(ngModel)]="editDivisions" 
                     name="editDivisions" 
                     required
                     class="form-input-small"
                   />
                 </div>
+              </div>
+              <!-- Error message display -->
+              <div class="error-message" *ngIf="editModalError">
+                <span class="material-icons">error</span>
+                <span>{{ editModalError }}</span>
               </div>
             </div>
           </div>
