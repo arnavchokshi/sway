@@ -25,7 +25,7 @@ export class ControlBarComponent {
   @Input() canRedo: boolean = false;
   @Input() selectedPerformerCount: number = 0;
   @Input() isMirrorModeEnabled: boolean = false;
-  @Input() showTransitions: boolean = true;
+  @Input() showTransitions: boolean = false;
 
 
   // Delete confirmation state

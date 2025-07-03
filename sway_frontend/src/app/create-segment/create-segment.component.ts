@@ -423,7 +423,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // New properties for top panel features
   showStageToolsDropdown = false;
-  showTransitions = true;
+  showTransitions = false;
   allSegments: any[] = [];
   currentSegmentIndex = -1;
 
