@@ -33,6 +33,17 @@
       </button>
     </div>
 
+    <!-- Draft vs Main Mode Toggle -->
+    <div class="draft-mode-controls" *ngIf="isCaptain && hasAnyDrafts">
+      <button class="control-btn draft-mode-btn" 
+              (click)="onDraftModeToggle()" 
+              title="Toggle Draft/Main Mode"
+              [class.active]="isViewingDraft">
+        <span class="material-icons">{{ isViewingDraft ? 'visibility_off' : 'visibility' }}</span>
+        <span class="draft-mode-label">{{ isViewingDraft ? 'Draft' : 'Main' }}</span>
+      </button>
+    </div>
+
    
   </div>
 
@@ -67,13 +78,13 @@
 
     <!-- Action Buttons -->
     <div class="action-controls" *ngIf="isCaptain">
-      <!-- Create Draft Button - TEMPORARILY HIDDEN -->
-      <!-- <button class="control-btn action-btn draft-btn" 
+      <!-- Create Draft Button -->
+      <button class="control-btn action-btn draft-btn" 
               (click)="onCreateDraft()" 
               title="Create Draft"
               [disabled]="totalFormations === 0">
         <span class="material-icons">edit_document</span>
-      </button> -->
+      </button>
       <button class="control-btn action-btn duplicate-btn" 
               (click)="onDuplicateFormation()" 
               title="Duplicate Formation"

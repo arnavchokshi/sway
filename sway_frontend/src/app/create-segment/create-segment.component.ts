@@ -121,6 +121,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // true = draft data is in main position, false = original data is in main position  
   isDraftDataInMainPosition: { [formationIndex: number]: boolean } = {};
 
+  // Draft formation durations (separate from main formation durations)
+  draftFormationDurations: { [formationIndex: number]: number } = {};
+  
+  // Draft animation durations (separate from main animation durations)
+  draftAnimationDurations: { [formationIndex: number]: number } = {};
+
 
 
   // Selected performer tracking
@@ -445,6 +451,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   editablePerformerName: string = '';
 
+  // Name display and sorting options
+  nameDisplayMode: 'first' | 'first-last-initial' | 'full' = 'first-last-initial';
+  sortBy: 'alphabetical' | 'height' | 'order-added' = 'alphabetical';
+
   onSeekBarMouseEnter() {
     this.isHoveringSeekBar = true;
   }
@@ -476,28 +486,26 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   get performers(): Performer[] {
-    // During playback or animation, ALWAYS use main formations (never drafts)
-    if (this.isPlaying || this.inTransition) {
-      const mainPerformers = this.formations[this.playingFormationIndex] || [];
-      
-      if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
-        // Return animated positions during transition
-        return mainPerformers.map(p => ({
-          ...p,
-          ...this.animatedPositions[p.id]
-        }));
-      }
-      return mainPerformers;
-    }
+    // Get the appropriate formation based on current view mode (draft vs main)
+    let performers: Performer[] = [];
     
-    // When not playing, get performers from current view (main or draft)
-    if (this.isViewingDraft && this.formationDrafts[this.currentFormationIndex]) {
+    if (this.isViewingDraft && this.formationDrafts[this.playingFormationIndex]) {
       // Return the draft formation data
-      return this.formationDrafts[this.currentFormationIndex].formation;
+      performers = this.formationDrafts[this.playingFormationIndex].formation;
     } else {
       // Return the main formation data
-      return this.formations[this.currentFormationIndex] || [];
+      performers = this.formations[this.playingFormationIndex] || [];
     }
+    
+    // Apply animated positions during transition if any
+    if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
+      return performers.map(p => ({
+        ...p,
+        ...this.animatedPositions[p.id]
+      }));
+    }
+    
+    return performers;
   }
 
   get selectedPerformer(): Performer | null {
@@ -805,9 +813,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           // Load formation drafts if they exist
           if (this.segment.formationDrafts) {
             this.formationDrafts = this.segment.formationDrafts;
-            
           } else {
             this.formationDrafts = {};
+          }
+          
+          // Load draft durations if they exist
+          if (this.segment.draftFormationDurations) {
+            this.draftFormationDurations = this.segment.draftFormationDurations;
+          } else {
+            this.draftFormationDurations = {};
+          }
+          
+          // Load draft animation durations if they exist
+          if (this.segment.draftAnimationDurations) {
+            this.draftAnimationDurations = this.segment.draftAnimationDurations;
+          } else {
+            this.draftAnimationDurations = {};
           }
         }
 
@@ -2553,6 +2574,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             formationDurations: this.formationDurations,
             animationDurations: this.animationDurations,
             formationDrafts: this.formationDrafts,
+            draftFormationDurations: this.draftFormationDurations,
+            draftAnimationDurations: this.draftAnimationDurations,
             roster: this.segmentRoster.map(user => user._id),
             dummyTemplates: dummyTemplates
           };
@@ -2622,6 +2645,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
       formationDrafts: this.formationDrafts,
+      draftFormationDurations: this.draftFormationDurations,
+      draftAnimationDurations: this.draftAnimationDurations,
       stylesInSegment: this.segment.stylesInSegment || [],
       roster: this.segmentRoster.map(user => user._id),
       dummyTemplates: dummyTemplates
@@ -3130,7 +3155,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         let t = 0;
         let found = false;
         for (let i = 0; i < this.formations.length; i++) {
-          const hold = this.formationDurations[i] || 4;
+          // Use draft durations if viewing draft mode and draft exists
+          const hold = this.isViewingDraft && this.formationDrafts[i] 
+            ? this.getDraftFormationDuration(i)
+            : this.formationDurations[i] || 4;
+          
           if (currentTime < t + hold) {
             this.playingFormationIndex = i;
             this.inTransition = false;
@@ -3139,8 +3168,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             break;
           }
           t += hold;
+          
+          // Use draft animation durations if viewing draft mode and draft exists
+          const trans = this.isViewingDraft && this.formationDrafts[i]
+            ? this.getDraftAnimationDuration(i)
+            : this.animationDurations[i] || 1;
+            
           if (i < this.animationDurations.length) {
-            const trans = this.animationDurations[i] || 1;
             if (currentTime < t + trans) {
               // During transition, animate between i and i+1
               this.playingFormationIndex = i + 1;
@@ -3219,7 +3253,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       let t = 0;
       let found = false;
       for (let i = 0; i < this.formations.length; i++) {
-        const hold = this.formationDurations[i] || 4;
+        // Use draft durations if viewing draft mode and draft exists
+        const hold = this.isViewingDraft && this.formationDrafts[i] 
+          ? this.getDraftFormationDuration(i)
+          : this.formationDurations[i] || 4;
+          
         if (currentTime < t + hold) {
           this.playingFormationIndex = i;
           this.inTransition = false;
@@ -3228,8 +3266,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           break;
         }
         t += hold;
+        
+        // Use draft animation durations if viewing draft mode and draft exists
+        const trans = this.isViewingDraft && this.formationDrafts[i]
+          ? this.getDraftAnimationDuration(i)
+          : this.animationDurations[i] || 1;
+          
         if (i < this.animationDurations.length) {
-          const trans = this.animationDurations[i] || 1;
           if (currentTime < t + trans) {
             // During transition, animate between i and i+1
             this.playingFormationIndex = i + 1;
@@ -3270,8 +3313,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   interpolateFormations(fromIdx: number, toIdx: number, progress: number) {
-    const from = this.formations[fromIdx] || [];
-    const to = this.formations[toIdx] || [];
+    // Get the appropriate formations based on current view mode (draft vs main)
+    let from: Performer[] = [];
+    let to: Performer[] = [];
+    
+    if (this.isViewingDraft) {
+      // Use draft formations if available
+      from = this.formationDrafts[fromIdx]?.formation || this.formations[fromIdx] || [];
+      to = this.formationDrafts[toIdx]?.formation || this.formations[toIdx] || [];
+    } else {
+      // Use main formations
+      from = this.formations[fromIdx] || [];
+      to = this.formations[toIdx] || [];
+    }
+    
     const pos: { [id: string]: { x: number, y: number } } = {};
     // Map by performer id
     const fromMap: { [id: string]: Performer } = {};
@@ -3528,6 +3583,23 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     window.addEventListener('mouseup', this.onFormationResizeEnd);
   }
 
+  onDraftFormationResizeStart(event: MouseEvent, i: number) {
+    event.stopPropagation();
+    event.preventDefault();
+    
+    // Save state before starting resize (for undo/redo)
+    this.saveState(`Resize draft formation ${i + 1} duration`);
+    
+    this.isResizingTimelineElement = true;
+    this.resizingFormationIndex = i;
+    this.resizingStartX = event.clientX;
+    this.resizingStartDuration = this.draftFormationDurations[i] || 4;
+    
+    // Add event listeners to window to handle drag outside the timeline
+    window.addEventListener('mousemove', this.onDraftFormationResizeMove);
+    window.addEventListener('mouseup', this.onDraftFormationResizeEnd);
+  }
+
   onFormationResizeMove = (event: MouseEvent) => {
     if (this.resizingFormationIndex === null) return;
     
@@ -3550,6 +3622,28 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.formationDurations = [...this.formationDurations]; // force change detection
   };
 
+  onDraftFormationResizeMove = (event: MouseEvent) => {
+    if (this.resizingFormationIndex === null) return;
+    
+    event.stopPropagation();
+    event.preventDefault();
+    
+    const dx = event.clientX - this.resizingStartX;
+    
+    // Account for zoom level in the calculation using pixels per second
+    const pixelsToDuration = 1 / (this.pixelsPerSecond * this.timelineZoom);
+    
+    let newDuration = this.resizingStartDuration + (dx * pixelsToDuration);
+    newDuration = Math.max(1, Math.min(100, newDuration));
+    
+    if (isNaN(newDuration)) {
+      return;
+    }
+    
+    this.draftFormationDurations[this.resizingFormationIndex] = newDuration;
+    this.draftFormationDurations = { ...this.draftFormationDurations }; // force change detection
+  };
+
   onFormationResizeEnd = (event?: MouseEvent) => {
     if (event) {
       event.stopPropagation();
@@ -3566,6 +3660,25 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }, 10);
     
     // Trigger auto-save after formation duration change
+    this.triggerAutoSave();
+  };
+
+  onDraftFormationResizeEnd = (event?: MouseEvent) => {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
+    this.resizingFormationIndex = null;
+    window.removeEventListener('mousemove', this.onDraftFormationResizeMove);
+    window.removeEventListener('mouseup', this.onDraftFormationResizeEnd);
+    
+    // Clear the resize flag after a small delay to ensure all events are processed
+    setTimeout(() => {
+      this.isResizingTimelineElement = false;
+    }, 10);
+    
+    // Trigger auto-save after draft formation duration change
     this.triggerAutoSave();
   };
 
@@ -3636,6 +3749,56 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Trigger auto-save after transition duration change
     this.triggerAutoSave();
   };
+  
+  onDraftTransitionResizeStart(event: MouseEvent, i: number) {
+    event.stopPropagation();
+    if (!this.isCaptain || !this.formationDrafts[i]) return;
+    
+    this.resizingTransitionIndex = i;
+    this.resizingTransitionStartX = event.clientX;
+    this.resizingTransitionStartDuration = this.getDraftAnimationDuration(i);
+    this.isResizingTimelineElement = true;
+    
+    window.addEventListener('mousemove', this.onDraftTransitionResizeMove);
+    window.addEventListener('mouseup', this.onDraftTransitionResizeEnd);
+  }
+  
+  onDraftTransitionResizeMove = (event: MouseEvent) => {
+    if (this.resizingTransitionIndex === null) return;
+    
+    const deltaX = event.clientX - this.resizingTransitionStartX;
+    const deltaSeconds = deltaX / (this.pixelsPerSecond * this.timelineZoom);
+    const newDuration = Math.max(0.1, this.resizingTransitionStartDuration + deltaSeconds);
+    
+    // Update draft animation duration
+    this.draftAnimationDurations[this.resizingTransitionIndex] = newDuration;
+    
+    // Force change detection
+    this.cdr.detectChanges();
+  };
+  
+  onDraftTransitionResizeEnd = (event?: MouseEvent) => {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
+    this.resizingTransitionIndex = null;
+    window.removeEventListener('mousemove', this.onDraftTransitionResizeMove);
+    window.removeEventListener('mouseup', this.onDraftTransitionResizeEnd);
+    
+    // Clear the resize flag after a small delay to ensure all events are processed
+    setTimeout(() => {
+      this.isResizingTimelineElement = false;
+    }, 10);
+    
+    // Save the segment after resizing
+    if (this.segment?._id) {
+      this.saveSegment();
+    } else {
+      this.triggerAutoSave();
+    }
+  };
 
   getTimelinePixelWidth(): number {
     // Get the container width dynamically
@@ -3674,8 +3837,30 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     return baseWidth * this.timelineZoom;
   }
 
+  getDraftFormationPixelWidth(i: number): number {
+    const duration = this.draftFormationDurations[i] || this.formationDurations[i] || 4;
+    const totalTimelineDuration = this.getTimelineTotalDuration();
+    
+    // Calculate the width based on the formation's proportion of the total timeline duration
+    // Use pixels per second to determine the base width
+    const baseWidth = duration * this.pixelsPerSecond;
+    
+    return baseWidth * this.timelineZoom;
+  }
+
   getTransitionPixelWidth(i: number): number {
     const duration = this.animationDurations[i] || 1;
+    const totalTimelineDuration = this.getTimelineTotalDuration();
+    
+    // Calculate the width based on the transition's proportion of the total timeline duration
+    // Use pixels per second to determine the base width
+    const baseWidth = duration * this.pixelsPerSecond;
+    
+    return baseWidth * this.timelineZoom;
+  }
+  
+  getDraftTransitionPixelWidth(i: number): number {
+    const duration = this.getDraftAnimationDuration(i);
     const totalTimelineDuration = this.getTimelineTotalDuration();
     
     // Calculate the width based on the transition's proportion of the total timeline duration
@@ -4012,6 +4197,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         const formationDuration = this.formationDurations[i] || 4;
         if (this.playbackTime < t + formationDuration) {
           this.playingFormationIndex = i;
+          this.currentFormationIndex = i; // Also update current formation index
           this.inTransition = false;
           this.animatedPositions = {};
           break;
@@ -4072,6 +4258,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         const hold = this.formationDurations[i] || 4;
         if (this.playbackTime < t + hold) {
           this.updateFormationAndRecalculateSelection(i);
+          this.currentFormationIndex = i; // Also update current formation index
           this.inTransition = false;
           this.animatedPositions = {};
           break;
@@ -4082,6 +4269,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           if (this.playbackTime < t + trans) {
             // During transition, animate between i and i+1
             this.updateFormationAndRecalculateSelection(i + 1);
+            this.currentFormationIndex = i + 1; // Also update current formation index
             this.inTransition = true;
             const progress = (this.playbackTime - t) / trans;
             this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
@@ -4526,6 +4714,31 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   handleKeyDown = (event: KeyboardEvent) => {
+    // Check if the user is focused on an input field, textarea, or contenteditable element
+    const active = document.activeElement;
+    const isInputFocused = active && (
+      active.tagName === 'INPUT' || 
+      active.tagName === 'TEXTAREA' || 
+      active.tagName === 'BUTTON' || 
+      (active as HTMLElement).isContentEditable
+    );
+
+    // If focused on an input, only handle basic navigation keys and let the input handle its own events
+    if (isInputFocused) {
+      // Allow normal input behavior for most keys
+      // Only prevent specific global shortcuts that might interfere
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'v')) {
+        // Allow copy/paste in inputs
+        return;
+      }
+      if (event.key === ' ' || event.code === 'Space') {
+        // Allow spacebar in inputs
+        return;
+      }
+      // For all other keys, let the input handle them normally
+      return;
+    }
+
     // Handle Escape key to close context menu or clear previous positions
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -4589,11 +4802,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Handle spacebar for play/pause
     if (event.key === ' ' || event.code === 'Space') {
-      // Only trigger if not focused on an input, textarea, or button
-      const active = document.activeElement;
-      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'BUTTON' || (active as HTMLElement).isContentEditable)) {
-        return;
-      }
       event.preventDefault();
       this.onControlBarPlayPause();
       return;
@@ -4705,6 +4913,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Save state before making changes
     this.saveState(`Delete formation ${index + 1}`);
     
+    // Remove any draft associated with this formation
+    if (this.formationDrafts[index]) {
+      delete this.formationDrafts[index];
+      delete this.isDraftDataInMainPosition[index];
+    }
+    
     // Remove the formation
     this.formations.splice(index, 1);
     
@@ -4795,6 +5009,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Set the single draft
     this.formationDrafts[formationIndex] = newDraft;
     
+    // Initialize draft duration with the same duration as the main formation
+    this.draftFormationDurations[formationIndex] = this.formationDurations[formationIndex] || 5;
+    
+    // Initialize draft animation duration with the same duration as the main animation
+    this.draftAnimationDurations[formationIndex] = this.animationDurations[formationIndex] || 1;
+    
     // Initially, the original data is in main position and draft data is in draft position
     this.isDraftDataInMainPosition[formationIndex] = false;
     
@@ -4829,6 +5049,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // Determine if the draft formation should be colored as purple (contains draft data)  
   isDraftFormationDraftColored(formationIndex: number): boolean {
     return this.isDraftDataInMainPosition[formationIndex] === false;
+  }
+
+  getDraftFormationDuration(formationIndex: number): number {
+    return this.draftFormationDurations[formationIndex] || this.formationDurations[formationIndex] || 5;
+  }
+  
+  getDraftAnimationDuration(formationIndex: number): number {
+    return this.draftAnimationDurations[formationIndex] || this.animationDurations[formationIndex] || 1;
   }
 
 
@@ -4916,6 +5144,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     event.stopPropagation();
 
     if (!this.formationDrafts[formationIndex]) {
+      console.log(`No draft found for formation ${formationIndex + 1}`);
       return;
     }
 
@@ -4928,9 +5157,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Save state before deleting
     this.saveState(`Delete draft for formation ${formationIndex + 1}`);
 
-    // If we were viewing this draft, switch back to main formation
+    // If we were viewing this draft, switch back to main formation and force UI update
     if (this.isViewingDraft && this.currentFormationIndex === formationIndex) {
       this.isViewingDraft = false;
+      // Force UI to show main formation
+      this.jumpToFormation(formationIndex, false);
     }
 
     // Remove the draft
@@ -4938,9 +5169,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Clean up tracking (no longer needed since there's no draft)
     delete this.isDraftDataInMainPosition[formationIndex];
+    
+    // Clean up draft duration
+    delete this.draftFormationDurations[formationIndex];
+    
+    // Clean up draft animation duration
+    delete this.draftAnimationDurations[formationIndex];
 
     // Force change detection
     this.formations = [...this.formations];
+
+    // Ensure we're viewing the main formation after deleting a draft
+    if (this.isViewingDraft) {
+      this.isViewingDraft = false;
+      this.jumpToFormation(this.currentFormationIndex, false);
+    }
 
     // Save the segment
     if (this.segment?._id) {
@@ -5631,11 +5874,52 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   get sortedPerformers() {
-    return [...this.performers].sort((a, b) => a.name.localeCompare(b.name));
+    const performers = [...this.performers];
+    function isJustNumber(str: string) {
+      if (!str || typeof str !== 'string') return false;
+      return /^[0-9]+$/.test(str.trim());
+    }
+    switch (this.sortBy) {
+      case 'alphabetical':
+        return performers.sort((a, b) => {
+          // Handle undefined or null names
+          const aName = a.name || '';
+          const bName = b.name || '';
+          const aIsNum = isJustNumber(aName);
+          const bIsNum = isJustNumber(bName);
+          if (aIsNum && !bIsNum) return 1;
+          if (!aIsNum && bIsNum) return -1;
+          return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+        });
+      case 'height':
+        return performers.sort((a, b) => {
+          const heightA = a.height || 0;
+          const heightB = b.height || 0;
+          return heightB - heightA; // Tallest first
+        });
+      case 'order-added':
+        // Keep original order (performers are already in order added)
+        return performers;
+      default:
+        return performers.sort((a, b) => {
+          // Handle undefined or null names
+          const aName = a.name || '';
+          const bName = b.name || '';
+          const aIsNum = isJustNumber(aName);
+          const bIsNum = isJustNumber(bName);
+          if (aIsNum && !bIsNum) return 1;
+          if (!aIsNum && bIsNum) return -1;
+          return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    }
   }
 
   get sortedTeamRoster() {
-    return [...this.teamRoster].sort((a, b) => a.name.localeCompare(b.name));
+    return [...this.teamRoster].sort((a, b) => {
+      const aName = a.name || '';
+      const bName = b.name || '';
+      return aName.localeCompare(bName);
+    });
   }
 
   // Add getter for available users
@@ -6821,6 +7105,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.closeFormationContextMenu();
   }
 
+  onContextMenuDeleteDraft() {
+    this.closeFormationContextMenu();
+    this.deleteDraft(this.selectedFormationIndex, new Event('contextmenu'));
+  }
+
   splitFormation(formationIndex: number) {
     if (!this.isCaptain || formationIndex < 0 || formationIndex >= this.formations.length) return;
     
@@ -6878,6 +7167,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   onControlBarCreateDraft() {
     this.createFormationDraft(this.currentFormationIndex);
+  }
+
+  onControlBarDeleteDraft() {
+    this.deleteDraft(this.currentFormationIndex, new Event('controlbar'));
+  }
+
+  onControlBarDraftModeToggle() {
+    this.isViewingDraft = !this.isViewingDraft;
+    console.log(`Draft mode toggled: ${this.isViewingDraft ? 'Draft' : 'Main'}`);
   }
 
   onControlBarMirrorModeToggle() {
@@ -7022,6 +7320,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Clear formations and drafts
     this.formations = [];
     this.formationDrafts = {};
+    this.draftFormationDurations = {};
+    this.draftAnimationDurations = {};
     this.isDraftDataInMainPosition = {};
     this.isViewingDraft = false;
     
@@ -7410,12 +7710,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.uploadSuccess = null;
   }
 
-  // Helper to format performer name as 'FirstName L.'
+  // Helper to format performer name based on display mode
   formatPerformerName(name: string): string {
     if (!name) return '';
     const parts = name.trim().split(' ');
-    if (parts.length === 1) return parts[0];
-    return `${parts[0]} ${parts[1][0]}.`;
+    
+    switch (this.nameDisplayMode) {
+      case 'first':
+        return parts[0];
+      case 'first-last-initial':
+        if (parts.length === 1) return parts[0];
+        return `${parts[0]} ${parts[1][0]}.`;
+      case 'full':
+        return name.trim();
+      default:
+        return parts[0];
+    }
   }
 
   commitPerformerNameEdit() {
@@ -8305,6 +8615,5 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   /**
    * Toggle formation suggestions panel
    */
-  
 }
  

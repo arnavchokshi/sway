@@ -26,6 +26,8 @@ export class ControlBarComponent {
   @Input() selectedPerformerCount: number = 0;
   @Input() isMirrorModeEnabled: boolean = false;
   @Input() showTransitions: boolean = false;
+  @Input() hasAnyDrafts: boolean = false;
+  @Input() isViewingDraft: boolean = false;
 
 
   // Delete confirmation state
@@ -40,12 +42,14 @@ export class ControlBarComponent {
   @Output() addFormation = new EventEmitter<void>();
   @Output() duplicateFormation = new EventEmitter<void>();
   @Output() deleteFormation = new EventEmitter<void>();
+  @Output() deleteDraft = new EventEmitter<void>();
   @Output() createDraft = new EventEmitter<void>();
   @Output() undo = new EventEmitter<void>();
   @Output() redo = new EventEmitter<void>();
   @Output() quickSwap = new EventEmitter<void>();
   @Output() mirrorModeToggle = new EventEmitter<void>();
   @Output() transitionsToggle = new EventEmitter<void>();
+  @Output() draftModeToggle = new EventEmitter<void>();
 
 
   onPrevFormation() {
@@ -104,7 +108,13 @@ export class ControlBarComponent {
         clearTimeout(this.deleteConfirmationTimeout);
         this.deleteConfirmationTimeout = null;
       }
-      this.deleteFormation.emit();
+      
+      // If viewing a draft, delete the draft instead of the formation
+      if (this.isViewingDraft) {
+        this.deleteDraft.emit();
+      } else {
+        this.deleteFormation.emit();
+      }
     }
   }
 
@@ -118,6 +128,10 @@ export class ControlBarComponent {
 
   onTransitionsToggle() {
     this.transitionsToggle.emit();
+  }
+
+  onDraftModeToggle() {
+    this.draftModeToggle.emit();
   }
 
 

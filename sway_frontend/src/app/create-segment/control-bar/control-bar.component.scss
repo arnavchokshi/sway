@@ -242,14 +242,16 @@
 }
 
 .mirror-controls,
-.transitions-controls {
+.transitions-controls,
+.draft-mode-controls {
   display: flex;
   align-items: center;
   gap: 0.3rem;
   margin-left: 0.5rem;
 
   .mirror-btn,
-  .transitions-btn {
+  .transitions-btn,
+  .draft-mode-btn {
     display: flex;
     align-items: center;
     gap: 0.3rem;
@@ -264,7 +266,8 @@
     }
 
     .mirror-label,
-    .transitions-label {
+    .transitions-label,
+    .draft-mode-label {
       font-size: 0.75rem;
       font-weight: 600;
       white-space: nowrap;
@@ -279,10 +282,11 @@
         color: #ffffff;
       }
 
-      .mirror-label,
-      .transitions-label {
-        color: #ffffff;
-      }
+          .mirror-label,
+    .transitions-label,
+    .draft-mode-label {
+      color: #ffffff;
+    }
     }
 
     &:hover:not(:disabled) {
@@ -302,6 +306,20 @@
 
     .transitions-label {
       color: #d97706;
+    }
+  }
+
+  .draft-mode-btn.active {
+    background: rgba(139, 92, 246, 0.3);
+    border-color: rgba(139, 92, 246, 0.6);
+    color: #8b5cf6;
+
+    .material-icons {
+      color: #8b5cf6;
+    }
+
+    .draft-mode-label {
+      color: #8b5cf6;
     }
   }
 }

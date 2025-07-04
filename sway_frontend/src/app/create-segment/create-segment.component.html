@@ -352,6 +352,29 @@
           <div class="roster-header">
             <h3>Performers in Segment</h3>
           </div>
+          
+          <!-- Filtering Options -->
+          <div class="roster-filters">
+            <div class="filter-group">
+              <span class="material-icons" title="Name Display" style="font-size:18px;">person</span>
+              <select [(ngModel)]="nameDisplayMode" class="filter-select" title="Name Display">
+                <option value="first">First</option>
+                <option value="first-last-initial">Last Initial</option>
+                <option value="full">Full</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <span class="material-icons" title="Order By" style="font-size:18px;" *ngIf="sortBy==='alphabetical'">sort_by_alpha</span>
+              <span class="material-icons" title="Order By" style="font-size:18px;" *ngIf="sortBy==='height'">straighten</span>
+              <span class="material-icons" title="Order By" style="font-size:18px;" *ngIf="sortBy==='order-added'">calendar_today</span>
+              <select [(ngModel)]="sortBy" class="filter-select" title="Order By">
+                <option value="alphabetical">Alphabetical</option>
+                <option value="height">Height</option>
+                <option value="order-added">Date Added</option>
+              </select>
+            </div>
+          </div>
+          
           <!-- Performers List -->
           <div class="performers-list">
             <div class="performer-item" *ngFor="let performer of sortedPerformers; let i = index" 
@@ -542,6 +565,8 @@
     [selectedPerformerCount]="selectedPerformerIds.size"
     [isMirrorModeEnabled]="isMirrorModeEnabled"
     [showTransitions]="showTransitions"
+    [hasAnyDrafts]="hasAnyDrafts()"
+    [isViewingDraft]="isViewingDraft"
     (prevFormation)="onControlBarPrevFormation()"
     (playPause)="onControlBarPlayPause()"
     (nextFormation)="onControlBarNextFormation()"
@@ -549,12 +574,14 @@
     (addFormation)="onControlBarAddFormation()"
     (duplicateFormation)="onControlBarDuplicateFormation()"
     (deleteFormation)="onControlBarDeleteFormation()"
+    (deleteDraft)="onControlBarDeleteDraft()"
     (createDraft)="onControlBarCreateDraft()"
     (undo)="onControlBarUndo()"
     (redo)="onControlBarRedo()"
     (quickSwap)="onControlBarQuickSwap()"
     (mirrorModeToggle)="onControlBarMirrorModeToggle()"
     (transitionsToggle)="toggleShowTransitions()"
+    (draftModeToggle)="onControlBarDraftModeToggle()"
     >
   </app-control-bar>
       <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl }">
@@ -593,41 +620,52 @@
               <div *ngIf="isHoveringSeekBar && hoveredTimelineX !== null && !isPlaying" class="timeline-playhead ghost" [style.left.px]="getHoveredPlayheadPixel()"></div>
             </div>
             
-            <div class="formation-timeline-row" 
-                 [class.has-drafts]="hasAnyDrafts()" 
+            <!-- Draft Row - Only visible when drafts exist -->
+            <div class="formation-timeline-row draft-row" 
+                 *ngIf="hasAnyDrafts()"
                  [style.width.px]="getTimelinePixelWidth()">
               <ng-container *ngFor="let formation of formations; let i = index">
-                <div class="formation-timeline-column" [style.width.px]="getFormationPixelWidth(i)">
-                  <!-- Draft formation (stacked above main) -->
+                <div class="formation-timeline-column" [style.width.px]="getDraftFormationPixelWidth(i)">
+                  <!-- Draft formation box -->
                   <div *ngIf="hasDraft(i)" 
-                       class="formation-timeline-box"
-                       [class.draft-formation]="isDraftFormationDraftColored(i)"
-                       [class.main-formation-colored-as-draft]="!isDraftFormationDraftColored(i)"
+                       class="formation-timeline-box draft-formation"
                        [class.active]="currentFormationIndex === i && isViewingDraft"
                        (click)="handleFormationClick(i, true)"
+                       (contextmenu)="onFormationRightClick($event, i)"
                        (mouseenter)="hoveredFormationIndex = i"
                        (mouseleave)="hoveredFormationIndex = null">
                     <div class="formation-label">F {{ i + 1 }} Draft</div>
-                    <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
-                    
-                    <!-- Draft controls - TEMPORARILY HIDDEN -->
-                    <!-- <div *ngIf="isCaptain" class="draft-controls">
-                      <button class="draft-control-btn make-main-btn" 
-                              (click)="makeMainDraft(i, $event)" 
-                              title="Make This Draft the Main Formation">
-                        <span class="material-icons">keyboard_arrow_up</span>
-                      </button>
-                      <button class="draft-control-btn delete-draft" 
-                              (click)="deleteDraft(i, $event)" 
-                              title="Delete Draft">
-                        <span class="material-icons">close</span>
-                      </button>
-                    </div> -->
+                    <div class="formation-duration">{{ getDraftFormationDuration(i) | number:'1.1-1' }}s</div>
+                    <div *ngIf="isCaptain" class="formation-drag-handle" (mousedown)="onDraftFormationResizeStart($event, i)"></div>
                   </div>
                   
+                  <!-- Empty space when no draft exists -->
+                  <div *ngIf="!hasDraft(i)" class="formation-timeline-box empty-draft-space"></div>
+                </div>
+                
+                <ng-container *ngIf="i < formations.length - 1">
+                  <div class="timeline-transition-column" [style.width.px]="getDraftTransitionPixelWidth(i)">
+                    <!-- Draft transition (always show, editable if current has a draft) -->
+                    <div class="timeline-transition-bar draft-transition"
+                         [class.editable]="hasDraft(i)"
+                         [class.non-editable]="!hasDraft(i)">
+                      <span class="transition-label">{{ getDraftAnimationDuration(i) | number:'1.1-1' }}s</span>
+                      <div *ngIf="isCaptain && hasDraft(i)" 
+                           class="transition-drag-handle" 
+                           (mousedown)="onDraftTransitionResizeStart($event, i)"></div>
+                    </div>
+                  </div>
+                </ng-container>
+              </ng-container>
+            </div>
+            
+            <!-- Main Formations Row -->
+            <div class="formation-timeline-row main-formations-row" 
+                 [style.width.px]="getTimelinePixelWidth()">
+              <ng-container *ngFor="let formation of formations; let i = index">
+                <div class="formation-timeline-column" [style.width.px]="getFormationPixelWidth(i)">
                   <!-- Main formation box -->
                   <div class="formation-timeline-box main-formation"
-                       [class.main-formation-colored-as-draft]="isMainFormationDraftColored(i)"
                        [class.active]="currentFormationIndex === i && !isViewingDraft"
                        [class.has-draft]="hasDraft(i)"
                        (click)="handleFormationClick(i, false)"
@@ -637,28 +675,13 @@
                     <div class="formation-label">F {{ i + 1 }}</div>
                     <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
                     <div *ngIf="isCaptain" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
-                    
-                    <!-- Create draft button - TEMPORARILY HIDDEN -->
-                    <!-- <div *ngIf="!hasDraft(i) && isCaptain" class="create-draft-btn" 
-                         (click)="createFormationDraft(i)"
-                         title="Create Draft for Formation {{ i + 1 }}">
-                      <span class="material-icons">add</span>
-                    </div> -->
                   </div>
                 </div>
                 
                 <ng-container *ngIf="i < formations.length - 1">
                   <div class="timeline-transition-column" [style.width.px]="getTransitionPixelWidth(i)">
-                    <!-- Draft transition (appears only if current and next formations have drafts) -->
-                    <div *ngIf="hasDraft(i) && hasDraft(i + 1)" 
-                         class="timeline-transition-bar draft-transition">
-                      <span class="transition-label">{{ animationDurations[i] | number:'1.1-1' }}s</span>
-                      <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onTransitionResizeStart($event, i)"></div>
-                    </div>
-                    
                     <!-- Main transition -->
-                    <div class="timeline-transition-bar main-transition" 
-                         [class.has-draft-above]="hasDraft(i) && hasDraft(i + 1)">
+                    <div class="timeline-transition-bar main-transition">
                       <span class="transition-label">{{ animationDurations[i] | number:'1.1-1' }}s</span>
                       <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onTransitionResizeStart($event, i)"></div>
                     </div>
@@ -849,6 +872,10 @@
       <button class="context-menu-item" (click)="onContextMenuPaste()" [disabled]="!hasCopiedPerformers">
         <span class="material-icons">content_paste</span>
         <span>Paste</span>
+      </button>
+      <button class="context-menu-item" (click)="onContextMenuDeleteDraft()" [disabled]="!hasDraft(selectedFormationIndex)">
+        <span class="material-icons">delete_sweep</span>
+        <span>Delete Draft</span>
       </button>
     </div>
   </div>
