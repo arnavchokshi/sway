@@ -25,32 +25,29 @@ export interface FormationDraft {
   name?: string; // Optional name for the draft
 }
 
-export interface TimelineItem {
-  type: 'formation' | 'transition';
-  row: 'main' | 'draft'; // can be extended to 'draft-2', etc.
-  duration: number; // seconds
-  index: number;    // absolute order in the timeline
-  formation?: Position[]; // present only when type === 'formation'
-}
-
 interface Segment extends Document {
   name: string;
   team: mongoose.Types.ObjectId;
-  segmentSet?: mongoose.Types.ObjectId;
+  segmentSet?: mongoose.Types.ObjectId; // Reference to the Set this segment belongs to
   roster: mongoose.Types.ObjectId[];
-  // NEW unified timeline
-  timeline: TimelineItem[];
-  dummyTemplates: DummyTemplate[];
+  formations: Position[][];
+  // New draft system - separate draft formations and transitions
+  draftFormations?: Position[][];
+  draftFormationDurations?: number[];
+  draftAnimationDurations?: number[];
+  dummyTemplates: DummyTemplate[]; // Store dummy templates within segment
   depth: number;
   width: number;
   divisions: number;
+  animationDurations: number[];
+  formationDurations: number[];
   musicUrl: string;
   videoUrl?: string;
   segmentOrder: number;
   stylesInSegment: [{ type: String }];
   propSpace: number;
-  isPublic: boolean;
-  createdBy: mongoose.Types.ObjectId;
+  isPublic: boolean; // Privacy control - if false, only captains can see it
+  createdBy: mongoose.Types.ObjectId; // User who created the segment
 }
 
 const DummyTemplateSchema = new Schema<DummyTemplate>({
@@ -69,12 +66,12 @@ const PositionSchema = new Schema<Position>({
   customColor: { type: String, required: false }
 });
 
-const TimelineItemSchema = new Schema<TimelineItem>({
-  type: { type: String, enum: ['formation', 'transition'], required: true },
-  row:  { type: String, enum: ['main', 'draft'], required: true },
-  duration: { type: Number, required: true },
-  index: { type: Number, required: true },
-  formation: [PositionSchema] // optional
+const FormationDraftSchema = new Schema<FormationDraft>({
+  id: { type: String, required: true },
+  formation: [PositionSchema],
+  createdAt: { type: Date, default: Date.now },
+  isMain: { type: Boolean, default: false },
+  name: { type: String, required: false }
 });
 
 const SegmentSchema = new Schema<Segment>({
@@ -82,11 +79,16 @@ const SegmentSchema = new Schema<Segment>({
   team: { type: Schema.Types.ObjectId, ref: 'Team', required: true },
   segmentSet: { type: Schema.Types.ObjectId, ref: 'Set', required: false },
   roster: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-  timeline: [TimelineItemSchema],
-  dummyTemplates: [DummyTemplateSchema],
+  formations: [[PositionSchema]],
+  draftFormations: [[PositionSchema]],
+  draftFormationDurations: [{ type: Number, default: 4 }],
+  draftAnimationDurations: [{ type: Number, default: 1 }],
+  dummyTemplates: [DummyTemplateSchema], // Add dummy templates array
   depth: { type: Number, default: 24 },
   width: { type: Number, default: 32 },
   divisions: { type: Number, default: 3 },
+  animationDurations: [{ type: Number, default: 1 }],
+  formationDurations: [{ type: Number, default: 4 }],
   musicUrl: { type: String },
   videoUrl: { type: String },
   segmentOrder: { type: Number, default: 0 },
