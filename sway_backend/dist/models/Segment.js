@@ -62,7 +62,10 @@ const SegmentSchema = new mongoose_1.Schema({
     segmentSet: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Set', required: false },
     roster: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
     formations: [[PositionSchema]],
-    formationDrafts: { type: Map, of: FormationDraftSchema, required: false },
+    draftFormations: [[PositionSchema]],
+    draftFormationDurations: [{ type: Number, default: 4 }],
+    draftAnimationDurations: [{ type: Number, default: 1 }],
+    connectedDraftGroups: [[{ type: Number }]], // Array of arrays for connected draft groups
     dummyTemplates: [DummyTemplateSchema], // Add dummy templates array
     depth: { type: Number, default: 24 },
     width: { type: Number, default: 32 },

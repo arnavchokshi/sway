@@ -113,19 +113,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   formations: Performer[][] = [];
   currentFormationIndex = 0;
 
-  // Formation drafts support (single draft per formation)
-  formationDrafts: { [formationIndex: number]: FormationDraft } = {};
-  isViewingDraft: boolean = false; // Are we currently viewing a draft formation?
+  // New draft system - separate draft formations and transitions
+  draftFormations: Performer[][] = [];
+  draftFormationDurations: number[] = [];
+  draftAnimationDurations: number[] = [];
   
-  // Track which formation data is currently in the main position (for coloring)
-  // true = draft data is in main position, false = original data is in main position  
-  isDraftDataInMainPosition: { [formationIndex: number]: boolean } = {};
-
-  // Draft formation durations (separate from main formation durations)
-  draftFormationDurations: { [formationIndex: number]: number } = {};
+  // Row priority system - which row takes precedence for display
+  isDraftRowActive: boolean = false;
   
-  // Draft animation durations (separate from main animation durations)
-  draftAnimationDurations: { [formationIndex: number]: number } = {};
+  // Track if draft row should be visible
+  hasDraftRow: boolean = false;
 
 
 
@@ -486,26 +483,28 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   get performers(): Performer[] {
-    // Get the appropriate formation based on current view mode (draft vs main)
-    let performers: Performer[] = [];
+    // During playback or animation, ALWAYS use main formations (never drafts)
+    if (this.isPlaying || this.inTransition) {
+      const mainPerformers = this.formations[this.playingFormationIndex] || [];
+      
+      if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
+        // Return animated positions during transition
+        return mainPerformers.map(p => ({
+          ...p,
+          ...this.animatedPositions[p.id]
+        }));
+      }
+      return mainPerformers;
+    }
     
-    if (this.isViewingDraft && this.formationDrafts[this.playingFormationIndex]) {
+    // When not playing, get performers from current view (main or draft)
+    if (this.isDraftRowActive && this.draftFormations.length > 0 && this.draftFormations[this.currentFormationIndex]) {
       // Return the draft formation data
-      performers = this.formationDrafts[this.playingFormationIndex].formation;
+      return this.draftFormations[this.currentFormationIndex];
     } else {
       // Return the main formation data
-      performers = this.formations[this.playingFormationIndex] || [];
+      return this.formations[this.currentFormationIndex] || [];
     }
-    
-    // Apply animated positions during transition if any
-    if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
-      return performers.map(p => ({
-        ...p,
-        ...this.animatedPositions[p.id]
-      }));
-    }
-    
-    return performers;
   }
 
   get selectedPerformer(): Performer | null {
@@ -532,11 +531,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   set performers(val: Performer[]) {
-    if (this.isViewingDraft && this.formationDrafts[this.currentFormationIndex]) {
+    if (this.isDraftRowActive && this.draftFormations.length > 0 && this.draftFormations[this.currentFormationIndex]) {
       // Update draft formation
-      this.formationDrafts[this.currentFormationIndex].formation = val;
+      this.draftFormations[this.currentFormationIndex] = val;
       // Force change detection by creating new reference
-      this.formationDrafts = { ...this.formationDrafts };
+      this.draftFormations = [...this.draftFormations];
     } else {
       // Update main formation
       this.formations[this.currentFormationIndex] = val;
@@ -810,25 +809,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           this.animationDurations = this.segment.animationDurations || [];
           this.currentFormationIndex = 0;
 
-          // Load formation drafts if they exist
-          if (this.segment.formationDrafts) {
-            this.formationDrafts = this.segment.formationDrafts;
+          // Load draft formations if they exist
+          if (this.segment.draftFormations) {
+            this.draftFormations = this.segment.draftFormations;
+            this.draftFormationDurations = this.segment.draftFormationDurations || [];
+            this.draftAnimationDurations = this.segment.draftAnimationDurations || [];
+            this.hasDraftRow = this.draftFormations.length > 0;
           } else {
-            this.formationDrafts = {};
-          }
-          
-          // Load draft durations if they exist
-          if (this.segment.draftFormationDurations) {
-            this.draftFormationDurations = this.segment.draftFormationDurations;
-          } else {
-            this.draftFormationDurations = {};
-          }
-          
-          // Load draft animation durations if they exist
-          if (this.segment.draftAnimationDurations) {
-            this.draftAnimationDurations = this.segment.draftAnimationDurations;
-          } else {
-            this.draftAnimationDurations = {};
+            this.draftFormations = [];
+            this.draftFormationDurations = [];
+            this.draftAnimationDurations = [];
+            this.hasDraftRow = false;
           }
         }
 
@@ -2573,7 +2564,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             formations: transformedFormations,
             formationDurations: this.formationDurations,
             animationDurations: this.animationDurations,
-            formationDrafts: this.formationDrafts,
+            draftFormations: this.draftFormations,
             draftFormationDurations: this.draftFormationDurations,
             draftAnimationDurations: this.draftAnimationDurations,
             roster: this.segmentRoster.map(user => user._id),
@@ -2644,9 +2635,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       formations: transformedFormations,
       formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
-      formationDrafts: this.formationDrafts,
-      draftFormationDurations: this.draftFormationDurations,
-      draftAnimationDurations: this.draftAnimationDurations,
+                  draftFormations: this.draftFormations,
+            draftFormationDurations: this.draftFormationDurations,
+            draftAnimationDurations: this.draftAnimationDurations,
       stylesInSegment: this.segment.stylesInSegment || [],
       roster: this.segmentRoster.map(user => user._id),
       dummyTemplates: dummyTemplates
@@ -3068,7 +3059,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       let t = 0;
       let found = false;
       for (let i = 0; i < this.formations.length; i++) {
-        const hold = this.formationDurations[i] || 4;
+        const hold = this.getFormationDurationForPlayback(i);
         if (this.playbackTime < t + hold) {
           this.playingFormationIndex = i;
           this.currentFormationIndex = i; // Update the displayed formation
@@ -3079,7 +3070,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
         t += hold;
         if (i < this.animationDurations.length) {
-          const trans = this.animationDurations[i] || 1;
+          const trans = this.getTransitionDurationForPlayback(i);
           if (this.playbackTime < t + trans) {
             this.playingFormationIndex = i + 1;
             this.currentFormationIndex = i + 1; // Update the displayed formation
@@ -3152,39 +3143,54 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           }
         }
 
-        let t = 0;
         let found = false;
+        let t = 0;
+        let cumulativeOffset = 0; // NOTE: no longer used in calculations, retained for potential future use
+        
         for (let i = 0; i < this.formations.length; i++) {
-          // Use draft durations if viewing draft mode and draft exists
-          const hold = this.isViewingDraft && this.formationDrafts[i] 
-            ? this.getDraftFormationDuration(i)
-            : this.formationDurations[i] || 4;
+          // Calculate formation timing
+          let formationDuration: number;
+          if (this.isDraftRowActive && this.hasDraft(i)) {
+            formationDuration = this.draftFormationDurations[i] || this.formationDurations[i] || 5;
+          } else {
+            formationDuration = this.formationDurations[i] || 5;
+          }
           
-          if (currentTime < t + hold) {
+          // Check if we're in this formation
+          if (currentTime < t + formationDuration) {
             this.playingFormationIndex = i;
             this.inTransition = false;
             this.animatedPositions = {};
             found = true;
             break;
           }
-          t += hold;
           
-          // Use draft animation durations if viewing draft mode and draft exists
-          const trans = this.isViewingDraft && this.formationDrafts[i]
-            ? this.getDraftAnimationDuration(i)
-            : this.animationDurations[i] || 1;
-            
+          t += formationDuration;
+          
+          // Calculate transition timing
           if (i < this.animationDurations.length) {
-            if (currentTime < t + trans) {
-              // During transition, animate between i and i+1
+            let transitionDuration: number;
+            let draftTransitionDuration = 0;
+            let mainTransitionDuration = this.animationDurations[i] || 2;
+            if (this.isDraftRowActive && (this.hasDraft(i) || this.hasDraft(i + 1))) {
+              draftTransitionDuration = this.draftAnimationDurations[i] || mainTransitionDuration;
+              transitionDuration = draftTransitionDuration;
+            } else {
+              transitionDuration = mainTransitionDuration;
+            }
+            
+            // Check if we're in this transition
+            if (currentTime < t + transitionDuration) {
               this.playingFormationIndex = i + 1;
               this.inTransition = true;
-              const progress = (currentTime - t) / trans;
+              const progress = (currentTime - t) / transitionDuration;
               this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
               found = true;
               break;
             }
-            t += trans;
+            
+            // No cumulative offset needed — timeline already advanced by the longer draft transition
+            t += transitionDuration;
           }
         }
         if (!found) {
@@ -3250,39 +3256,54 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       // Auto-scroll to keep playhead visible during playback
       this.autoScrollToPlayhead();
       
-      let t = 0;
       let found = false;
+      let t = 0;
+      let cumulativeOffset = 0; // NOTE: no longer used in calculations, retained for potential future use
+      
       for (let i = 0; i < this.formations.length; i++) {
-        // Use draft durations if viewing draft mode and draft exists
-        const hold = this.isViewingDraft && this.formationDrafts[i] 
-          ? this.getDraftFormationDuration(i)
-          : this.formationDurations[i] || 4;
-          
-        if (currentTime < t + hold) {
+        // Calculate formation timing
+        let formationDuration: number;
+        if (this.isDraftRowActive && this.hasDraft(i)) {
+          formationDuration = this.draftFormationDurations[i] || this.formationDurations[i] || 5;
+        } else {
+          formationDuration = this.formationDurations[i] || 5;
+        }
+        
+        // Check if we're in this formation
+        if (currentTime < t + formationDuration) {
           this.playingFormationIndex = i;
           this.inTransition = false;
           this.animatedPositions = {};
           found = true;
           break;
         }
-        t += hold;
         
-        // Use draft animation durations if viewing draft mode and draft exists
-        const trans = this.isViewingDraft && this.formationDrafts[i]
-          ? this.getDraftAnimationDuration(i)
-          : this.animationDurations[i] || 1;
-          
+        t += formationDuration;
+        
+        // Calculate transition timing
         if (i < this.animationDurations.length) {
-          if (currentTime < t + trans) {
-            // During transition, animate between i and i+1
+          let transitionDuration: number;
+          let draftTransitionDuration = 0;
+          let mainTransitionDuration = this.animationDurations[i] || 2;
+          if (this.isDraftRowActive && (this.hasDraft(i) || this.hasDraft(i + 1))) {
+            draftTransitionDuration = this.draftAnimationDurations[i] || mainTransitionDuration;
+            transitionDuration = draftTransitionDuration;
+          } else {
+            transitionDuration = mainTransitionDuration;
+          }
+          
+          // Check if we're in this transition
+          if (currentTime < t + transitionDuration) {
             this.playingFormationIndex = i + 1;
             this.inTransition = true;
-            const progress = (currentTime - t) / trans;
+            const progress = (currentTime - t) / transitionDuration;
             this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
             found = true;
             break;
           }
-          t += trans;
+          
+          // No cumulative offset needed — timeline already advanced by the longer draft transition
+          t += transitionDuration;
         }
       }
       if (!found) {
@@ -3313,16 +3334,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   interpolateFormations(fromIdx: number, toIdx: number, progress: number) {
-    // Get the appropriate formations based on current view mode (draft vs main)
+    // Determine which formations to use based on current playback state
     let from: Performer[] = [];
     let to: Performer[] = [];
     
-    if (this.isViewingDraft) {
-      // Use draft formations if available
-      from = this.formationDrafts[fromIdx]?.formation || this.formations[fromIdx] || [];
-      to = this.formationDrafts[toIdx]?.formation || this.formations[toIdx] || [];
+    // If we're in draft mode and the formations have drafts, use draft formations
+    if (this.isDraftRowActive) {
+      from = this.hasDraft(fromIdx) ? (this.draftFormations[fromIdx] || []) : (this.formations[fromIdx] || []);
+      to = this.hasDraft(toIdx) ? (this.draftFormations[toIdx] || []) : (this.formations[toIdx] || []);
     } else {
-      // Use main formations
+      // In main mode, always use main formations
       from = this.formations[fromIdx] || [];
       to = this.formations[toIdx] || [];
     }
@@ -3583,23 +3604,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     window.addEventListener('mouseup', this.onFormationResizeEnd);
   }
 
-  onDraftFormationResizeStart(event: MouseEvent, i: number) {
-    event.stopPropagation();
-    event.preventDefault();
-    
-    // Save state before starting resize (for undo/redo)
-    this.saveState(`Resize draft formation ${i + 1} duration`);
-    
-    this.isResizingTimelineElement = true;
-    this.resizingFormationIndex = i;
-    this.resizingStartX = event.clientX;
-    this.resizingStartDuration = this.draftFormationDurations[i] || 4;
-    
-    // Add event listeners to window to handle drag outside the timeline
-    window.addEventListener('mousemove', this.onDraftFormationResizeMove);
-    window.addEventListener('mouseup', this.onDraftFormationResizeEnd);
-  }
-
   onFormationResizeMove = (event: MouseEvent) => {
     if (this.resizingFormationIndex === null) return;
     
@@ -3622,28 +3626,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.formationDurations = [...this.formationDurations]; // force change detection
   };
 
-  onDraftFormationResizeMove = (event: MouseEvent) => {
-    if (this.resizingFormationIndex === null) return;
-    
-    event.stopPropagation();
-    event.preventDefault();
-    
-    const dx = event.clientX - this.resizingStartX;
-    
-    // Account for zoom level in the calculation using pixels per second
-    const pixelsToDuration = 1 / (this.pixelsPerSecond * this.timelineZoom);
-    
-    let newDuration = this.resizingStartDuration + (dx * pixelsToDuration);
-    newDuration = Math.max(1, Math.min(100, newDuration));
-    
-    if (isNaN(newDuration)) {
-      return;
-    }
-    
-    this.draftFormationDurations[this.resizingFormationIndex] = newDuration;
-    this.draftFormationDurations = { ...this.draftFormationDurations }; // force change detection
-  };
-
   onFormationResizeEnd = (event?: MouseEvent) => {
     if (event) {
       event.stopPropagation();
@@ -3660,25 +3642,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }, 10);
     
     // Trigger auto-save after formation duration change
-    this.triggerAutoSave();
-  };
-
-  onDraftFormationResizeEnd = (event?: MouseEvent) => {
-    if (event) {
-      event.stopPropagation();
-      event.preventDefault();
-    }
-    
-    this.resizingFormationIndex = null;
-    window.removeEventListener('mousemove', this.onDraftFormationResizeMove);
-    window.removeEventListener('mouseup', this.onDraftFormationResizeEnd);
-    
-    // Clear the resize flag after a small delay to ensure all events are processed
-    setTimeout(() => {
-      this.isResizingTimelineElement = false;
-    }, 10);
-    
-    // Trigger auto-save after draft formation duration change
     this.triggerAutoSave();
   };
 
@@ -3710,25 +3673,26 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onTransitionResizeMove = (event: MouseEvent) => {
-    if (this.resizingTransitionIndex === null) return;
+    if (!this.isResizingTimelineElement || this.resizingTransitionIndex === null) return;
     
-    event.stopPropagation();
-    event.preventDefault();
-    
-    const dx = event.clientX - this.resizingTransitionStartX;
-    
-    // Account for zoom level in the calculation using pixels per second
-    const pixelsToDuration = 1 / (this.pixelsPerSecond * this.timelineZoom);
-    
-    let newDuration = this.resizingTransitionStartDuration + (dx * pixelsToDuration);
-    newDuration = Math.max(0.2, newDuration);
-    
-    if (isNaN(newDuration)) {
-      return;
-    }
-    
+    const deltaX = event.clientX - this.resizingTransitionStartX;
+    const deltaSeconds = deltaX / this.pixelsPerSecond;
+    const oldDuration = this.animationDurations[this.resizingTransitionIndex] || 2;
+    const newDuration = Math.max(0.5, this.resizingTransitionStartDuration + deltaSeconds);
+    const diff = newDuration - oldDuration;
     this.animationDurations[this.resizingTransitionIndex] = newDuration;
-    this.animationDurations = [...this.animationDurations]; // force change detection
+
+    // Adjust the next draft formation duration to compensate, but only if a draft exists for that formation
+    const nextFormationIndex = this.resizingTransitionIndex + 1;
+    if (nextFormationIndex < this.draftFormationDurations.length && this.hasDraft(nextFormationIndex)) {
+      const oldFormation = this.draftFormationDurations[nextFormationIndex] || 5;
+      const newFormation = Math.max(1, oldFormation - diff);
+      this.draftFormationDurations[nextFormationIndex] = newFormation;
+    }
+
+    this.draftAnimationDurations = [...this.draftAnimationDurations];
+    this.draftFormationDurations = [...this.draftFormationDurations];
+    this.triggerAutoSave();
   };
 
   onTransitionResizeEnd = (event?: MouseEvent) => {
@@ -3748,56 +3712,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Trigger auto-save after transition duration change
     this.triggerAutoSave();
-  };
-  
-  onDraftTransitionResizeStart(event: MouseEvent, i: number) {
-    event.stopPropagation();
-    if (!this.isCaptain || !this.formationDrafts[i]) return;
-    
-    this.resizingTransitionIndex = i;
-    this.resizingTransitionStartX = event.clientX;
-    this.resizingTransitionStartDuration = this.getDraftAnimationDuration(i);
-    this.isResizingTimelineElement = true;
-    
-    window.addEventListener('mousemove', this.onDraftTransitionResizeMove);
-    window.addEventListener('mouseup', this.onDraftTransitionResizeEnd);
-  }
-  
-  onDraftTransitionResizeMove = (event: MouseEvent) => {
-    if (this.resizingTransitionIndex === null) return;
-    
-    const deltaX = event.clientX - this.resizingTransitionStartX;
-    const deltaSeconds = deltaX / (this.pixelsPerSecond * this.timelineZoom);
-    const newDuration = Math.max(0.1, this.resizingTransitionStartDuration + deltaSeconds);
-    
-    // Update draft animation duration
-    this.draftAnimationDurations[this.resizingTransitionIndex] = newDuration;
-    
-    // Force change detection
-    this.cdr.detectChanges();
-  };
-  
-  onDraftTransitionResizeEnd = (event?: MouseEvent) => {
-    if (event) {
-      event.stopPropagation();
-      event.preventDefault();
-    }
-    
-    this.resizingTransitionIndex = null;
-    window.removeEventListener('mousemove', this.onDraftTransitionResizeMove);
-    window.removeEventListener('mouseup', this.onDraftTransitionResizeEnd);
-    
-    // Clear the resize flag after a small delay to ensure all events are processed
-    setTimeout(() => {
-      this.isResizingTimelineElement = false;
-    }, 10);
-    
-    // Save the segment after resizing
-    if (this.segment?._id) {
-      this.saveSegment();
-    } else {
-      this.triggerAutoSave();
-    }
   };
 
   getTimelinePixelWidth(): number {
@@ -3837,30 +3751,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     return baseWidth * this.timelineZoom;
   }
 
-  getDraftFormationPixelWidth(i: number): number {
-    const duration = this.draftFormationDurations[i] || this.formationDurations[i] || 4;
-    const totalTimelineDuration = this.getTimelineTotalDuration();
-    
-    // Calculate the width based on the formation's proportion of the total timeline duration
-    // Use pixels per second to determine the base width
-    const baseWidth = duration * this.pixelsPerSecond;
-    
-    return baseWidth * this.timelineZoom;
-  }
-
   getTransitionPixelWidth(i: number): number {
     const duration = this.animationDurations[i] || 1;
-    const totalTimelineDuration = this.getTimelineTotalDuration();
-    
-    // Calculate the width based on the transition's proportion of the total timeline duration
-    // Use pixels per second to determine the base width
-    const baseWidth = duration * this.pixelsPerSecond;
-    
-    return baseWidth * this.timelineZoom;
-  }
-  
-  getDraftTransitionPixelWidth(i: number): number {
-    const duration = this.getDraftAnimationDuration(i);
     const totalTimelineDuration = this.getTimelineTotalDuration();
     
     // Calculate the width based on the transition's proportion of the total timeline duration
@@ -4197,7 +4089,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         const formationDuration = this.formationDurations[i] || 4;
         if (this.playbackTime < t + formationDuration) {
           this.playingFormationIndex = i;
-          this.currentFormationIndex = i; // Also update current formation index
           this.inTransition = false;
           this.animatedPositions = {};
           break;
@@ -4258,7 +4149,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         const hold = this.formationDurations[i] || 4;
         if (this.playbackTime < t + hold) {
           this.updateFormationAndRecalculateSelection(i);
-          this.currentFormationIndex = i; // Also update current formation index
           this.inTransition = false;
           this.animatedPositions = {};
           break;
@@ -4269,7 +4159,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           if (this.playbackTime < t + trans) {
             // During transition, animate between i and i+1
             this.updateFormationAndRecalculateSelection(i + 1);
-            this.currentFormationIndex = i + 1; // Also update current formation index
             this.inTransition = true;
             const progress = (this.playbackTime - t) / trans;
             this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
@@ -4305,7 +4194,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         let t = 0;
         let found = false;
         for (let i = 0; i < this.formations.length; i++) {
-          const hold = this.formationDurations[i] || 4;
+          const hold = this.getFormationDurationForPlayback(i);
           if (this.playbackTime < t + hold) {
             this.playingFormationIndex = i;
             this.inTransition = false;
@@ -4315,7 +4204,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           }
           t += hold;
           if (i < this.animationDurations.length) {
-            const trans = this.animationDurations[i] || 1;
+            const trans = this.getTransitionDurationForPlayback(i);
             if (this.playbackTime < t + trans) {
               this.playingFormationIndex = i + 1;
               this.inTransition = true;
@@ -4351,7 +4240,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       let t = 0;
       let found = false;
       for (let i = 0; i < this.formations.length; i++) {
-        const hold = this.formationDurations[i] || 4;
+        const hold = this.getFormationDurationForPlayback(i);
         if (this.playbackTime < t + hold) {
           this.playingFormationIndex = i;
           this.currentFormationIndex = i; // Update the displayed formation
@@ -4362,7 +4251,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
         t += hold;
         if (i < this.animationDurations.length) {
-          const trans = this.animationDurations[i] || 1;
+          const trans = this.getTransitionDurationForPlayback(i);
           if (this.playbackTime < t + trans) {
             this.playingFormationIndex = i + 1;
             this.currentFormationIndex = i + 1; // Update the displayed formation
@@ -4913,12 +4802,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Save state before making changes
     this.saveState(`Delete formation ${index + 1}`);
     
-    // Remove any draft associated with this formation
-    if (this.formationDrafts[index]) {
-      delete this.formationDrafts[index];
-      delete this.isDraftDataInMainPosition[index];
-    }
-    
     // Remove the formation
     this.formations.splice(index, 1);
     
@@ -4978,12 +4861,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   createFormationDraft(formationIndex: number) {
     if (!this.isCaptain || formationIndex < 0 || formationIndex >= this.formations.length) return;
     
-    // Don't create draft if one already exists
-    if (this.formationDrafts[formationIndex]) {
-      console.log(`Draft already exists for formation ${formationIndex + 1}`);
-      return;
-    }
-    
     // Save state before making changes
     this.saveState(`Create draft for formation ${formationIndex + 1}`);
     
@@ -4994,32 +4871,38 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       skillLevels: { ...performer.skillLevels }
     }));
     
-    // Generate unique ID for the draft
-    const draftId = `draft_${formationIndex}_${Date.now()}`;
+    // Ensure draft arrays are the same length as main arrays
+    while (this.draftFormations.length <= formationIndex) {
+      this.draftFormations.push([]);
+      this.draftFormationDurations.push(5); // Default duration
+      this.draftAnimationDurations.push(2); // Default transition duration
+    }
     
-    // Create the draft object
-    const newDraft: FormationDraft = {
-      id: draftId,
-      formation: draftFormation,
-      createdAt: new Date(),
-      isMain: false, // New draft is not main by default
-      name: `Draft ${formationIndex + 1}`
-    };
-    
-    // Set the single draft
-    this.formationDrafts[formationIndex] = newDraft;
-    
-    // Initialize draft duration with the same duration as the main formation
+    // Set the draft formation
+    this.draftFormations[formationIndex] = draftFormation;
     this.draftFormationDurations[formationIndex] = this.formationDurations[formationIndex] || 5;
     
-    // Initialize draft animation duration with the same duration as the main animation
-    this.draftAnimationDurations[formationIndex] = this.animationDurations[formationIndex] || 1;
+    // Only copy the specific transition durations needed for this draft
+    // We need the transition FROM the previous formation and TO the next formation
+    if (formationIndex > 0) {
+      // Copy transition from previous formation (if it exists)
+      this.draftAnimationDurations[formationIndex - 1] = this.animationDurations[formationIndex - 1] || 2;
+    }
+    if (formationIndex < this.formations.length - 1) {
+      // Copy transition to next formation (if it exists)
+      this.draftAnimationDurations[formationIndex] = this.animationDurations[formationIndex] || 2;
+    }
     
-    // Initially, the original data is in main position and draft data is in draft position
-    this.isDraftDataInMainPosition[formationIndex] = false;
+    // Show draft row
+    this.hasDraftRow = true;
     
-    // Automatically switch to viewing the draft after creation
-    this.jumpToFormation(formationIndex, true);
+    // Switch to draft row active
+    this.isDraftRowActive = true;
+    
+    // Force change detection
+    this.draftFormations = [...this.draftFormations];
+    this.draftFormationDurations = [...this.draftFormationDurations];
+    this.draftAnimationDurations = [...this.draftAnimationDurations];
     
     // Save the segment
     if (this.segment?._id) {
@@ -5028,46 +4911,66 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.triggerAutoSave();
     }
     
-    console.log(`Created draft for formation ${formationIndex + 1}:`, newDraft);
+    console.log(`Created draft for formation ${formationIndex + 1}`);
   }
 
   // Check if a formation has a draft
   hasDraft(formationIndex: number): boolean {
-    return !!this.formationDrafts[formationIndex];
+    return this.draftFormations.length > formationIndex && 
+           this.draftFormations[formationIndex] && 
+           this.draftFormations[formationIndex].length > 0;
+  }
+
+  // Returns true if the currently selected formation is a draft
+  isCurrentFormationDraft(): boolean {
+    // If we're in main mode, never show drafts
+    if (!this.isDraftRowActive) {
+      return false;
+    }
+    
+    // If we're in draft mode, check if the current formation has a draft
+    return this.hasDraft(this.currentFormationIndex);
+  }
+
+  // Returns true if the currently playing formation is a draft
+  isPlayingFormationDraft(): boolean {
+    // If we're in main mode, never show drafts
+    if (!this.isDraftRowActive) {
+      return false;
+    }
+    
+    // If we're in draft mode, check if the playing formation has a draft
+    return this.hasDraft(this.playingFormationIndex);
   }
 
   // Check if any formation has drafts (for expanding timeline height)
   hasAnyDrafts(): boolean {
-    return Object.keys(this.formationDrafts).length > 0;
+    return this.hasDraftRow;
   }
 
   // Determine if the main formation should be colored as purple (contains draft data)
   isMainFormationDraftColored(formationIndex: number): boolean {
-    return this.isDraftDataInMainPosition[formationIndex] === true;
+    return this.isDraftRowActive && this.hasDraft(formationIndex);
   }
 
   // Determine if the draft formation should be colored as purple (contains draft data)  
   isDraftFormationDraftColored(formationIndex: number): boolean {
-    return this.isDraftDataInMainPosition[formationIndex] === false;
+    return !this.isDraftRowActive && this.hasDraft(formationIndex);
   }
-
-  getDraftFormationDuration(formationIndex: number): number {
-    return this.draftFormationDurations[formationIndex] || this.formationDurations[formationIndex] || 5;
-  }
-  
-  getDraftAnimationDuration(formationIndex: number): number {
-    return this.draftAnimationDurations[formationIndex] || this.animationDurations[formationIndex] || 1;
-  }
-
-
 
   // Updated jumpToFormation to handle draft viewing
   jumpToFormation(index: number, isDraft: boolean = false) {
     if (index < 0 || index >= this.formations.length) return;
     
+    // Clear draft position adjustments when switching between draft and main formations
+    // This prevents offset issues when moving between draft and main formations
+    if (this.isDraftRowActive !== isDraft) {
+      this.clearDraftPositionAdjustments();
+    }
+    
     this.currentFormationIndex = index;
     this.playingFormationIndex = index;
-    this.isViewingDraft = isDraft;
+    this.isDraftRowActive = isDraft;
     
     // Force change detection to update the stage immediately
     this.formations = [...this.formations];
@@ -5076,79 +4979,35 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     console.log(`🎯 JUMP TO FORMATION:`, {
       index: index + 1,
       isDraft,
-      isViewingDraft: this.isViewingDraft,
+      isDraftRowActive: this.isDraftRowActive,
       hasDraftForIndex: this.hasDraft(index),
       currentPerformersCount: this.performers.length,
       performersSource: isDraft ? 'DRAFT' : 'MAIN'
     });
   }
 
-  // Removed duplicate performers getter
-
-  // Method to make a draft the main formation (swap them)
-  makeMainDraft(formationIndex: number, event: Event) {
-    event.stopPropagation();
-
-    if (!this.formationDrafts[formationIndex]) {
-      return;
-    }
-
-    // Save state before making changes
-    this.saveState(`Swap draft and main for formation ${formationIndex + 1}`);
-
-      // Swap the positions by making the draft become the new main formation (moves to top/main position)
-    const draftData = this.formationDrafts[formationIndex];
-    const mainData = this.formations[formationIndex];
+  // Method to toggle row priority
+  toggleRowPriority() {
+    this.isDraftRowActive = !this.isDraftRowActive;
     
-    // The current draft becomes the new main formation (moves to top/main position)
-    this.formations[formationIndex] = draftData.formation.map(performer => ({
-      ...performer,
-      skillLevels: { ...performer.skillLevels }
-    }));
+    // Clear draft position adjustments when switching between rows
+    // This prevents offset issues when moving between draft and main formations
+    this.clearDraftPositionAdjustments();
     
-    // The current main becomes the new draft (moves to bottom/draft position)  
-    this.formationDrafts[formationIndex] = {
-      ...draftData,
-      formation: mainData.map(performer => ({
-        ...performer,
-        skillLevels: { ...performer.skillLevels }
-      })),
-      id: `draft_${formationIndex}_${Date.now()}` // Generate new ID for the new draft
-    };
-    
-
-
-    // Toggle which data type is in the main position  
-    this.isDraftDataInMainPosition[formationIndex] = !this.isDraftDataInMainPosition[formationIndex];
-    
-    // Switch to viewing the main formation (which now contains the swapped data)
-    this.isViewingDraft = false;
-    
-    // Force change detection by creating new references
+    // Force change detection
     this.formations = [...this.formations];
-    this.formationDrafts = { ...this.formationDrafts };
     this.cdr.detectChanges();
-
-    // Save the segment
-    if (this.segment?._id) {
-      this.saveSegment();
-    } else {
-      this.triggerAutoSave();
-    }
-
-    console.log(`Swapped draft and main for formation ${formationIndex + 1} - purple content moved to main (top), yellow content moved to draft (bottom)`);
+    
+    console.log(`Switched to ${this.isDraftRowActive ? 'draft' : 'main'} row priority`);
   }
 
   // Method to delete a draft
   deleteDraft(formationIndex: number, event: Event) {
     event.stopPropagation();
 
-    if (!this.formationDrafts[formationIndex]) {
-      console.log(`No draft found for formation ${formationIndex + 1}`);
+    if (!this.hasDraft(formationIndex)) {
       return;
     }
-
-    const draft = this.formationDrafts[formationIndex];
 
     if (!confirm(`Are you sure you want to delete draft for formation ${formationIndex + 1}?`)) {
       return;
@@ -5157,33 +5016,26 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Save state before deleting
     this.saveState(`Delete draft for formation ${formationIndex + 1}`);
 
-    // If we were viewing this draft, switch back to main formation and force UI update
-    if (this.isViewingDraft && this.currentFormationIndex === formationIndex) {
-      this.isViewingDraft = false;
-      // Force UI to show main formation
-      this.jumpToFormation(formationIndex, false);
+    // If we were viewing this draft, switch back to main formation
+    if (this.isDraftRowActive && this.currentFormationIndex === formationIndex) {
+      this.isDraftRowActive = false;
     }
 
-    // Remove the draft
-    delete this.formationDrafts[formationIndex];
-    
-    // Clean up tracking (no longer needed since there's no draft)
-    delete this.isDraftDataInMainPosition[formationIndex];
-    
-    // Clean up draft duration
-    delete this.draftFormationDurations[formationIndex];
-    
-    // Clean up draft animation duration
-    delete this.draftAnimationDurations[formationIndex];
+    // Remove the draft formation
+    this.draftFormations[formationIndex] = [];
+    this.draftFormationDurations[formationIndex] = 0;
+    this.draftAnimationDurations[formationIndex] = 0;
+
+    // Clear draft position adjustments when deleting a draft
+    // This prevents offset issues when moving between draft and main formations
+    this.clearDraftPositionAdjustments();
+
+    // Check if we have any drafts left
+    this.hasDraftRow = this.draftFormations.some(formation => formation.length > 0);
 
     // Force change detection
     this.formations = [...this.formations];
-
-    // Ensure we're viewing the main formation after deleting a draft
-    if (this.isViewingDraft) {
-      this.isViewingDraft = false;
-      this.jumpToFormation(this.currentFormationIndex, false);
-    }
+    this.draftFormations = [...this.draftFormations];
 
     // Save the segment
     if (this.segment?._id) {
@@ -5876,20 +5728,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   get sortedPerformers() {
     const performers = [...this.performers];
     function isJustNumber(str: string) {
-      if (!str || typeof str !== 'string') return false;
       return /^[0-9]+$/.test(str.trim());
     }
     switch (this.sortBy) {
       case 'alphabetical':
         return performers.sort((a, b) => {
-          // Handle undefined or null names
-          const aName = a.name || '';
-          const bName = b.name || '';
-          const aIsNum = isJustNumber(aName);
-          const bIsNum = isJustNumber(bName);
+          const aIsNum = isJustNumber(a.name);
+          const bIsNum = isJustNumber(b.name);
           if (aIsNum && !bIsNum) return 1;
           if (!aIsNum && bIsNum) return -1;
-          return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+          return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
         });
       case 'height':
         return performers.sort((a, b) => {
@@ -5902,24 +5750,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         return performers;
       default:
         return performers.sort((a, b) => {
-          // Handle undefined or null names
-          const aName = a.name || '';
-          const bName = b.name || '';
-          const aIsNum = isJustNumber(aName);
-          const bIsNum = isJustNumber(bName);
+          const aIsNum = isJustNumber(a.name);
+          const bIsNum = isJustNumber(b.name);
           if (aIsNum && !bIsNum) return 1;
           if (!aIsNum && bIsNum) return -1;
-          return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+          return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
         });
     }
   }
 
   get sortedTeamRoster() {
-    return [...this.teamRoster].sort((a, b) => {
-      const aName = a.name || '';
-      const bName = b.name || '';
-      return aName.localeCompare(bName);
-    });
+    return [...this.teamRoster].sort((a, b) => a.name.localeCompare(b.name));
   }
 
   // Add getter for available users
@@ -6182,7 +6023,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.formations.splice(this.draggingFormationIndex, 1);
       this.formationDurations.splice(this.draggingFormationIndex, 1);
       if (this.animationDurations.length > 0) {
-        this.animationDurations.splice(this.draggingFormationIndex, 1);
+        this.animationDurations.splice(this.draggingFormationIndex, 0, animationDuration);
       }
 
       // Insert at new position
@@ -7105,11 +6946,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.closeFormationContextMenu();
   }
 
-  onContextMenuDeleteDraft() {
-    this.closeFormationContextMenu();
-    this.deleteDraft(this.selectedFormationIndex, new Event('contextmenu'));
-  }
-
   splitFormation(formationIndex: number) {
     if (!this.isCaptain || formationIndex < 0 || formationIndex >= this.formations.length) return;
     
@@ -7169,17 +7005,376 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.createFormationDraft(this.currentFormationIndex);
   }
 
-  onControlBarDeleteDraft() {
-    this.deleteDraft(this.currentFormationIndex, new Event('controlbar'));
+  // Draft formation resizing methods
+  onDraftFormationResizeStart(event: MouseEvent, i: number) {
+    event.stopPropagation();
+    this.resizingFormationIndex = i;
+    this.resizingStartX = event.clientX;
+    this.resizingStartDuration = this.draftFormationDurations[i] || 5;
+    this.isResizingTimelineElement = true;
+    
+    document.addEventListener('mousemove', this.onDraftFormationResizeMove);
+    document.addEventListener('mouseup', this.onDraftFormationResizeEnd);
   }
 
-  onControlBarDraftModeToggle() {
-    this.isViewingDraft = !this.isViewingDraft;
-    console.log(`Draft mode toggled: ${this.isViewingDraft ? 'Draft' : 'Main'}`);
+  onDraftFormationResizeMove = (event: MouseEvent) => {
+    if (!this.isResizingTimelineElement || this.resizingFormationIndex === null) return;
+    
+    const deltaX = event.clientX - this.resizingStartX;
+    const deltaSeconds = deltaX / this.pixelsPerSecond;
+    const newDuration = Math.max(1, this.resizingStartDuration + deltaSeconds);
+    const oldDuration = this.draftFormationDurations[this.resizingFormationIndex] || this.resizingStartDuration;
+    const durationChange = newDuration - oldDuration;
+    this.draftFormationDurations[this.resizingFormationIndex] = newDuration;
+
+    // Shift the transition out that comes after this formation
+    const transitionOutIndex = this.resizingFormationIndex;
+    if (transitionOutIndex < this.animationDurations.length) {
+      // Calculate the shift amount based on the actual change in formation duration
+      const shiftAmount = durationChange * this.pixelsPerSecond * this.timelineZoom;
+      
+      // Get the current adjusted position or base position
+      const currentPosition = this.getAdjustedDraftTransitionLeftPosition(transitionOutIndex);
+      const newPosition = currentPosition + shiftAmount;
+      
+      // Store the new adjusted position
+      this.originalDraftPositions[`transition_${transitionOutIndex}`] = newPosition;
+    }
+
+    this.draftFormationDurations = [...this.draftFormationDurations];
+    this.draftAnimationDurations = [...this.draftAnimationDurations];
+    this.triggerAutoSave();
+  }
+
+  onDraftFormationResizeEnd = (event?: MouseEvent) => {
+    if (this.resizingFormationIndex !== null) {
+      this.resizingFormationIndex = null;
+      this.isResizingTimelineElement = false;
+      
+      document.removeEventListener('mousemove', this.onDraftFormationResizeMove);
+      document.removeEventListener('mouseup', this.onDraftFormationResizeEnd);
+      
+      this.triggerAutoSave();
+    }
+  }
+
+  // Draft transition resizing methods
+  onDraftTransitionResizeStart(event: MouseEvent, i: number) {
+    event.stopPropagation();
+    this.resizingTransitionIndex = i;
+    this.resizingTransitionStartX = event.clientX;
+    this.resizingTransitionStartDuration = this.draftAnimationDurations[i] || 2;
+    this.isResizingTimelineElement = true;
+    
+    document.addEventListener('mousemove', this.onDraftTransitionResizeMove);
+    document.addEventListener('mouseup', this.onDraftTransitionResizeEnd);
+  }
+
+  onDraftTransitionResizeMove = (event: MouseEvent) => {
+    if (!this.isResizingTimelineElement || this.resizingTransitionIndex === null) return;
+    
+    const deltaX = event.clientX - this.resizingTransitionStartX;
+    const deltaSeconds = deltaX / this.pixelsPerSecond;
+    let newDuration = Math.max(0.5, this.resizingTransitionStartDuration + deltaSeconds);
+    const oldDuration = this.draftAnimationDurations[this.resizingTransitionIndex] || this.resizingTransitionStartDuration;
+    const durationChange = newDuration - oldDuration;
+    this.draftAnimationDurations[this.resizingTransitionIndex] = newDuration;
+
+    // Only update the specific draft formation connected to this transition
+    const connectedFormationIndex = this.resizingTransitionIndex + 1;
+    if (this.hasDraft(connectedFormationIndex)) {
+      // Calculate the shift amount based on the actual change in transition duration
+      const shiftAmount = durationChange * this.pixelsPerSecond * this.timelineZoom;
+      
+      // Update the left position of the connected formation
+      const currentFormationPosition = this.getAdjustedDraftFormationLeftPosition(connectedFormationIndex);
+      const newFormationPosition = currentFormationPosition + shiftAmount;
+      this.originalDraftPositions[`formation_${connectedFormationIndex}`] = newFormationPosition;
+      
+      // Also update the transition out that comes after this formation
+      const transitionOutIndex = connectedFormationIndex;
+      if (transitionOutIndex < this.animationDurations.length) {
+        const currentTransitionPosition = this.getAdjustedDraftTransitionLeftPosition(transitionOutIndex);
+        const newTransitionPosition = currentTransitionPosition + shiftAmount;
+        this.originalDraftPositions[`transition_${transitionOutIndex}`] = newTransitionPosition;
+      }
+    }
+
+    this.draftAnimationDurations = [...this.draftAnimationDurations];
+    this.draftFormationDurations = [...this.draftFormationDurations];
+    this.triggerAutoSave();
+  };
+
+  // Track original positions of draft formations and transitions
+  private originalDraftPositions: { [key: string]: number } = {};
+
+  // Clear all draft position adjustments
+  private clearDraftPositionAdjustments(): void {
+    this.originalDraftPositions = {};
+    console.log('🧹 Cleared draft position adjustments');
+  }
+
+  // Update formation position when transition is resized (formation moves with transition)
+  private updateFormationPositionForTransitionResize(formationIndex: number, totalShiftAmount: number): void {
+    // Get the base position from main timeline
+    const basePosition = this.getDraftFormationLeftPosition(formationIndex);
+    
+    // Calculate new position based on base position plus total shift
+    const newPosition = basePosition + totalShiftAmount;
+    
+    // Store the adjusted position
+    this.originalDraftPositions[`formation_${formationIndex}`] = newPosition;
+  }
+
+  // Update transition position when transition is resized (transition moves with formation)
+  private updateTransitionPositionForTransitionResize(transitionIndex: number, totalShiftAmount: number): void {
+    // Get the base position from main timeline
+    const basePosition = this.getDraftTransitionLeftPosition(transitionIndex);
+    
+    // Calculate new position based on base position plus total shift
+    const newPosition = basePosition + totalShiftAmount;
+    
+    // Store the adjusted position
+    this.originalDraftPositions[`transition_${transitionIndex}`] = newPosition;
+  }
+
+  // Update transition position when formation is resized (only transition moves, formation stays)
+  private updateTransitionPositionForFormationResize(transitionIndex: number, totalShiftAmount: number): void {
+    // Get the stable base position from main timeline (this doesn't change during resize)
+    const basePosition = this.getDraftTransitionLeftPosition(transitionIndex);
+    
+    // Calculate new position based on stable base position plus total shift
+    const newPosition = basePosition + totalShiftAmount;
+    
+    // Store the adjusted position
+    this.originalDraftPositions[`transition_${transitionIndex}`] = newPosition;
+  }
+
+  // Get the adjusted left position for a draft formation (if it's been shifted)
+  getAdjustedDraftFormationLeftPosition(i: number): number {
+    // Only use adjusted positions when in draft row mode
+    if (this.isDraftRowActive) {
+      const adjustedPosition = this.originalDraftPositions[`formation_${i}`];
+      if (adjustedPosition !== undefined) {
+        return adjustedPosition;
+      }
+    }
+    return this.getDraftFormationLeftPosition(i);
+  }
+
+  // Get the adjusted left position for a draft transition (if it's been shifted)
+  getAdjustedDraftTransitionLeftPosition(i: number): number {
+    // Only use adjusted positions when in draft row mode
+    if (this.isDraftRowActive) {
+      const adjustedPosition = this.originalDraftPositions[`transition_${i}`];
+      if (adjustedPosition !== undefined) {
+        return adjustedPosition;
+      }
+    }
+    return this.getDraftTransitionLeftPosition(i);
+  }
+
+  onDraftTransitionResizeEnd = (event?: MouseEvent) => {
+    if (this.resizingTransitionIndex !== null) {
+      this.resizingTransitionIndex = null;
+      this.isResizingTimelineElement = false;
+      
+      document.removeEventListener('mousemove', this.onDraftTransitionResizeMove);
+      document.removeEventListener('mouseup', this.onDraftTransitionResizeEnd);
+      
+      this.triggerAutoSave();
+    }
+  }
+
+  // Draft pixel width methods
+  getDraftFormationPixelWidth(i: number): number {
+    if (!this.isDraftRowActive) {
+      // Always use main timeline data if not in draft mode
+      return (this.formationDurations[i] || 5) * this.pixelsPerSecond * this.timelineZoom;
+    }
+    // In draft mode, use draft data if present
+    const duration = this.hasDraft(i)
+      ? (this.draftFormationDurations[i] || this.formationDurations[i] || 5)
+      : (this.formationDurations[i] || 5);
+    return duration * this.pixelsPerSecond * this.timelineZoom;
+  }
+
+  getDraftTransitionPixelWidth(i: number): number {
+    // Always show draft transition size in UI if draft exists, regardless of draft mode
+    const hasDraftBefore = this.hasDraft(i);
+    const hasDraftAfter = this.hasDraft(i + 1);
+    const useDraft = hasDraftBefore || hasDraftAfter;
+    const duration = useDraft
+      ? (this.draftAnimationDurations[i] || this.animationDurations[i] || 2)
+      : (this.animationDurations[i] || 2);
+    return duration * this.pixelsPerSecond * this.timelineZoom;
+  }
+
+  // Calculate left position for absolutely positioned draft formation
+  getDraftFormationLeftPosition(i: number): number {
+    let leftPosition = 0;
+    for (let j = 0; j < i; j++) {
+      // Add formation duration (main timeline only - drafts don't affect other positions)
+      leftPosition += (this.formationDurations[j] || 5) * this.pixelsPerSecond * this.timelineZoom;
+      // Add transition duration (main timeline only - drafts don't affect other positions)
+      if (j < this.animationDurations.length) {
+        leftPosition += (this.animationDurations[j] || 2) * this.pixelsPerSecond * this.timelineZoom;
+      }
+    }
+    return leftPosition;
+  }
+
+  // Calculate left position for absolutely positioned draft transition
+  getDraftTransitionLeftPosition(i: number): number {
+    let leftPosition = 0;
+    for (let j = 0; j <= i; j++) {
+      // Add formation duration (main timeline only - drafts don't affect other positions)
+      leftPosition += (this.formationDurations[j] || 5) * this.pixelsPerSecond * this.timelineZoom;
+      // Add transition duration (main timeline only - drafts don't affect other positions) up to but not including current transition
+      if (j < i && j < this.animationDurations.length) {
+        leftPosition += (this.animationDurations[j] || 2) * this.pixelsPerSecond * this.timelineZoom;
+      }
+    }
+    return leftPosition;
+  }
+
+  // Helper methods for playback timing - use draft durations only if draft row is active
+  getFormationDurationForPlayback(i: number): number {
+    if (!this.isDraftRowActive) {
+      return this.formationDurations[i] || 5;
+    }
+    return this.hasDraft(i) 
+      ? (this.draftFormationDurations[i] || this.formationDurations[i] || 5)
+      : (this.formationDurations[i] || 5);
+  }
+
+  getTransitionDurationForPlayback(i: number): number {
+    if (!this.isDraftRowActive) {
+      return this.animationDurations[i] || 2;
+    }
+    
+    // When in draft mode, we need to handle the transition logic carefully
+    const hasDraftBefore = this.hasDraft(i);
+    const hasDraftAfter = this.hasDraft(i + 1);
+    
+    // If we have a draft before this transition, use draft transition duration
+    // If we have a draft after this transition, use draft transition duration
+    // If neither, use main transition duration (this is the key fix)
+    if (hasDraftBefore || hasDraftAfter) {
+      return this.draftAnimationDurations[i] || this.animationDurations[i] || 2;
+    } else {
+      // When transitioning from main to main in draft mode, use main transition duration
+      return this.animationDurations[i] || 2;
+    }
+  }
+
+  // Calculate the cumulative offset from all previous draft transition overlaps
+  private getCumulativeOffsetUpToFormation(i: number): number {
+    if (!this.isDraftRowActive) {
+      return 0;
+    }
+
+    let cumulativeOffset = 0;
+    
+    // Check all previous transitions for overlaps
+    for (let j = 0; j < i; j++) {
+      const draftTransitionDuration = this.draftAnimationDurations[j] || 0;
+      const mainTransitionDuration = this.animationDurations[j] || 0;
+      const overlapAmount = Math.max(0, draftTransitionDuration - mainTransitionDuration);
+      cumulativeOffset += overlapAmount;
+    }
+    
+    return cumulativeOffset;
+  }
+
+  // Calculate the adjusted start time for a formation accounting for draft overlaps
+  private getAdjustedFormationStartTime(i: number): number {
+    if (!this.isDraftRowActive) {
+      // In main mode, calculate normal start time
+      let startTime = 0;
+      for (let j = 0; j < i; j++) {
+        startTime += this.formationDurations[j] || 5;
+        if (j < this.animationDurations.length) {
+          startTime += this.animationDurations[j] || 2;
+        }
+      }
+      return startTime;
+    }
+
+    // In draft mode, calculate start time with cumulative offset
+    let startTime = 0;
+    for (let j = 0; j < i; j++) {
+      if (this.hasDraft(j)) {
+        startTime += this.draftFormationDurations[j] || this.formationDurations[j] || 5;
+      } else {
+        startTime += this.formationDurations[j] || 5;
+      }
+      if (j < this.animationDurations.length) {
+        if (this.hasDraft(j) || this.hasDraft(j + 1)) {
+          startTime += this.draftAnimationDurations[j] || this.animationDurations[j] || 2;
+        } else {
+          startTime += this.animationDurations[j] || 2;
+        }
+      }
+    }
+
+    // For main formations in draft mode, check if the previous transition overlaps
+    if (i > 0 && !this.hasDraft(i)) {
+      const previousTransitionIndex = i - 1;
+      if (previousTransitionIndex < this.animationDurations.length) {
+        const draftTransitionDuration = this.draftAnimationDurations[previousTransitionIndex] || 0;
+        const mainTransitionDuration = this.animationDurations[previousTransitionIndex] || 0;
+        const overlapAmount = Math.max(0, draftTransitionDuration - mainTransitionDuration);
+        
+        if (overlapAmount > 0) {
+          // The previous draft transition extends into this formation's time
+          // So this formation should start later by the overlap amount
+          startTime += overlapAmount;
+        }
+      }
+    }
+
+    return startTime;
+  }
+
+  // Calculate the adjusted formation duration accounting for draft transition overlaps
+  getAdjustedFormationDurationForPlayback(i: number): number {
+    if (!this.isDraftRowActive) {
+      return this.formationDurations[i] || 5;
+    }
+
+    // If this formation has a draft, use the draft duration
+    if (this.hasDraft(i)) {
+      return this.draftFormationDurations[i] || this.formationDurations[i] || 5;
+    }
+
+    // For main formations in draft mode, keep the original duration
+    // The timing adjustment will be handled in the playback loop
+    return this.formationDurations[i] || 5;
+  }
+
+  // Calculate the adjusted transition duration accounting for overlaps
+  getAdjustedTransitionDurationForPlayback(i: number): number {
+    if (!this.isDraftRowActive) {
+      return this.animationDurations[i] || 2;
+    }
+
+    const hasDraftBefore = this.hasDraft(i);
+    const hasDraftAfter = this.hasDraft(i + 1);
+    
+    if (hasDraftBefore || hasDraftAfter) {
+      return this.draftAnimationDurations[i] || this.animationDurations[i] || 2;
+    } else {
+      return this.animationDurations[i] || 2;
+    }
   }
 
   onControlBarMirrorModeToggle() {
     this.isMirrorModeEnabled = !this.isMirrorModeEnabled;
+  }
+
+  onControlBarDraftModeToggle() {
+    this.toggleRowPriority();
   }
 
   /**
@@ -7319,11 +7514,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private clearSegmentState() {
     // Clear formations and drafts
     this.formations = [];
-    this.formationDrafts = {};
-    this.draftFormationDurations = {};
-    this.draftAnimationDurations = {};
-    this.isDraftDataInMainPosition = {};
-    this.isViewingDraft = false;
+    this.draftFormations = [];
+    this.draftFormationDurations = [];
+    this.draftAnimationDurations = [];
+    this.isDraftRowActive = false;
+    this.hasDraftRow = false;
     
     // Clear selections
     this.selectedPerformerIds.clear();
@@ -7633,7 +7828,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Update formation position
     let t = 0;
     for (let i = 0; i < this.formations.length; i++) {
-      const hold = this.formationDurations[i] || 4;
+      const hold = this.getFormationDurationForPlayback(i);
       if (newTime < t + hold) {
         this.playingFormationIndex = i;
         this.inTransition = false;
@@ -7642,7 +7837,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }
       t += hold;
       if (i < this.animationDurations.length) {
-        const trans = this.animationDurations[i] || 1;
+        const trans = this.getTransitionDurationForPlayback(i);
         if (newTime < t + trans) {
           this.playingFormationIndex = i + 1;
           this.inTransition = true;
@@ -7745,10 +7940,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   handleFormationClick(index: number, isDraft: boolean = false) {
     // If no audio is connected, move playhead to the start of the formation
     if (!this.signedMusicUrl || !this.waveSurfer || !this.waveSurfer.getDuration || this.waveSurfer.getDuration() === 0) {
+      // Clear draft position adjustments when switching between draft and main formations
+      // This prevents offset issues when moving between draft and main formations
+      if (this.isDraftRowActive !== isDraft) {
+        this.clearDraftPositionAdjustments();
+      }
+      
       this.playbackTime = this.getFormationStartTimelineTime(index);
       this.currentFormationIndex = index;
       this.playingFormationIndex = index;
-      this.isViewingDraft = isDraft;
+      this.isDraftRowActive = isDraft;
       this.cdr.detectChanges();
       return;
     }

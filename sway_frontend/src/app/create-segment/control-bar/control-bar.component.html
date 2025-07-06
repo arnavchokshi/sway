@@ -33,14 +33,14 @@
       </button>
     </div>
 
-    <!-- Draft vs Main Mode Toggle -->
-    <div class="draft-mode-controls" *ngIf="isCaptain && hasAnyDrafts">
+    <!-- Draft Mode Toggle -->
+    <div class="draft-mode-controls" *ngIf="isCaptain && hasDraftRow">
       <button class="control-btn draft-mode-btn" 
               (click)="onDraftModeToggle()" 
-              title="Toggle Draft/Main Mode"
-              [class.active]="isViewingDraft">
-        <span class="material-icons">{{ isViewingDraft ? 'visibility_off' : 'visibility' }}</span>
-        <span class="draft-mode-label">{{ isViewingDraft ? 'Draft' : 'Main' }}</span>
+              title="Switch to Draft Mode"
+              [class.active]="isDraftRowActive">
+        <span class="material-icons">{{ isDraftRowActive ? 'edit_document' : 'description' }}</span>
+        <span class="draft-mode-label">{{ isDraftRowActive ? 'Draft' : 'Main' }}</span>
       </button>
     </div>
 

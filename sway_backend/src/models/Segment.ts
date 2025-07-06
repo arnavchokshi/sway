@@ -31,8 +31,10 @@ interface Segment extends Document {
   segmentSet?: mongoose.Types.ObjectId; // Reference to the Set this segment belongs to
   roster: mongoose.Types.ObjectId[];
   formations: Position[][];
-  // Add draft support - optional for backward compatibility (single draft per formation)
-  formationDrafts?: { [formationIndex: number]: FormationDraft };
+  // New draft system - separate draft formations and transitions
+  draftFormations?: Position[][];
+  draftFormationDurations?: number[];
+  draftAnimationDurations?: number[];
   dummyTemplates: DummyTemplate[]; // Store dummy templates within segment
   depth: number;
   width: number;
@@ -78,7 +80,9 @@ const SegmentSchema = new Schema<Segment>({
   segmentSet: { type: Schema.Types.ObjectId, ref: 'Set', required: false },
   roster: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   formations: [[PositionSchema]],
-  formationDrafts: { type: Map, of: FormationDraftSchema, required: false },
+  draftFormations: [[PositionSchema]],
+  draftFormationDurations: [{ type: Number, default: 4 }],
+  draftAnimationDurations: [{ type: Number, default: 1 }],
   dummyTemplates: [DummyTemplateSchema], // Add dummy templates array
   depth: { type: Number, default: 24 },
   width: { type: Number, default: 32 },

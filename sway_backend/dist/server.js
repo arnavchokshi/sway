@@ -133,9 +133,9 @@ app.post('/api/teams', (req, res) => __awaiter(void 0, void 0, void 0, function*
             if (!existing)
                 isUnique = true;
         }
-        // Set 4 months of Pro and generate referral code
-        const fourMonthsFromNow = new Date();
-        fourMonthsFromNow.setMonth(fourMonthsFromNow.getMonth() + 4);
+        // Set 3 months of Pro and generate referral code
+        const threeMonthsFromNow = new Date();
+        threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
         const referralCode = yield Promise.resolve().then(() => __importStar(require('./services/membership.service'))).then(m => m.MembershipService.generateUniqueReferralCode());
         const team = new Team_1.Team({
             name,
@@ -144,7 +144,7 @@ app.post('/api/teams', (req, res) => __awaiter(void 0, void 0, void 0, function*
             members: [owner],
             joinCode,
             membershipType: 'pro',
-            membershipExpiresAt: fourMonthsFromNow,
+            membershipExpiresAt: threeMonthsFromNow,
             referralCode: yield referralCode
         });
         yield team.save();

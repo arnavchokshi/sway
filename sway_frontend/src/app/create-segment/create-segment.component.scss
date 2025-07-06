@@ -762,6 +762,7 @@ body {
   margin-bottom: 0.2rem;
   letter-spacing: 0.04em;
   text-align: center;
+  transition: color 0.5s ease;
 }
 
 .stage-label {
@@ -798,6 +799,16 @@ body {
     height: auto;
   }
 
+  &.has-drafts {
+    min-height: 120px; /* Increased to accommodate draft row */
+    height: auto;
+  }
+
+  &.has-drafts-and-audio {
+    min-height: 150px; /* Even larger when both drafts and audio are present */
+    height: auto;
+  }
+
   .timeline-audio-stack {
     width: 100%;
     display: flex;
@@ -815,6 +826,16 @@ body {
       gap: 0.2rem; /* Reduced gap when no audio */
       height: 100%; /* Half height when no audio */
       max-height: 60px; /* Maximum height constraint when no audio */
+    }
+
+    &.has-drafts {
+      min-height: 220px; /* Increased to accommodate draft row */
+      height: auto;
+    }
+
+    &.has-drafts-and-audio {
+      min-height: 250px; /* Even larger when both drafts and audio are present */
+      height: auto;
     }
   }
 
@@ -839,7 +860,7 @@ body {
     padding: 0.15rem 0.15rem 0.15rem 0.15rem; /* Reduced from 0.2rem */
     box-shadow: 0 2px 8px rgba(59,130,246,0.08);
     min-height: 90px; /* Reduced from 120px */
-    max-height: 110px; /* Reduced from 140px */
+    max-height: 170px; /* Reduced from 140px */
   }
 
   .formation-timeline-row {
@@ -1447,6 +1468,7 @@ body {
   z-index: 1;
   opacity: 0.95;
   box-shadow: 0 0 8px 0 rgba(59,130,246,0.10);
+  transition: background 0.5s ease, box-shadow 0.5s ease;
 }
 
 .main-vertical {
@@ -1469,6 +1491,7 @@ body {
   opacity: 0.13;
   z-index: 1;
   box-shadow: 0 0 4px 0 rgba(59,130,246,0.08);
+  transition: background 0.5s ease, opacity 0.5s ease, box-shadow 0.5s ease;
 }
 
 .sub-vertical {
@@ -1483,6 +1506,28 @@ body {
   right: 0;
   height: 2px;
   border-radius: 1px;
+}
+
+// Draft mode grid lines - purple color scheme
+.main-vertical.draft-mode,
+.main-horizontal.draft-mode {
+  background: #bd76ffe0;
+  box-shadow: 0 0 8px 0 rgba(139, 92, 246, 0.15);
+  transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+
+.sub-vertical.draft-mode,
+.sub-horizontal.draft-mode {
+  background: #8b5cf6;
+  opacity: 0.2;
+  box-shadow: 0 0 4px 0 rgba(139, 92, 246, 0.12);
+  transition: background 0.5s ease, opacity 0.5s ease, box-shadow 0.5s ease;
+}
+
+.grid-number.draft-mode {
+  color: #a855f7;
+  text-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+  transition: color 0.5s ease, text-shadow 0.5s ease;
 }
 .mirror-line {
   position: absolute;
@@ -1709,6 +1754,7 @@ body {
   border-radius: 4px;
   backdrop-filter: blur(0px);
   transform: translate(-60%, -80%);
+  transition: color 0.5s ease, text-shadow 0.5s ease;
 }
 
 .vertical-number {
@@ -1808,78 +1854,40 @@ body {
   height: 50px;
   overflow-y: visible !important;
   overflow-x: auto;
-  transition: height 0.3s ease;
+  transition: all 0.3s ease;
+  cursor: pointer;
 
   &.draft-row {
-    height: 50px;
-    margin-bottom: 4px;
-    background: rgba(139, 92, 246, 0.05);
+    background: rgba(139, 92, 246, 0.1);
+    border: 2px solid rgba(139, 92, 246, 0.3);
     border-radius: 8px;
-    border: 1px solid rgba(139, 92, 246, 0.1);
+    margin-bottom: 8px;
     
-    .formation-timeline-box {
-      &.draft-formation {
-        background: rgba(139, 92, 246, 0.3);
-        border: 2px solid rgba(139, 92, 246, 0.8);
-        height: 45px;
-        margin-bottom: 0;
-        
-        &:hover {
-          background: rgba(139, 92, 246, 0.4);
-        }
-        
-        &.active {
-          background: rgba(139, 92, 246, 0.5);
-          border-color: rgba(139, 92, 246, 0.9);
-        }
-        
-        .formation-label {
-          color: #a855f7;
-          font-size: 0.8rem;
-          font-weight: 700;
-        }
-        
-        .formation-duration {
-          font-size: 0.7rem;
-          color: #a855f7;
-        }
-      }
-      
-      &.empty-draft-space {
-        background: transparent;
-        border: 1px dashed rgba(139, 92, 246, 0.2);
-        opacity: 0.5;
-        height: 45px;
-        margin-bottom: 0;
-      }
-    }
-    
-    .timeline-transition-bar {
-      &.draft-transition {
-        background: rgba(139, 92, 246, 0.3);
-        border: 1px solid rgba(139, 92, 246, 0.5);
-        
-        .transition-label {
-          color: #a855f7;
-        }
-      }
-      
-      &.empty-transition-space {
-        background: transparent;
-        border: 1px dashed rgba(139, 92, 246, 0.2);
-        opacity: 0.5;
-      }
+    &.active {
+      background: rgba(139, 92, 246, 0.2);
+      border-color: rgba(139, 92, 246, 0.6);
     }
   }
 
-  &.main-formations-row {
-    height: 50px;
+  &.main-row {
+    background: rgba(59, 130, 246, 0.1);
+    border: 2px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    
+    &.active {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: rgba(59, 130, 246, 0.6);
+    }
   }
 
-  &.has-drafts {
-    height: 220px !important; // Double the height: 110px * 2 = 220px
-    align-items: flex-end; // Align formations to bottom so main formations stay in same position
-    background: rgba(139, 92, 246, 0.05); // Debug background color to see if class is applied
+  .row-label {
+    position: absolute;
+    top: -25px;
+    left: 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    z-index: 10;
   }
 }
 
@@ -1963,33 +1971,33 @@ body {
   }
 
   &.draft-formation {
-    background: rgba(139, 92, 246, 0.3) !important; // More visible for debugging
-    border: 2px solid rgba(139, 92, 246, 0.8) !important; // More visible border
+    background: rgba(139, 92, 246, 0.3);
+    border: 2px solid rgba(139, 92, 246, 0.8);
     margin-bottom: 4px;
     height: 45px;
     padding: 4px 6px;
     z-index: 2;
-    display: flex !important; // Force display
-    flex-direction: column !important;
+    display: flex;
+    flex-direction: column;
     
     &:hover {
-      background: rgba(139, 92, 246, 0.4) !important;
+      background: rgba(139, 92, 246, 0.4);
     }
     
     &.active {
-      background: rgba(139, 92, 246, 0.5) !important;
-      border-color: rgba(139, 92, 246, 0.9) !important;
+      background: rgba(139, 92, 246, 0.5);
+      border-color: rgba(139, 92, 246, 0.9);
     }
     
     .formation-label {
-      color: #a855f7 !important;
+      color: #a855f7;
       font-size: 0.8rem;
-      font-weight: 700 !important; // More visible
+      font-weight: 700;
     }
     
     .formation-duration {
       font-size: 0.7rem;
-      color: #a855f7 !important; // More visible
+      color: #a855f7;
     }
   }
 
@@ -2056,6 +2064,14 @@ body {
     
     &:hover {
       background: rgba(239, 68, 68, 0.2);
+    }
+  }
+
+  &.add-connected-draft {
+    color: #22c55e;
+    
+    &:hover {
+      background: rgba(34, 197, 94, 0.2);
     }
   }
 
@@ -2184,6 +2200,18 @@ body {
   flex-shrink: 0;
 }
 
+.draft-formation-absolute {
+  position: absolute !important;
+  top: 0;
+  z-index: 10;
+}
+
+.draft-transition-absolute {
+  position: absolute !important;
+  top: 0;
+  z-index: 10;
+}
+
 .timeline-transition-bar {
   background: linear-gradient(90deg,  rgba(59, 130, 246, 0.2) 15%,rgba(255, 215, 0, 0.2)100%);
   opacity: 0.8;
@@ -2211,7 +2239,7 @@ body {
   }
   
   &.draft-transition {
-    background: linear-gradient(90deg, rgba(139, 92, 246, 0.3) 15%, rgba(168, 85, 247, 0.2) 100%);
+    background: linear-gradient(90deg, transparent 15%, rgba(139, 92, 246, 0.3) 100%);
     border: 1px solid rgba(139, 92, 246, 0.4);
     height: 45px;
     margin-bottom: 4px;
@@ -2219,28 +2247,6 @@ body {
     
     .transition-label {
       color: #a855f7;
-    }
-    
-    &.editable {
-      background: linear-gradient(90deg, rgba(139, 92, 246, 0.4) 15%, rgba(168, 85, 247, 0.3) 100%);
-      border: 1px solid rgba(139, 92, 246, 0.6);
-      cursor: pointer;
-      
-      &:hover {
-        background: linear-gradient(90deg, rgba(139, 92, 246, 0.5) 15%, rgba(168, 85, 247, 0.4) 100%);
-        border-color: rgba(139, 92, 246, 0.8);
-      }
-    }
-    
-    &.non-editable {
-      background: linear-gradient(90deg, rgba(139, 92, 246, 0.15) 15%, rgba(168, 85, 247, 0.1) 100%);
-      border: 1px dashed rgba(139, 92, 246, 0.3);
-      opacity: 0.6;
-      cursor: default;
-      
-      .transition-label {
-        color: rgba(168, 85, 247, 0.6);
-      }
     }
   }
 }
