@@ -35,6 +35,9 @@ interface Segment extends Document {
   draftFormations?: Position[][];
   draftFormationDurations?: number[];
   draftAnimationDurations?: number[];
+  // Explicit start-times (in seconds) for draft formations and transitions
+  draftFormationStartTimes?: number[];
+  draftAnimationStartTimes?: number[];
   dummyTemplates: DummyTemplate[]; // Store dummy templates within segment
   depth: number;
   width: number;
@@ -83,6 +86,9 @@ const SegmentSchema = new Schema<Segment>({
   draftFormations: [[PositionSchema]],
   draftFormationDurations: [{ type: Number, default: 4 }],
   draftAnimationDurations: [{ type: Number, default: 1 }],
+  // Explicit start-times (in seconds) for draft formations and transitions
+  draftFormationStartTimes: [{ type: Number, default: 0 }],
+  draftAnimationStartTimes: [{ type: Number, default: 0 }],
   dummyTemplates: [DummyTemplateSchema], // Add dummy templates array
   depth: { type: Number, default: 24 },
   width: { type: Number, default: 32 },
