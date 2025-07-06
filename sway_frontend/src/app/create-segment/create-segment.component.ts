@@ -117,6 +117,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   draftFormations: Performer[][] = [];
   draftFormationDurations: number[] = [];
   draftAnimationDurations: number[] = [];
+  // Explicit start times (seconds) for each draft formation / transition
+  draftFormationStartTimes: number[] = [];
+  draftAnimationStartTimes: number[] = [];
+  
+  // Main formation start times for draft mode
+  mainFormationStartTimes: number[] = [];
+  mainAnimationStartTimes: number[] = [];
   
   // Row priority system - which row takes precedence for display
   isDraftRowActive: boolean = false;
@@ -483,18 +490,27 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   get performers(): Performer[] {
-    // During playback or animation, ALWAYS use main formations (never drafts)
+    // During playback or animation, use the appropriate formations based on mode
     if (this.isPlaying || this.inTransition) {
-      const mainPerformers = this.formations[this.playingFormationIndex] || [];
+      // Determine which formations to use based on current mode
+      let performers: Performer[] = [];
+      
+      if (this.isDraftRowActive && this.hasDraft(this.playingFormationIndex)) {
+        // Use draft formations when in draft mode and the formation has a draft
+        performers = this.draftFormations[this.playingFormationIndex] || [];
+      } else {
+        // Use main formations otherwise
+        performers = this.formations[this.playingFormationIndex] || [];
+      }
       
       if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
         // Return animated positions during transition
-        return mainPerformers.map(p => ({
+        return performers.map(p => ({
           ...p,
           ...this.animatedPositions[p.id]
         }));
       }
-      return mainPerformers;
+      return performers;
     }
     
     // When not playing, get performers from current view (main or draft)
@@ -760,7 +776,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                   const user = this.teamRoster.find(m => String(m._id) === String(performerId)) || 
                               this.segmentRoster.find(m => String(m._id) === String(performerId));
 
-                  if (user && user.skillLevels) {
+                  if (user) {
                     const skillLevel = user?.skillLevels?.[this.selectedStyle?.name?.toLowerCase() || ''] || p.skillLevel || 1;
                     const mappedPerformer = {
                       id: performerId,
@@ -768,20 +784,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
                       x: p.x,
                       y: p.y,
                       skillLevels: { ...(user?.skillLevels || {}) },
-                      height: user.height, // Use user height if available
+                      height: user.height || p.height || 66, // Use user height if available, fallback to original
                       isDummy: !!user.isDummy,
                       customColor: p.customColor // Include custom color if present
                     };
 
                     return mappedPerformer;
                   } else {
-                    // Fallback if user not found in roster
+                    // Fallback if user not found in roster - preserve original data
                     return {
                       id: performerId,
-                      name: 'Unknown',
+                      name: p.name || 'Unknown',
                       x: p.x,
                       y: p.y,
-                      skillLevels: {},
+                      skillLevels: p.skillLevels || {},
                       height: p.height || 66, // Default height
                       isDummy: false,
                       customColor: p.customColor // Include custom color if present
@@ -811,10 +827,128 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
           // Load draft formations if they exist
           if (this.segment.draftFormations) {
-            this.draftFormations = this.segment.draftFormations;
+            // Store the raw draft formations for later mapping
+            const rawDraftFormations = this.segment.draftFormations;
             this.draftFormationDurations = this.segment.draftFormationDurations || [];
             this.draftAnimationDurations = this.segment.draftAnimationDurations || [];
-            this.hasDraftRow = this.draftFormations.length > 0;
+            this.hasDraftRow = rawDraftFormations.length > 0;
+            
+            // Map draft formations with the same user data mapping as main formations
+            this.draftFormations = rawDraftFormations.map((formation: any[]) => 
+              formation.map((p: any) => {
+                // Check if this is a dummy performer by looking for dummyTemplateId
+                if (p.dummyTemplateId) {
+                  const dummyTemplate = dummyTemplateMap.get(p.dummyTemplateId);
+                  if (dummyTemplate) {
+                    return {
+                      id: dummyTemplate.id,
+                      name: dummyTemplate.name,
+                      x: p.x,
+                      y: p.y,
+                      skillLevels: dummyTemplate.skillLevels || {},
+                      height: dummyTemplate.height || 5.5,
+                      isDummy: true,
+                      dummyName: dummyTemplate.name,
+                      customColor: p.customColor || dummyTemplate.customColor
+                    };
+                  } else {
+                    // Fallback if template not found
+                    return {
+                      id: p.dummyTemplateId,
+                      name: `${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
+                      x: p.x,
+                      y: p.y,
+                      skillLevels: {},
+                      height: p.height || 5.5,
+                      isDummy: true,
+                      dummyName: `${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
+                      customColor: p.customColor
+                    };
+                  }
+                } else if (p.user) {
+                  // Handle real performers
+                  const performerId = p.user;
+                  const user = this.teamRoster.find(m => String(m._id) === String(performerId)) || 
+                              this.segmentRoster.find(m => String(m._id) === String(performerId));
+
+                  if (user) {
+                    const skillLevel = user?.skillLevels?.[this.selectedStyle?.name?.toLowerCase() || ''] || p.skillLevel || 1;
+                    const mappedPerformer = {
+                      id: performerId,
+                      name: user.name,
+                      x: p.x,
+                      y: p.y,
+                      skillLevels: { ...(user?.skillLevels || {}) },
+                      height: user.height || p.height || 66, // Use user height if available, fallback to original
+                      isDummy: !!user.isDummy,
+                      customColor: p.customColor // Include custom color if present
+                    };
+
+                    return mappedPerformer;
+                  } else {
+                    // Fallback if user not found in roster - preserve original data
+                    return {
+                      id: performerId,
+                      name: p.name || 'Unknown',
+                      x: p.x,
+                      y: p.y,
+                      skillLevels: p.skillLevels || {},
+                      height: p.height || 66, // Default height
+                      isDummy: false,
+                      customColor: p.customColor // Include custom color if present
+                    };
+                  }
+                } else if (p._id) {
+                  // Handle draft formations that only have position data (no user field)
+                  // For draft formations, we need to assign them to users from the roster
+                  const availableUsers = this.segmentRoster.length > 0 ? this.segmentRoster : this.teamRoster;
+                  const userIndex = parseInt(p._id.toString().slice(-1)) % availableUsers.length;
+                  const user = availableUsers[userIndex];
+                  
+                  if (user) {
+                    return {
+                      id: user._id,
+                      name: user.name,
+                      x: p.x,
+                      y: p.y,
+                      skillLevels: { ...(user?.skillLevels || {}) },
+                      height: user.height || 66,
+                      isDummy: !!user.isDummy,
+                      customColor: p.customColor
+                    };
+                  } else {
+                    // Fallback if no users available
+                    return {
+                      id: p._id,
+                      name: 'Unknown',
+                      x: p.x,
+                      y: p.y,
+                      skillLevels: {},
+                      height: 66,
+                      isDummy: false,
+                      customColor: p.customColor
+                    };
+                  }
+                } else {
+                  // Fallback for any other case (shouldn't happen with proper data)
+                  return {
+                    id: p.id || `unknown-${Date.now()}`,
+                    name: p.name || 'Unknown',
+                    x: p.x,
+                    y: p.y,
+                    skillLevels: p.skillLevels || {},
+                    height: p.height || 66,
+                    isDummy: false,
+                    customColor: p.customColor
+                  };
+                }
+              })
+            );
+            
+            // Recalculate draft start times if they're missing or incomplete
+            if (this.hasDraftRow && (this.draftFormationStartTimes.length === 0 || this.draftAnimationStartTimes.length === 0)) {
+              this.recalculateDraftStartTimes();
+            }
           } else {
             this.draftFormations = [];
             this.draftFormationDurations = [];
@@ -834,11 +968,138 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         
         // Clear caches AFTER segment data is properly mapped
         this.clearAllCaches();
+        
+        // Remap draft formations with fresh user data if needed
+        this.remapDraftFormationsWithUserData();
       },
       error: (err) => {
         console.error('Failed to load team roster:', err);
       }
     });
+  }
+
+  // Method to remap draft formations with fresh user data
+  private remapDraftFormationsWithUserData() {
+    if (!this.hasDraftRow || !this.segment?.draftFormations) return;
+    
+    // Create dummy template map
+    const dummyTemplates = this.segment?.dummyTemplates || [];
+    const dummyTemplateMap = new Map<string, any>();
+    dummyTemplates.forEach((template: any) => {
+      dummyTemplateMap.set(template.id, template);
+    });
+    
+    // Remap draft formations with fresh user data
+    this.draftFormations = this.segment.draftFormations.map((formation: any[]) => 
+      formation.map((p: any) => {
+        // Check if this is a dummy performer by looking for dummyTemplateId
+        if (p.dummyTemplateId) {
+          const dummyTemplate = dummyTemplateMap.get(p.dummyTemplateId);
+          if (dummyTemplate) {
+            return {
+              id: dummyTemplate.id,
+              name: dummyTemplate.name,
+              x: p.x,
+              y: p.y,
+              skillLevels: dummyTemplate.skillLevels || {},
+              height: dummyTemplate.height || 5.5,
+              isDummy: true,
+              dummyName: dummyTemplate.name,
+              customColor: p.customColor || dummyTemplate.customColor
+            };
+          } else {
+            // Fallback if template not found
+            return {
+              id: p.dummyTemplateId,
+              name: `${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
+              x: p.x,
+              y: p.y,
+              skillLevels: {},
+              height: p.height || 5.5,
+              isDummy: true,
+              dummyName: `${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
+              customColor: p.customColor
+            };
+          }
+        } else if (p.user) {
+          // Handle real performers
+          const performerId = p.user;
+          const user = this.teamRoster.find(m => String(m._id) === String(performerId)) || 
+                      this.segmentRoster.find(m => String(m._id) === String(performerId));
+
+          if (user) {
+            const skillLevel = user?.skillLevels?.[this.selectedStyle?.name?.toLowerCase() || ''] || p.skillLevel || 1;
+            const mappedPerformer = {
+              id: performerId,
+              name: user.name,
+              x: p.x,
+              y: p.y,
+              skillLevels: { ...(user?.skillLevels || {}) },
+              height: user.height || p.height || 66, // Use user height if available, fallback to original
+              isDummy: !!user.isDummy,
+              customColor: p.customColor // Include custom color if present
+            };
+
+            return mappedPerformer;
+          } else {
+            // Fallback if user not found in roster - preserve original data
+            return {
+              id: performerId,
+              name: p.name || 'Unknown',
+              x: p.x,
+              y: p.y,
+              skillLevels: p.skillLevels || {},
+              height: p.height || 66, // Default height
+              isDummy: false,
+              customColor: p.customColor // Include custom color if present
+            };
+          }
+        } else if (p._id) {
+          // Handle draft formations that only have position data (no user field)
+          // For draft formations, we need to assign them to users from the roster
+          const availableUsers = this.segmentRoster.length > 0 ? this.segmentRoster : this.teamRoster;
+          const userIndex = parseInt(p._id.toString().slice(-1)) % availableUsers.length;
+          const user = availableUsers[userIndex];
+          
+          if (user) {
+            return {
+              id: user._id,
+              name: user.name,
+              x: p.x,
+              y: p.y,
+              skillLevels: { ...(user?.skillLevels || {}) },
+              height: user.height || 66,
+              isDummy: !!user.isDummy,
+              customColor: p.customColor
+            };
+          } else {
+            // Fallback if no users available
+            return {
+              id: p._id,
+              name: 'Unknown',
+              x: p.x,
+              y: p.y,
+              skillLevels: {},
+              height: 66,
+              isDummy: false,
+              customColor: p.customColor
+            };
+          }
+        } else {
+          // Fallback for any other case (shouldn't happen with proper data)
+          return {
+            id: p.id || `unknown-${Date.now()}`,
+            name: p.name || 'Unknown',
+            x: p.x,
+            y: p.y,
+            skillLevels: p.skillLevels || {},
+            height: p.height || 66,
+            isDummy: false,
+            customColor: p.customColor
+          };
+        }
+      })
+    );
   }
 
   // New method to refresh team roster data
@@ -876,6 +1137,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
               this.segment.roster.includes(member._id)
             );
           }
+          
+          // Also remap draft formations with fresh user data
+          this.remapDraftFormationsWithUserData();
           
           // Clear caches after updating formations
           this.clearAllCaches();
@@ -1155,6 +1419,48 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.subHorizontals = this.subHorizontals.sort((a, b) => a - b);
     // Calculate the grid height in px
     this.stageGridHeightPx = this.mainHorizontals[this.mainHorizontals.length - 1] - this.mainHorizontals[0];
+  }
+
+  // Helper method to recalculate draft start times from current durations
+  private recalculateDraftStartTimes(): void {
+    if (!this.hasDraftRow) return;
+    
+    const newFormationStartTimes: number[] = [];
+    const newAnimationStartTimes: number[] = [];
+    
+    let currentTime = 0;
+    
+    // Calculate start times for all formations and transitions
+    for (let i = 0; i < this.formations.length; i++) {
+      // Formation start time
+      newFormationStartTimes[i] = currentTime;
+      
+      // Add formation duration
+      const formationDuration = this.hasDraft(i) 
+        ? (this.draftFormationDurations[i] || this.formationDurations[i] || 5)
+        : (this.formationDurations[i] || 5);
+      currentTime += formationDuration;
+      
+      // Transition start time (if not the last formation)
+      if (i < this.animationDurations.length) {
+        newAnimationStartTimes[i] = currentTime;
+        
+        // Add transition duration
+        const transitionDuration = this.hasDraft(i) || this.hasDraft(i + 1)
+          ? (this.draftAnimationDurations[i] || this.animationDurations[i] || 2)
+          : (this.animationDurations[i] || 2);
+        currentTime += transitionDuration;
+      }
+    }
+    
+    // Update the arrays with new references to trigger change detection
+    this.draftFormationStartTimes = [...newFormationStartTimes];
+    this.draftAnimationStartTimes = [...newAnimationStartTimes];
+    
+    console.log('🔄 Recalculated draft start times:', {
+      formationStartTimes: this.draftFormationStartTimes,
+      animationStartTimes: this.draftAnimationStartTimes
+    });
   }
 
   // Helper to go to a specific formation index and update all relevant state
@@ -2560,16 +2866,57 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             }))
           );
           
-          const updateData = {
-            formations: transformedFormations,
-            formationDurations: this.formationDurations,
-            animationDurations: this.animationDurations,
-            draftFormations: this.draftFormations,
-            draftFormationDurations: this.draftFormationDurations,
-            draftAnimationDurations: this.draftAnimationDurations,
-            roster: this.segmentRoster.map(user => user._id),
-            dummyTemplates: dummyTemplates
-          };
+              // Recalculate draft start times before saving
+    this.recalculateDraftStartTimes();
+    
+    // Transform draft formations to include user data
+    const transformedDraftFormations = this.draftFormations.map(formation => 
+      formation.map(performer => ({
+        x: performer.x,
+        y: performer.y,
+        user: performer.isDummy ? undefined : performer.id,
+        dummyTemplateId: performer.isDummy ? performer.id : undefined,
+        customColor: performer.customColor
+      }))
+    );
+    
+    // Calculate main formation timing when in draft mode
+    const mainFormationStartTimes: number[] = [];
+    const mainAnimationStartTimes: number[] = [];
+    
+    if (this.hasDraftRow) {
+      let currentTime = 0;
+      for (let i = 0; i < this.formations.length; i++) {
+        // Formation start time
+        mainFormationStartTimes[i] = currentTime;
+        
+        // Add formation duration
+        const formationDuration = this.formationDurations[i] || 5;
+        currentTime += formationDuration;
+        
+        // Add transition duration (if not the last formation)
+        if (i < this.animationDurations.length) {
+          mainAnimationStartTimes[i] = currentTime;
+          const transitionDuration = this.animationDurations[i] || 2;
+          currentTime += transitionDuration;
+        }
+      }
+    }
+    
+    const updateData = {
+      formations: transformedFormations,
+      formationDurations: this.formationDurations,
+      animationDurations: this.animationDurations,
+      draftFormations: transformedDraftFormations,
+      draftFormationDurations: this.draftFormationDurations,
+      draftAnimationDurations: this.draftAnimationDurations,
+      draftFormationStartTimes: this.draftFormationStartTimes,
+      draftAnimationStartTimes: this.draftAnimationStartTimes,
+      mainFormationStartTimes: mainFormationStartTimes,
+      mainAnimationStartTimes: mainAnimationStartTimes,
+      roster: this.segmentRoster.map(user => user._id),
+      dummyTemplates: dummyTemplates
+    };
           
           this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
             next: () => {
@@ -2627,6 +2974,43 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }))
     );
     
+    // Recalculate draft start times before saving
+    this.recalculateDraftStartTimes();
+    
+    // Transform draft formations to include user data
+    const transformedDraftFormations = this.draftFormations.map(formation => 
+      formation.map(performer => ({
+        x: performer.x,
+        y: performer.y,
+        user: performer.isDummy ? undefined : performer.id,
+        dummyTemplateId: performer.isDummy ? performer.id : undefined,
+        customColor: performer.customColor
+      }))
+    );
+    
+    // Calculate main formation timing when in draft mode
+    const mainFormationStartTimes: number[] = [];
+    const mainAnimationStartTimes: number[] = [];
+    
+    if (this.hasDraftRow) {
+      let currentTime = 0;
+      for (let i = 0; i < this.formations.length; i++) {
+        // Formation start time
+        mainFormationStartTimes[i] = currentTime;
+        
+        // Add formation duration
+        const formationDuration = this.formationDurations[i] || 5;
+        currentTime += formationDuration;
+        
+        // Add transition duration (if not the last formation)
+        if (i < this.animationDurations.length) {
+          mainAnimationStartTimes[i] = currentTime;
+          const transitionDuration = this.animationDurations[i] || 2;
+          currentTime += transitionDuration;
+        }
+      }
+    }
+    
     const updateData = {
       name: this.segmentName,
       width: this.width,
@@ -2635,9 +3019,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       formations: transformedFormations,
       formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
-                  draftFormations: this.draftFormations,
-            draftFormationDurations: this.draftFormationDurations,
-            draftAnimationDurations: this.draftAnimationDurations,
+      draftFormations: transformedDraftFormations,
+      draftFormationDurations: this.draftFormationDurations,
+      draftAnimationDurations: this.draftAnimationDurations,
+      draftFormationStartTimes: this.draftFormationStartTimes,
+      draftAnimationStartTimes: this.draftAnimationStartTimes,
+      mainFormationStartTimes: mainFormationStartTimes,
+      mainAnimationStartTimes: mainAnimationStartTimes,
       stylesInSegment: this.segment.stylesInSegment || [],
       roster: this.segmentRoster.map(user => user._id),
       dummyTemplates: dummyTemplates
@@ -3257,55 +3645,120 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.autoScrollToPlayhead();
       
       let found = false;
-      let t = 0;
-      let cumulativeOffset = 0; // NOTE: no longer used in calculations, retained for potential future use
       
-      for (let i = 0; i < this.formations.length; i++) {
-        // Calculate formation timing
-        let formationDuration: number;
-        if (this.isDraftRowActive && this.hasDraft(i)) {
-          formationDuration = this.draftFormationDurations[i] || this.formationDurations[i] || 5;
-        } else {
-          formationDuration = this.formationDurations[i] || 5;
-        }
-        
-        // Check if we're in this formation
-        if (currentTime < t + formationDuration) {
-          this.playingFormationIndex = i;
-          this.inTransition = false;
-          this.animatedPositions = {};
-          found = true;
-          break;
-        }
-        
-        t += formationDuration;
-        
-        // Calculate transition timing
-        if (i < this.animationDurations.length) {
-          let transitionDuration: number;
-          let draftTransitionDuration = 0;
-          let mainTransitionDuration = this.animationDurations[i] || 2;
-          if (this.isDraftRowActive && (this.hasDraft(i) || this.hasDraft(i + 1))) {
-            draftTransitionDuration = this.draftAnimationDurations[i] || mainTransitionDuration;
-            transitionDuration = draftTransitionDuration;
-          } else {
-            transitionDuration = mainTransitionDuration;
-          }
+      // Use explicit start times if available in draft mode
+      if (this.isDraftRowActive && this.draftFormationStartTimes.length > 0 && this.draftAnimationStartTimes.length > 0) {
+        // DRAFT MODE: Use explicit start times for accurate timing
+        for (let i = 0; i < this.formations.length; i++) {
+          // Get formation start time
+          const formationStartTime = this.draftFormationStartTimes[i] || 0;
+          const formationDuration = this.hasDraft(i) 
+            ? (this.draftFormationDurations[i] || this.formationDurations[i] || 5)
+            : (this.formationDurations[i] || 5);
+          const formationEndTime = formationStartTime + formationDuration;
           
-          // Check if we're in this transition
-          if (currentTime < t + transitionDuration) {
-            this.playingFormationIndex = i + 1;
-            this.inTransition = true;
-            const progress = (currentTime - t) / transitionDuration;
-            this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+          // Check if we're in this formation
+          if (currentTime >= formationStartTime && currentTime < formationEndTime) {
+            this.playingFormationIndex = i;
+            this.inTransition = false;
+            this.animatedPositions = {};
             found = true;
             break;
           }
           
-          // No cumulative offset needed — timeline already advanced by the longer draft transition
-          t += transitionDuration;
+          // Check transition after this formation
+          if (i < this.animationDurations.length) {
+            const transitionStartTime = this.draftAnimationStartTimes[i] || 0;
+            const transitionDuration = (this.hasDraft(i) || this.hasDraft(i + 1))
+              ? (this.draftAnimationDurations[i] || this.animationDurations[i] || 2)
+              : (this.animationDurations[i] || 2);
+            const transitionEndTime = transitionStartTime + transitionDuration;
+            
+            // Check if we're in this transition
+            if (currentTime >= transitionStartTime && currentTime < transitionEndTime) {
+              this.playingFormationIndex = i + 1;
+              this.inTransition = true;
+              const progress = (currentTime - transitionStartTime) / transitionDuration;
+              this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+              found = true;
+              break;
+            }
+          }
+        }
+      } else if (this.isDraftRowActive) {
+        // DRAFT MODE: Fallback to linear timing if start times not available
+        let t = 0;
+        for (let i = 0; i < this.formations.length; i++) {
+          const formationDuration = this.hasDraft(i) 
+            ? (this.draftFormationDurations[i] || this.formationDurations[i] || 5)
+            : (this.formationDurations[i] || 5);
+          
+          // Check if we're in this formation
+          if (currentTime < t + formationDuration) {
+            this.playingFormationIndex = i;
+            this.inTransition = false;
+            this.animatedPositions = {};
+            found = true;
+            break;
+          }
+          
+          t += formationDuration;
+          
+          // Check transition after this formation
+          if (i < this.animationDurations.length) {
+            const transitionDuration = (this.hasDraft(i) || this.hasDraft(i + 1))
+              ? (this.draftAnimationDurations[i] || this.animationDurations[i] || 2)
+              : (this.animationDurations[i] || 2);
+            
+            // Check if we're in this transition
+            if (currentTime < t + transitionDuration) {
+              this.playingFormationIndex = i + 1;
+              this.inTransition = true;
+              const progress = (currentTime - t) / transitionDuration;
+              this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+              found = true;
+              break;
+            }
+            
+            t += transitionDuration;
+          }
+        }
+      } else {
+        // MAIN MODE: Use linear timing
+        let t = 0;
+        for (let i = 0; i < this.formations.length; i++) {
+          const formationDuration = this.formationDurations[i] || 5;
+          
+          // Check if we're in this formation
+          if (currentTime < t + formationDuration) {
+            this.playingFormationIndex = i;
+            this.inTransition = false;
+            this.animatedPositions = {};
+            found = true;
+            break;
+          }
+          
+          t += formationDuration;
+          
+          // Check transition after this formation
+          if (i < this.animationDurations.length) {
+            const transitionDuration = this.animationDurations[i] || 2;
+            
+            // Check if we're in this transition
+            if (currentTime < t + transitionDuration) {
+              this.playingFormationIndex = i + 1;
+              this.inTransition = true;
+              const progress = (currentTime - t) / transitionDuration;
+              this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+              found = true;
+              break;
+            }
+            
+            t += transitionDuration;
+          }
         }
       }
+      
       if (!found) {
         // If past all, show last formation
         this.playingFormationIndex = this.formations.length - 1;
@@ -4899,6 +5352,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Switch to draft row active
     this.isDraftRowActive = true;
     
+    // Recalculate draft start times to keep them in sync
+    this.recalculateDraftStartTimes();
+    
     // Force change detection
     this.draftFormations = [...this.draftFormations];
     this.draftFormationDurations = [...this.draftFormationDurations];
@@ -5033,6 +5489,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Check if we have any drafts left
     this.hasDraftRow = this.draftFormations.some(formation => formation.length > 0);
 
+    // Recalculate draft start times to keep them in sync
+    this.recalculateDraftStartTimes();
+    
     // Force change detection
     this.formations = [...this.formations];
     this.draftFormations = [...this.draftFormations];
@@ -7010,7 +7469,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     event.stopPropagation();
     this.resizingFormationIndex = i;
     this.resizingStartX = event.clientX;
-    this.resizingStartDuration = this.draftFormationDurations[i] || 5;
+    // Use draft formation duration, fallback to main formation duration
+    this.resizingStartDuration = this.draftFormationDurations[i] || this.formationDurations[i] || 5;
     this.isResizingTimelineElement = true;
     
     document.addEventListener('mousemove', this.onDraftFormationResizeMove);
@@ -7041,8 +7501,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.originalDraftPositions[`transition_${transitionOutIndex}`] = newPosition;
     }
 
+    // Recalculate draft start times in real-time during resize
+    this.recalculateDraftStartTimes();
+    
+    // Force change detection to update UI in real-time
     this.draftFormationDurations = [...this.draftFormationDurations];
     this.draftAnimationDurations = [...this.draftAnimationDurations];
+    this.originalDraftPositions = { ...this.originalDraftPositions };
+    
+    // Force Angular to re-evaluate all template expressions
+    this.cdr.markForCheck();
+    this.cdr.detectChanges();
+    
     this.triggerAutoSave();
   }
 
@@ -7053,6 +7523,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       
       document.removeEventListener('mousemove', this.onDraftFormationResizeMove);
       document.removeEventListener('mouseup', this.onDraftFormationResizeEnd);
+      
+      // Recalculate draft start times to keep them in sync
+      this.recalculateDraftStartTimes();
       
       this.triggerAutoSave();
     }
@@ -7100,8 +7573,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }
     }
 
+    // Recalculate draft start times in real-time during resize
+    this.recalculateDraftStartTimes();
+    
+    // Force change detection to update UI in real-time
     this.draftAnimationDurations = [...this.draftAnimationDurations];
     this.draftFormationDurations = [...this.draftFormationDurations];
+    this.originalDraftPositions = { ...this.originalDraftPositions };
+    
+    // Force Angular to re-evaluate all template expressions
+    this.cdr.markForCheck();
+    this.cdr.detectChanges();
+    
     this.triggerAutoSave();
   };
 
@@ -7182,6 +7665,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       document.removeEventListener('mousemove', this.onDraftTransitionResizeMove);
       document.removeEventListener('mouseup', this.onDraftTransitionResizeEnd);
       
+      // Recalculate draft start times to keep them in sync
+      this.recalculateDraftStartTimes();
+      
       this.triggerAutoSave();
     }
   }
@@ -7212,11 +7698,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Calculate left position for absolutely positioned draft formation
   getDraftFormationLeftPosition(i: number): number {
+    // Always use explicit start times if available in draft mode
+    if (this.isDraftRowActive && this.draftFormationStartTimes && this.draftFormationStartTimes[i] !== undefined) {
+      return this.draftFormationStartTimes[i] * this.pixelsPerSecond * this.timelineZoom;
+    }
+    // Fallback to original relative calculation
     let leftPosition = 0;
     for (let j = 0; j < i; j++) {
-      // Add formation duration (main timeline only - drafts don't affect other positions)
       leftPosition += (this.formationDurations[j] || 5) * this.pixelsPerSecond * this.timelineZoom;
-      // Add transition duration (main timeline only - drafts don't affect other positions)
       if (j < this.animationDurations.length) {
         leftPosition += (this.animationDurations[j] || 2) * this.pixelsPerSecond * this.timelineZoom;
       }
@@ -7226,11 +7715,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Calculate left position for absolutely positioned draft transition
   getDraftTransitionLeftPosition(i: number): number {
+    // Always use explicit start times if available in draft mode
+    if (this.isDraftRowActive && this.draftAnimationStartTimes && this.draftAnimationStartTimes[i] !== undefined) {
+      return this.draftAnimationStartTimes[i] * this.pixelsPerSecond * this.timelineZoom;
+    }
     let leftPosition = 0;
     for (let j = 0; j <= i; j++) {
-      // Add formation duration (main timeline only - drafts don't affect other positions)
       leftPosition += (this.formationDurations[j] || 5) * this.pixelsPerSecond * this.timelineZoom;
-      // Add transition duration (main timeline only - drafts don't affect other positions) up to but not including current transition
       if (j < i && j < this.animationDurations.length) {
         leftPosition += (this.animationDurations[j] || 2) * this.pixelsPerSecond * this.timelineZoom;
       }
@@ -7301,7 +7792,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       return startTime;
     }
 
-    // In draft mode, calculate start time with cumulative offset
+    // DRAFT MODE: if explicit start time present for this draft formation, use it directly
+    if (this.hasDraft(i) && this.draftFormationStartTimes[i] !== undefined) {
+      return this.draftFormationStartTimes[i];
+    }
+
+    // In draft mode, calculate start time with cumulative offset (fallback)
     let startTime = 0;
     for (let j = 0; j < i; j++) {
       if (this.hasDraft(j)) {
@@ -7478,6 +7974,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         this.currentFormationIndex = 0;
         this.playingFormationIndex = 0;
         
+            // NEW: load draft start times arrays if present
+    this.draftFormationStartTimes = this.segment.draftFormationStartTimes || [];
+    this.draftAnimationStartTimes = this.segment.draftAnimationStartTimes || [];
+    
+    // NEW: load main formation start times arrays if present (for draft mode)
+    this.mainFormationStartTimes = this.segment.mainFormationStartTimes || [];
+    this.mainAnimationStartTimes = this.segment.mainAnimationStartTimes || [];
+        
         // Update current segment index after loading
         if (this.allSegments.length > 0) {
           this.currentSegmentIndex = this.allSegments.findIndex(s => s._id === this.segment._id);
@@ -7508,6 +8012,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.currentFormationIndex = 0;
     this.playingFormationIndex = 0;
     this.segmentName = 'New Segment';
+    // reset new arrays
+    this.draftFormationStartTimes = [];
+    this.draftAnimationStartTimes = [];
   }
 
   // Helper method to clear segment-specific state when navigating
