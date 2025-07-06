@@ -3030,6 +3030,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       roster: this.segmentRoster.map(user => user._id),
       dummyTemplates: dummyTemplates
     };
+    
+    console.log('🔍 DEBUG: Saving segment with main timing:', {
+      mainFormationStartTimes,
+      mainAnimationStartTimes,
+      hasDraftRow: this.hasDraftRow,
+      isDraftRowActive: this.isDraftRowActive
+    });
 
     this.segmentService.updateSegment(this.segment._id, updateData).subscribe({
       next: () => {
@@ -3668,7 +3675,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           
           // Check transition after this formation
           if (i < this.animationDurations.length) {
-            const transitionStartTime = this.draftAnimationStartTimes[i] || 0;
+            // For transitions, use the appropriate start time based on what we're transitioning to
+            let transitionStartTime: number;
+            if (this.hasDraft(i) && this.hasDraft(i + 1)) {
+              // Draft to draft: use draft animation start time
+              transitionStartTime = this.draftAnimationStartTimes[i] || 0;
+            } else if (this.hasDraft(i) && !this.hasDraft(i + 1)) {
+              // Draft to main: use main formation start time
+              transitionStartTime = this.mainFormationStartTimes[i + 1] || 0;
+            } else if (!this.hasDraft(i) && this.hasDraft(i + 1)) {
+              // Main to draft: use draft formation start time
+              transitionStartTime = this.draftFormationStartTimes[i + 1] || 0;
+            } else {
+              // Main to main: use main animation start time
+              transitionStartTime = this.mainAnimationStartTimes[i] || 0;
+            }
+            
             const transitionDuration = (this.hasDraft(i) || this.hasDraft(i + 1))
               ? (this.draftAnimationDurations[i] || this.animationDurations[i] || 2)
               : (this.animationDurations[i] || 2);
@@ -3723,12 +3745,53 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             t += transitionDuration;
           }
         }
+      } else if (this.mainFormationStartTimes.length > 0 && this.mainAnimationStartTimes.length > 0) {
+        console.log('🔍 DEBUG: Arrays have data:', {
+          mainFormationStartTimes: this.mainFormationStartTimes,
+          mainAnimationStartTimes: this.mainAnimationStartTimes,
+          currentTime: currentTime
+        });
+        // MAIN MODE: Use explicit start times if available
+        for (let i = 0; i < this.formations.length; i++) {
+          const formationStartTime = this.mainFormationStartTimes[i] || 0;
+          const formationDuration = this.formationDurations[i] || 5;
+          const formationEndTime = formationStartTime + formationDuration;
+
+          // Check if we're in this formation
+          if (currentTime >= formationStartTime && currentTime < formationEndTime) {
+            this.playingFormationIndex = i;
+            this.inTransition = false;
+            this.animatedPositions = {};
+            found = true;
+            break;
+          }
+
+          // Check transition after this formation
+          if (i < this.animationDurations.length) {
+            const transitionStartTime = this.mainAnimationStartTimes[i] || 0;
+            const transitionDuration = this.animationDurations[i] || 2;
+            const transitionEndTime = transitionStartTime + transitionDuration;
+
+            if (currentTime >= transitionStartTime && currentTime < transitionEndTime) {
+              this.playingFormationIndex = i + 1;
+              this.inTransition = true;
+              const progress = (currentTime - transitionStartTime) / transitionDuration;
+              this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+              found = true;
+              break;
+            }
+          }
+        }
       } else {
+        console.log('🔍 DEBUG: Using linear timing because arrays are empty:', {
+          mainFormationStartTimesLength: this.mainFormationStartTimes.length,
+          mainAnimationStartTimesLength: this.mainAnimationStartTimes.length,
+          currentTime: currentTime
+        });
         // MAIN MODE: Use linear timing
         let t = 0;
         for (let i = 0; i < this.formations.length; i++) {
           const formationDuration = this.formationDurations[i] || 5;
-          
           // Check if we're in this formation
           if (currentTime < t + formationDuration) {
             this.playingFormationIndex = i;
@@ -3737,14 +3800,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
             found = true;
             break;
           }
-          
           t += formationDuration;
-          
           // Check transition after this formation
           if (i < this.animationDurations.length) {
             const transitionDuration = this.animationDurations[i] || 2;
-            
-            // Check if we're in this transition
             if (currentTime < t + transitionDuration) {
               this.playingFormationIndex = i + 1;
               this.inTransition = true;
@@ -3753,7 +3812,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
               found = true;
               break;
             }
-            
             t += transitionDuration;
           }
         }
@@ -4635,6 +4693,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     // No audio: animate through formations and update playbackTime smoothly
     if (!this.isPlaying) {
+      console.log('🎵 DEBUG: toggleUnifiedPlay called - starting playback');
+      console.log('🔍 DEBUG: Arrays status:', {
+        mainFormationStartTimes: this.mainFormationStartTimes,
+        mainAnimationStartTimes: this.mainAnimationStartTimes,
+        isDraftRowActive: this.isDraftRowActive,
+        hasDraftRow: this.hasDraftRow,
+        hasAnyDrafts: this.hasAnyDrafts(),
+        formationsLength: this.formations.length,
+        animationDurationsLength: this.animationDurations.length
+      });
+      
       this.isPlaying = true;
       const totalDuration = this.getTimelineTotalDuration();
       const startTime = performance.now();
@@ -4644,29 +4713,76 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         const elapsed = (now - startTime) / 1000; // seconds
         this.playbackTime = Math.min(initialPlaybackTime + elapsed, totalDuration);
         // Update formation index and transitions
-        let t = 0;
         let found = false;
-        for (let i = 0; i < this.formations.length; i++) {
-          const hold = this.getFormationDurationForPlayback(i);
-          if (this.playbackTime < t + hold) {
-            this.playingFormationIndex = i;
-            this.inTransition = false;
-            this.animatedPositions = {};
-            found = true;
-            break;
-          }
-          t += hold;
-          if (i < this.animationDurations.length) {
-            const trans = this.getTransitionDurationForPlayback(i);
-            if (this.playbackTime < t + trans) {
-              this.playingFormationIndex = i + 1;
-              this.inTransition = true;
-              const progress = (this.playbackTime - t) / trans;
-              this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+        
+        // Use explicit start times if available, otherwise fall back to linear timing
+        if (this.mainFormationStartTimes.length > 0 && this.mainAnimationStartTimes.length > 0) {
+          console.log('🔍 DEBUG: Using explicit main timing');
+          for (let i = 0; i < this.formations.length; i++) {
+            const formationStartTime = this.mainFormationStartTimes[i] || 0;
+            const formationDuration = this.formationDurations[i] || 5;
+            const formationEndTime = formationStartTime + formationDuration;
+            
+            console.log(`🔍 DEBUG: Formation ${i}: start=${formationStartTime}, duration=${formationDuration}, end=${formationEndTime}, currentTime=${this.playbackTime}`);
+            
+            // Check if we're in this formation
+            if (this.playbackTime >= formationStartTime && this.playbackTime < formationEndTime) {
+              console.log(`🔍 DEBUG: Found in formation ${i}`);
+              this.playingFormationIndex = i;
+              this.inTransition = false;
+              this.animatedPositions = {};
               found = true;
               break;
             }
-            t += trans;
+            
+            // Check transition after this formation
+            if (i < this.animationDurations.length) {
+              const transitionStartTime = this.mainAnimationStartTimes[i] || 0;
+              const transitionDuration = this.animationDurations[i] || 2;
+              const transitionEndTime = transitionStartTime + transitionDuration;
+              
+              console.log(`🔍 DEBUG: Transition ${i}: start=${transitionStartTime}, duration=${transitionDuration}, end=${transitionEndTime}, currentTime=${this.playbackTime}`);
+              
+              if (this.playbackTime >= transitionStartTime && this.playbackTime < transitionEndTime) {
+                console.log(`🔍 DEBUG: Found in transition ${i}`);
+                this.playingFormationIndex = i + 1;
+                this.inTransition = true;
+                const progress = (this.playbackTime - transitionStartTime) / transitionDuration;
+                this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+                found = true;
+                break;
+              }
+            }
+          }
+        } else {
+          console.log('🔍 DEBUG: Using linear timing calculation (fallback)');
+          let t = 0;
+          for (let i = 0; i < this.formations.length; i++) {
+            const hold = this.getFormationDurationForPlayback(i);
+            console.log(`🔍 DEBUG: Formation ${i}: start=${t}, duration=${hold}, end=${t + hold}, currentTime=${this.playbackTime}`);
+            if (this.playbackTime < t + hold) {
+              console.log(`🔍 DEBUG: Found in formation ${i}`);
+              this.playingFormationIndex = i;
+              this.inTransition = false;
+              this.animatedPositions = {};
+              found = true;
+              break;
+            }
+            t += hold;
+            if (i < this.animationDurations.length) {
+              const trans = this.getTransitionDurationForPlayback(i);
+              console.log(`🔍 DEBUG: Transition ${i}: start=${t}, duration=${trans}, end=${t + trans}, currentTime=${this.playbackTime}`);
+              if (this.playbackTime < t + trans) {
+                console.log(`🔍 DEBUG: Found in transition ${i}`);
+                this.playingFormationIndex = i + 1;
+                this.inTransition = true;
+                const progress = (this.playbackTime - t) / trans;
+                this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+                found = true;
+                break;
+              }
+              t += trans;
+            }
           }
         }
         if (!found) {
