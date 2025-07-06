@@ -14,6 +14,11 @@ interface User {
   captain: boolean;
 }
 
+interface SavedCredentials {
+  email: string;
+  password: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -44,9 +49,26 @@ export class AuthService {
   logout() {
     this.currentUser = null;
     localStorage.removeItem('currentUser');
+    // Also clear saved credentials when logging out
+    this.clearSavedCredentials();
   }
 
   forgotPassword(email: string) {
     return this.http.post(`${environment.apiUrl}/forgot-password`, { email });
+  }
+
+  // Remember me functionality
+  saveCredentials(email: string, password: string) {
+    const credentials: SavedCredentials = { email, password };
+    localStorage.setItem('savedCredentials', JSON.stringify(credentials));
+  }
+
+  getSavedCredentials(): SavedCredentials | null {
+    const saved = localStorage.getItem('savedCredentials');
+    return saved ? JSON.parse(saved) : null;
+  }
+
+  clearSavedCredentials() {
+    localStorage.removeItem('savedCredentials');
   }
 } 

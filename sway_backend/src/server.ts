@@ -62,12 +62,27 @@ app.get('/', (req: Request, res: Response) => {
 app.post('/api/register', async (req: Request, res: Response) => {
   try {
     const { email, password, name, team } = req.body;
+    
+    // Check if email already exists
+    if (email) {
+      const existingUser = await User.findOne({ email: email.toLowerCase() });
+      if (existingUser) {
+        return res.status(400).json({ error: 'Email already exists. Please use a different email address.' });
+      }
+    }
+    
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ email, password: hashedPassword, name, team, captain: true });
     await user.save();
     res.status(201).json({ message: 'User created', user });
   } catch (error: any) {
     console.error('Error creating user:', error);
+    
+    // Handle MongoDB duplicate key error specifically
+    if (error.code === 11000 && error.keyPattern?.email) {
+      return res.status(400).json({ error: 'Email already exists. Please use a different email address.' });
+    }
+    
     res.status(500).json({ error: error.message || 'Failed to create user' });
   }
 });
@@ -126,6 +141,17 @@ app.patch('/api/users/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Check if email is being updated and if it already exists
+    if (update.email && update.email !== user.email) {
+      const existingUser = await User.findOne({ 
+        email: update.email.toLowerCase(),
+        _id: { $ne: userId } // Exclude current user from check
+      });
+      if (existingUser) {
+        return res.status(400).json({ error: 'Email already exists. Please use a different email address.' });
+      }
+    }
+
     // If skillLevels is present, update it as a Map
     if (update.skillLevels) {
       user.skillLevels = update.skillLevels; // Accepts plain object for Map
@@ -139,6 +165,12 @@ app.patch('/api/users/:id', async (req: Request, res: Response) => {
     res.json({ message: 'User updated', user });
   } catch (error: any) {
     console.error('Error updating user:', error);
+    
+    // Handle MongoDB duplicate key error specifically
+    if (error.code === 11000 && error.keyPattern?.email) {
+      return res.status(400).json({ error: 'Email already exists. Please use a different email address.' });
+    }
+    
     res.status(500).json({ error: error.message || 'Failed to update user' });
   }
 });
@@ -146,6 +178,25 @@ app.patch('/api/users/:id', async (req: Request, res: Response) => {
 app.post('/api/bulk-users', async (req: Request, res: Response) => {
   try {
     const { team, users } = req.body;
+    
+    // Check for duplicate emails before creating users
+    const emailsToCheck = users
+      .map((u: any) => u.email)
+      .filter((email: string) => email && !email.includes('@placeholder.com'));
+    
+    if (emailsToCheck.length > 0) {
+      const existingUsers = await User.find({ 
+        email: { $in: emailsToCheck.map((email: string) => email.toLowerCase()) }
+      });
+      
+      if (existingUsers.length > 0) {
+        const duplicateEmails = existingUsers.map(u => u.email);
+        return res.status(400).json({ 
+          error: `The following emails already exist: ${duplicateEmails.join(', ')}` 
+        });
+      }
+    }
+    
     // Create users and assign them to the team
     const createdUsers = await User.insertMany(users.map((u: any, idx: number) => ({
       ...u,
@@ -159,6 +210,13 @@ app.post('/api/bulk-users', async (req: Request, res: Response) => {
 
     res.json({ message: 'Users created and added to team', users: createdUsers });
   } catch (error: any) {
+    console.error('Error creating bulk users:', error);
+    
+    // Handle MongoDB duplicate key error specifically
+    if (error.code === 11000 && error.keyPattern?.email) {
+      return res.status(400).json({ error: 'One or more emails already exist. Please use different email addresses.' });
+    }
+    
     res.status(500).json({ error: error.message || 'Failed to create users' });
   }
 });

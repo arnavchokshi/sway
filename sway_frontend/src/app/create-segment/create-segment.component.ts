@@ -426,6 +426,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   showTransitions = false;
   allSegments: any[] = [];
   currentSegmentIndex = -1;
+  
+  // Name view and sorting options
+  showViewOptionsDropdown = false;
+  nameViewOption: 'first' | 'firstInitial' | 'full' = 'first';
+  sortOption: 'alphabetical' | 'height' | 'dateAdded' = 'alphabetical';
 
   // Mirror mode functionality
   isMirrorModeEnabled = false;
@@ -456,6 +461,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   public isIphone: boolean = false;
+
+  // Add these class properties:
+  private _playbackLoopStartTime: number = 0;
+  private _playbackLoopInitialTime: number = 0;
 
   constructor(
     private route: ActivatedRoute,
@@ -1209,6 +1218,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.checkConsistencyWarnings();
       this.checkFormationPositioningTips();
     }, 1000); // Small delay to ensure the formation is properly saved
+    
+    // Update zoom limits after formation change
+    setTimeout(() => {
+      this.updateMinTimelineZoom();
+      this.updateMaxTimelineZoom();
+    }, 100);
   }
 
   addPerformer(member: any) {
@@ -2998,27 +3013,36 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         // Mobile-specific audio event handlers
         if (this.isMobile) {
           this.waveSurfer.on('ready', () => {
-
             this.handleMobileAudioReady();
           });
-
-          this.waveSurfer.on('play', () => {
-
-            // Resume audio context when play starts
-            if (this.waveSurfer && (this.waveSurfer as any).backend && (this.waveSurfer as any).backend.audioContext) {
-              (this.waveSurfer as any).backend.audioContext.resume();
-            }
-          });
-
-          this.waveSurfer.on('error', (error) => {
-
-          });
         }
+        
+        // Update zoom limits when audio is ready
+        this.waveSurfer.on('ready', () => {
+          setTimeout(() => {
+            this.updateMinTimelineZoom();
+            this.updateMaxTimelineZoom();
+          }, 100);
+        });
+
+        this.waveSurfer.on('play', () => {
+          // Resume audio context when play starts
+          if (this.waveSurfer && (this.waveSurfer as any).backend && (this.waveSurfer as any).backend.audioContext) {
+            (this.waveSurfer as any).backend.audioContext.resume();
+          }
+        });
+
+        this.waveSurfer.on('error', (error) => {
+          console.error('WaveSurfer error:', error);
+        });
       }
     } catch (error) {
 
     }
-    setTimeout(() => this.updateMinTimelineZoom(), 200);
+    setTimeout(() => {
+      this.updateMinTimelineZoom();
+      this.updateMaxTimelineZoom();
+    }, 200);
   }
 
   togglePlay() {
@@ -3567,6 +3591,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Trigger auto-save after formation duration change
     this.triggerAutoSave();
+    
+    // Update zoom limits after formation duration change
+    setTimeout(() => {
+      this.updateMinTimelineZoom();
+      this.updateMaxTimelineZoom();
+    }, 100);
   };
 
   getFormationFlex(i: number): number {
@@ -3635,6 +3665,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Trigger auto-save after transition duration change
     this.triggerAutoSave();
+    
+    // Update zoom limits after transition duration change
+    setTimeout(() => {
+      this.updateMinTimelineZoom();
+      this.updateMaxTimelineZoom();
+    }, 100);
   };
 
   getTimelinePixelWidth(): number {
@@ -3964,19 +4000,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   onTimelineClick(event: MouseEvent) {
     const bar = this.timelineBarRef?.nativeElement;
     if (!bar) return;
-    
     // Don't process timeline clicks if we're in the middle of resizing
     if (this.isResizingTimelineElement) return;
-    
     // If clicking on a formation box, transition bar, or any of their children, do not move the playhead
     if ((event.target as HTMLElement).closest('.formation-timeline-box') || 
         (event.target as HTMLElement).closest('.timeline-transition-bar')) return;
-    
     const rect = bar.getBoundingClientRect();
     const scrollLeft = bar.scrollLeft || 0;
     const x = event.clientX - rect.left + scrollLeft; // Add scroll offset to get correct position
     const timelineTime = (x / this.getTimelinePixelWidth()) * this.getTimelineTotalDuration();
-    
     if (timelineTime !== null) {
       // Handle audio seeking if available
       if (this.waveSurfer && this.waveSurfer.getDuration()) {
@@ -3993,8 +4025,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         // No audio: just update playback time and formation position
         this.playbackTime = Math.max(0, Math.min(timelineTime, this.getTimelineTotalDuration()));
         this.hoveredTimelineTime = this.playbackTime;
+        // If playing, update the animation loop's start time and initial time
+        if (this.isPlaying) {
+          this._playbackLoopStartTime = performance.now();
+          this._playbackLoopInitialTime = this.playbackTime;
+        }
       }
-      
       // Update video if it exists
       const videoElement = this.videoElement;
       if (videoElement) {
@@ -4005,13 +4041,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           videoElement.pause();
         }
       }
-      
       // Update formation position
       let t = 0;
       for (let i = 0; i < this.formations.length; i++) {
         const formationDuration = this.formationDurations[i] || 4;
         if (this.playbackTime < t + formationDuration) {
-          this.playingFormationIndex = i;
+          this.updateFormationAndRecalculateSelection(i);
           this.inTransition = false;
           this.animatedPositions = {};
           break;
@@ -4107,12 +4142,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (!this.isPlaying) {
       this.isPlaying = true;
       const totalDuration = this.getTimelineTotalDuration();
-      const startTime = performance.now();
-      const initialPlaybackTime = this.playbackTime;
+      this._playbackLoopStartTime = performance.now();
+      this._playbackLoopInitialTime = this.playbackTime;
       const animate = (now: number) => {
         if (!this.isPlaying) return;
-        const elapsed = (now - startTime) / 1000; // seconds
-        this.playbackTime = Math.min(initialPlaybackTime + elapsed, totalDuration);
+        const elapsed = (now - this._playbackLoopStartTime) / 1000; // seconds
+        this.playbackTime = Math.min(this._playbackLoopInitialTime + elapsed, totalDuration);
         // Update formation index and transitions
         let t = 0;
         let found = false;
@@ -4144,6 +4179,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           this.playingFormationIndex = this.formations.length - 1;
           this.inTransition = false;
           this.animatedPositions = {};
+        }
+        // Update selection rectangle for selected performers in the new formation
+        if (this.selectedPerformerIds.size > 0) {
+          this.calculateSelectionRectangle();
         }
         this.cdr.detectChanges();
         if (this.playbackTime < totalDuration && this.isPlaying) {
@@ -4193,6 +4232,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         this.currentFormationIndex = this.formations.length - 1; // Update the displayed formation
         this.inTransition = false;
         this.animatedPositions = {};
+      }
+      // Update selection rectangle for selected performers in the new formation
+      if (this.selectedPerformerIds.size > 0) {
+        this.calculateSelectionRectangle();
       }
       this.cdr.detectChanges();
     }
@@ -4733,6 +4776,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Trigger auto-save after deleting formation
     this.triggerAutoSave();
+    
+    // Update zoom limits after formation change
+    setTimeout(() => {
+      this.updateMinTimelineZoom();
+      this.updateMaxTimelineZoom();
+    }, 100);
   }
 
   duplicateFormation(index: number) {
@@ -4759,6 +4808,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Trigger auto-save after duplicating formation
     this.triggerAutoSave();
+    
+    // Update zoom limits after formation change
+    setTimeout(() => {
+      this.updateMinTimelineZoom();
+      this.updateMaxTimelineZoom();
+    }, 100);
   }
 
   createFormationDraft(formationIndex: number) {
@@ -4844,6 +4899,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Force change detection to update the stage immediately
     this.formations = [...this.formations];
     this.cdr.detectChanges();
+    
+    // Update selection rectangle for selected performers in the new formation
+    if (this.selectedPerformerIds.size > 0) {
+      this.calculateSelectionRectangle();
+    }
     
     console.log(`🎯 JUMP TO FORMATION:`, {
       index: index + 1,
@@ -5631,7 +5691,33 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   get sortedPerformers() {
-    return [...this.performers].sort((a, b) => a.name.localeCompare(b.name));
+    const performers = [...this.performers];
+    
+    switch (this.sortOption) {
+      case 'alphabetical':
+        return performers.sort((a, b) => {
+          // Numbers go after letters
+          const aStartsWithLetter = /^[a-zA-Z]/.test(a.name);
+          const bStartsWithLetter = /^[a-zA-Z]/.test(b.name);
+          
+          if (aStartsWithLetter && !bStartsWithLetter) return -1;
+          if (!aStartsWithLetter && bStartsWithLetter) return 1;
+          
+          return a.name.localeCompare(b.name);
+        });
+      case 'height':
+        return performers.sort((a, b) => {
+          const aHeight = a.height || 0;
+          const bHeight = b.height || 0;
+          return bHeight - aHeight; // Tallest first
+        });
+      case 'dateAdded':
+        // For now, we'll use the order they appear in the array
+        // In a real implementation, you might want to track when performers were added
+        return performers;
+      default:
+        return performers;
+    }
   }
 
   get sortedTeamRoster() {
@@ -6040,6 +6126,24 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.showStageToolsDropdown = !this.showStageToolsDropdown;
   }
 
+  toggleViewOptionsDropdown(event?: Event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    this.showViewOptionsDropdown = !this.showViewOptionsDropdown;
+  }
+
+  setNameViewOption(option: 'first' | 'firstInitial' | 'full') {
+    this.nameViewOption = option;
+    this.showViewOptionsDropdown = false;
+  }
+
+  setSortOption(option: 'alphabetical' | 'height' | 'dateAdded') {
+    this.sortOption = option;
+    this.showViewOptionsDropdown = false;
+  }
+
   toggleShowTransitions() {
     this.showTransitions = !this.showTransitions;
     // Here you would implement the logic to show/hide performer transitions
@@ -6108,6 +6212,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const target = event.target as HTMLElement;
     if (!target.closest('.stage-tools-dropdown')) {
       this.showStageToolsDropdown = false;
+    }
+    if (!target.closest('.view-options-dropdown')) {
+      this.showViewOptionsDropdown = false;
     }
     if (!target.closest('.remove-performer-btn')) {
       this.confirmRemovePerformer = false;
@@ -7270,9 +7377,46 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const minZoom = containerWidth / timelineWidthAtZoom1;
     this.minTimelineZoom = Math.min(1, Math.max(0.01, minZoom));
     
+    // Update max zoom dynamically based on content
+    this.updateMaxTimelineZoom();
+    
     // Clamp current zoom if needed
     if (this.timelineZoom < this.minTimelineZoom) {
       this.timelineZoom = this.minTimelineZoom;
+    }
+    if (this.timelineZoom > this.maxTimelineZoom) {
+      this.timelineZoom = this.maxTimelineZoom;
+    }
+  }
+
+  // Calculate dynamic max zoom based on audio and formation content
+  updateMaxTimelineZoom() {
+    const container = this.timelineBarRef?.nativeElement;
+    if (!container) return;
+    
+    const containerWidth = container.offsetWidth;
+    const totalDuration = this.getTimelineTotalDuration();
+    
+    if (this.signedMusicUrl && this.waveSurfer && this.waveSurfer.getDuration() > 0) {
+      // With audio: max zoom should allow audio to take up the entire bottom panel
+      const audioDuration = this.waveSurfer.getDuration();
+      const timelineWidthAtZoom1 = audioDuration * this.pixelsPerSecond;
+      
+      // Calculate zoom level where audio takes up the full container width
+      const maxZoomForAudio = containerWidth / timelineWidthAtZoom1;
+      
+      // Set a reasonable maximum (4x zoom) but allow audio to fill the panel
+      this.maxTimelineZoom = Math.max(4.5, maxZoomForAudio);
+    } else {
+      // No audio: max zoom should allow formations to take up 80% of the bottom panel
+      const timelineWidthAtZoom1 = totalDuration * this.pixelsPerSecond;
+      
+      // Calculate zoom level where formations take up 80% of container width
+      const targetWidth = containerWidth * 0.8;
+      const maxZoomForFormations = targetWidth / timelineWidthAtZoom1;
+      
+      // Set a reasonable maximum (4x zoom) but allow formations to fill 80% of panel
+      this.maxTimelineZoom = Math.max(4.5, maxZoomForFormations);
     }
   }
 
@@ -7410,12 +7554,25 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.uploadSuccess = null;
   }
 
-  // Helper to format performer name as 'FirstName L.'
+  // Helper to format performer name based on selected view option
   formatPerformerName(name: string): string {
     if (!name) return '';
-    const parts = name.trim().split(' ');
-    if (parts.length === 1) return parts[0];
-    return `${parts[0]} ${parts[1][0]}.`;
+    
+    const nameParts = name.trim().split(' ');
+    
+    switch (this.nameViewOption) {
+      case 'first':
+        return nameParts[0] || name;
+      case 'firstInitial':
+        if (nameParts.length >= 2) {
+          return `${nameParts[0]} ${nameParts[1].charAt(0).toUpperCase()}.`;
+        }
+        return nameParts[0] || name;
+      case 'full':
+        return name;
+      default:
+        return name;
+    }
   }
 
   commitPerformerNameEdit() {
@@ -7440,6 +7597,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.playingFormationIndex = index;
       this.isViewingDraft = isDraft;
       this.cdr.detectChanges();
+      
+      // Update selection rectangle for selected performers in the new formation
+      if (this.selectedPerformerIds.size > 0) {
+        this.calculateSelectionRectangle();
+      }
       return;
     }
     this.jumpToFormation(index, isDraft);

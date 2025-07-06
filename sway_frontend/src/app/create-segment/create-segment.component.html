@@ -349,8 +349,63 @@
       </ng-container>
       <ng-template #rosterPanel>
         <div class="roster-top-panel">
-          <div class="roster-header">
+          <div class="roster-header-row">
             <h3>Performers in Segment</h3>
+            <!-- View Options Icon Button -->
+            <div class="view-options-dropdown">
+              <button class="view-options-btn" (click)="toggleViewOptionsDropdown($event)">
+                <span class="material-icons">tune</span>
+              </button>
+              <div class="dropdown-menu" 
+                   [class.show]="showViewOptionsDropdown"
+                   [style.visibility]="showViewOptionsDropdown ? 'visible' : 'hidden'"
+                   [style.pointer-events]="showViewOptionsDropdown ? 'auto' : 'none'">
+                <!-- Name View Options -->
+                <div class="dropdown-section">
+                  <div class="dropdown-section-title">Name View</div>
+                  <button class="dropdown-item" 
+                          [class.active]="nameViewOption === 'first'"
+                          (click)="setNameViewOption('first')">
+                    <span class="material-icons">person</span>
+                    First Name Only
+                  </button>
+                  <button class="dropdown-item" 
+                          [class.active]="nameViewOption === 'firstInitial'"
+                          (click)="setNameViewOption('firstInitial')">
+                    <span class="material-icons">person_outline</span>
+                    First Name + Last Initial
+                  </button>
+                  <button class="dropdown-item" 
+                          [class.active]="nameViewOption === 'full'"
+                          (click)="setNameViewOption('full')">
+                    <span class="material-icons">person_add</span>
+                    Full Name
+                  </button>
+                </div>
+                <!-- Sort Options -->
+                <div class="dropdown-section">
+                  <div class="dropdown-section-title">Sort By</div>
+                  <button class="dropdown-item" 
+                          [class.active]="sortOption === 'alphabetical'"
+                          (click)="setSortOption('alphabetical')">
+                    <span class="material-icons">sort_by_alpha</span>
+                    Alphabetical
+                  </button>
+                  <button class="dropdown-item" 
+                          [class.active]="sortOption === 'height'"
+                          (click)="setSortOption('height')">
+                    <span class="material-icons">height</span>
+                    Height
+                  </button>
+                  <button class="dropdown-item" 
+                          [class.active]="sortOption === 'dateAdded'"
+                          (click)="setSortOption('dateAdded')">
+                    <span class="material-icons">schedule</span>
+                    Date Added
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
           <!-- Performers List -->
           <div class="performers-list">
