@@ -16,7 +16,7 @@ export interface DummyTemplate {
   customColor?: string;
 }
 
-// Add interface for formation drafts
+// Legacy draft interface for backward compatibility
 export interface FormationDraft {
   id: string;
   formation: Position[];
@@ -30,15 +30,28 @@ interface Segment extends Document {
   team: mongoose.Types.ObjectId;
   segmentSet?: mongoose.Types.ObjectId; // Reference to the Set this segment belongs to
   roster: mongoose.Types.ObjectId[];
+  
+  // Main timeline (existing)
   formations: Position[][];
-  // Add draft support - optional for backward compatibility (single draft per formation)
+  formationDurations: number[];
+  animationDurations: number[];
+  
+  // Draft timeline (new independent timeline)
+  draftFormations: Position[][];
+  draftFormationDurations: number[];
+  draftAnimationDurations: number[];
+  draftStartTime: number; // When draft timeline begins (e.g., end of main F2)
+  
+  // Playback mode
+  currentPlaybackMode: 'main' | 'draft';
+  
+  // Legacy draft support - optional for backward compatibility (single draft per formation)
   formationDrafts?: { [formationIndex: number]: FormationDraft };
+  
   dummyTemplates: DummyTemplate[]; // Store dummy templates within segment
   depth: number;
   width: number;
   divisions: number;
-  animationDurations: number[];
-  formationDurations: number[];
   musicUrl: string;
   videoUrl?: string;
   segmentOrder: number;
@@ -77,14 +90,28 @@ const SegmentSchema = new Schema<Segment>({
   team: { type: Schema.Types.ObjectId, ref: 'Team', required: true },
   segmentSet: { type: Schema.Types.ObjectId, ref: 'Set', required: false },
   roster: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  
+  // Main timeline
   formations: [[PositionSchema]],
+  formationDurations: [{ type: Number, default: 4 }],
+  animationDurations: [{ type: Number, default: 1 }],
+  
+  // Draft timeline
+  draftFormations: [[PositionSchema]],
+  draftFormationDurations: [{ type: Number, default: 4 }],
+  draftAnimationDurations: [{ type: Number, default: 1 }],
+  draftStartTime: { type: Number, default: 0 },
+  
+  // Playback mode
+  currentPlaybackMode: { type: String, enum: ['main', 'draft'], default: 'main' },
+  
+  // Legacy draft support
   formationDrafts: { type: Map, of: FormationDraftSchema, required: false },
+  
   dummyTemplates: [DummyTemplateSchema], // Add dummy templates array
   depth: { type: Number, default: 24 },
   width: { type: Number, default: 32 },
   divisions: { type: Number, default: 3 },
-  animationDurations: [{ type: Number, default: 1 }],
-  formationDurations: [{ type: Number, default: 4 }],
   musicUrl: { type: String },
   videoUrl: { type: String },
   segmentOrder: { type: Number, default: 0 },

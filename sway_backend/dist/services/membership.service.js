@@ -104,6 +104,13 @@ class MembershipService {
                 if (!team) {
                     throw new Error('Team not found');
                 }
+                // Check if the team is trying to use their own referral code
+                if (referringTeam._id.toString() === teamId) {
+                    return {
+                        applied: false,
+                        message: 'Nice try'
+                    };
+                }
                 // Check if this team has at least 10 registered users
                 const registeredUserCount = yield User_1.User.countDocuments({
                     team: teamId,

@@ -597,6 +597,11 @@
     [selectedPerformerCount]="selectedPerformerIds.size"
     [isMirrorModeEnabled]="isMirrorModeEnabled"
     [showTransitions]="showTransitions"
+    [currentPlaybackMode]="currentPlaybackMode"
+    [draftFormations]="draftFormations"
+    [draftFormationDurations]="draftFormationDurations"
+    [draftAnimationDurations]="draftAnimationDurations"
+    [draftStartTime]="draftStartTime"
     (prevFormation)="onControlBarPrevFormation()"
     (playPause)="onControlBarPlayPause()"
     (nextFormation)="onControlBarNextFormation()"
@@ -610,6 +615,10 @@
     (quickSwap)="onControlBarQuickSwap()"
     (mirrorModeToggle)="onControlBarMirrorModeToggle()"
     (transitionsToggle)="toggleShowTransitions()"
+    (switchToMainTimeline)="onControlBarSwitchToMainTimeline()"
+    (switchToDraftTimeline)="onControlBarSwitchToDraftTimeline()"
+    (createDraftFromCurrent)="onControlBarCreateDraftFromCurrent()"
+    (deleteDraftFormation)="onControlBarDeleteDraftFormation()"
     >
   </app-control-bar>
       <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl }">
@@ -648,6 +657,37 @@
               <div *ngIf="isHoveringSeekBar && hoveredTimelineX !== null && !isPlaying" class="timeline-playhead ghost" [style.left.px]="getHoveredPlayheadPixel()"></div>
             </div>
             
+            <!-- Draft Timeline Row (NEW) -->
+            <div *ngIf="hasDraftTimeline()" 
+                 class="draft-timeline-row" 
+                 [style.width.px]="getTimelinePixelWidth()">
+              <ng-container *ngFor="let formation of draftFormations; let i = index">
+                <div class="formation-timeline-column" [style.width.px]="getDraftFormationPixelWidth(i)">
+                  <!-- Draft formation box -->
+                  <div class="formation-timeline-box draft-formation"
+                       [class.active]="currentPlaybackMode === 'draft' && currentFormationIndex === i"
+                       (click)="handleDraftFormationClick(i)"
+                       (mouseenter)="hoveredFormationIndex = i"
+                       (mouseleave)="hoveredFormationIndex = null">
+                    <div class="formation-label">Draft F {{ i + 1 }}</div>
+                    <div class="formation-duration">{{ draftFormationDurations[i] | number:'1.1-1' }}s</div>
+                    <div *ngIf="isCaptain" class="formation-drag-handle" (mousedown)="onDraftFormationResizeStart($event, i)"></div>
+                  </div>
+                </div>
+                
+                <ng-container *ngIf="i < draftFormations.length - 1">
+                  <div class="timeline-transition-column" [style.width.px]="getDraftTransitionPixelWidth(i)">
+                    <!-- Draft transition -->
+                    <div class="timeline-transition-bar draft-transition">
+                      <span class="transition-label">{{ draftAnimationDurations[i] | number:'1.1-1' }}s</span>
+                      <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onDraftTransitionResizeStart($event, i)"></div>
+                    </div>
+                  </div>
+                </ng-container>
+              </ng-container>
+            </div>
+            
+            <!-- Main Timeline Row -->
             <div class="formation-timeline-row" 
                  [class.has-drafts]="hasAnyDrafts()" 
                  [style.width.px]="getTimelinePixelWidth()">

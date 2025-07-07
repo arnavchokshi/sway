@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
+// Legacy draft interface for backward compatibility
 export interface FormationDraft {
   id: string;
   formation: any[];
@@ -17,14 +18,28 @@ export interface ISegment {
   team: string;
   segmentSet?: string;
   roster: string[];
+  
+  // Main timeline (existing)
   formations: any[][];
+  formationDurations: number[];
+  animationDurations: number[];
+  
+  // Draft timeline (new independent timeline)
+  draftFormations: any[][];
+  draftFormationDurations: number[];
+  draftAnimationDurations: number[];
+  draftStartTime: number; // When draft timeline begins (e.g., end of main F2)
+  
+  // Playback mode
+  currentPlaybackMode: 'main' | 'draft';
+  
+  // Legacy draft support - optional for backward compatibility (single draft per formation)
   formationDrafts?: { [formationIndex: number]: FormationDraft };
+  
   dummyTemplates: any[];
   depth: number;
   width: number;
   divisions: number;
-  animationDurations: number[];
-  formationDurations: number[];
   musicUrl: string;
   videoUrl?: string;
   segmentOrder: number;

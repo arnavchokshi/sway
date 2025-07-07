@@ -107,8 +107,16 @@ app.get('/', (req, res) => {
     res.send('Hello from the backend!');
 });
 app.post('/api/register', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const { email, password, name, team } = req.body;
+        // Check if email already exists
+        if (email) {
+            const existingUser = yield User_1.User.findOne({ email: email.toLowerCase() });
+            if (existingUser) {
+                return res.status(400).json({ error: 'Email already exists. Please use a different email address.' });
+            }
+        }
         const hashedPassword = yield bcrypt_1.default.hash(password, 10);
         const user = new User_1.User({ email, password: hashedPassword, name, team, captain: true });
         yield user.save();
@@ -116,6 +124,10 @@ app.post('/api/register', (req, res) => __awaiter(void 0, void 0, void 0, functi
     }
     catch (error) {
         console.error('Error creating user:', error);
+        // Handle MongoDB duplicate key error specifically
+        if (error.code === 11000 && ((_a = error.keyPattern) === null || _a === void 0 ? void 0 : _a.email)) {
+            return res.status(400).json({ error: 'Email already exists. Please use a different email address.' });
+        }
         res.status(500).json({ error: error.message || 'Failed to create user' });
     }
 }));
@@ -133,9 +145,9 @@ app.post('/api/teams', (req, res) => __awaiter(void 0, void 0, void 0, function*
             if (!existing)
                 isUnique = true;
         }
-        // Set 4 months of Pro and generate referral code
-        const fourMonthsFromNow = new Date();
-        fourMonthsFromNow.setMonth(fourMonthsFromNow.getMonth() + 4);
+        // Set 3 months of Pro and generate referral code
+        const threeMonthsFromNow = new Date();
+        threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
         const referralCode = yield Promise.resolve().then(() => __importStar(require('./services/membership.service'))).then(m => m.MembershipService.generateUniqueReferralCode());
         const team = new Team_1.Team({
             name,
@@ -144,7 +156,7 @@ app.post('/api/teams', (req, res) => __awaiter(void 0, void 0, void 0, function*
             members: [owner],
             joinCode,
             membershipType: 'pro',
-            membershipExpiresAt: fourMonthsFromNow,
+            membershipExpiresAt: threeMonthsFromNow,
             referralCode: yield referralCode
         });
         yield team.save();
@@ -156,6 +168,7 @@ app.post('/api/teams', (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
 }));
 app.patch('/api/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const userId = req.params.id;
         const update = req.body;
@@ -167,6 +180,16 @@ app.patch('/api/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, func
         const user = yield User_1.User.findById(userId);
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
+        }
+        // Check if email is being updated and if it already exists
+        if (update.email && update.email !== user.email) {
+            const existingUser = yield User_1.User.findOne({
+                email: update.email.toLowerCase(),
+                _id: { $ne: userId } // Exclude current user from check
+            });
+            if (existingUser) {
+                return res.status(400).json({ error: 'Email already exists. Please use a different email address.' });
+            }
         }
         // If skillLevels is present, update it as a Map
         if (update.skillLevels) {
@@ -181,12 +204,32 @@ app.patch('/api/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, func
     }
     catch (error) {
         console.error('Error updating user:', error);
+        // Handle MongoDB duplicate key error specifically
+        if (error.code === 11000 && ((_a = error.keyPattern) === null || _a === void 0 ? void 0 : _a.email)) {
+            return res.status(400).json({ error: 'Email already exists. Please use a different email address.' });
+        }
         res.status(500).json({ error: error.message || 'Failed to update user' });
     }
 }));
 app.post('/api/bulk-users', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const { team, users } = req.body;
+        // Check for duplicate emails before creating users
+        const emailsToCheck = users
+            .map((u) => u.email)
+            .filter((email) => email && !email.includes('@placeholder.com'));
+        if (emailsToCheck.length > 0) {
+            const existingUsers = yield User_1.User.find({
+                email: { $in: emailsToCheck.map((email) => email.toLowerCase()) }
+            });
+            if (existingUsers.length > 0) {
+                const duplicateEmails = existingUsers.map(u => u.email);
+                return res.status(400).json({
+                    error: `The following emails already exist: ${duplicateEmails.join(', ')}`
+                });
+            }
+        }
         // Create users and assign them to the team
         const createdUsers = yield User_1.User.insertMany(users.map((u, idx) => (Object.assign(Object.assign({}, u), { team, email: u.email || `user${Date.now()}_${idx}@placeholder.com` }))));
         const userIds = createdUsers.map(u => u._id);
@@ -195,6 +238,11 @@ app.post('/api/bulk-users', (req, res) => __awaiter(void 0, void 0, void 0, func
         res.json({ message: 'Users created and added to team', users: createdUsers });
     }
     catch (error) {
+        console.error('Error creating bulk users:', error);
+        // Handle MongoDB duplicate key error specifically
+        if (error.code === 11000 && ((_a = error.keyPattern) === null || _a === void 0 ? void 0 : _a.email)) {
+            return res.status(400).json({ error: 'One or more emails already exist. Please use different email addresses.' });
+        }
         res.status(500).json({ error: error.message || 'Failed to create users' });
     }
 }));
