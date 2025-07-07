@@ -28,6 +28,7 @@ export interface ISegment {
   draftFormations: any[][];
   draftFormationDurations: number[];
   draftAnimationDurations: number[];
+  draftFormationStartTimes: number[]; // Individual start times for each draft formation
   draftStartTime: number; // When draft timeline begins (e.g., end of main F2)
   
   // Playback mode

@@ -40,6 +40,7 @@ interface Segment extends Document {
   draftFormations: Position[][];
   draftFormationDurations: number[];
   draftAnimationDurations: number[];
+  draftFormationStartTimes: number[]; // Individual start times for each draft formation
   draftStartTime: number; // When draft timeline begins (e.g., end of main F2)
   
   // Playback mode
@@ -100,6 +101,7 @@ const SegmentSchema = new Schema<Segment>({
   draftFormations: [[PositionSchema]],
   draftFormationDurations: [{ type: Number, default: 4 }],
   draftAnimationDurations: [{ type: Number, default: 1 }],
+  draftFormationStartTimes: [{ type: Number, default: 0 }], // Individual start times for each draft formation
   draftStartTime: { type: Number, default: 0 },
   
   // Playback mode

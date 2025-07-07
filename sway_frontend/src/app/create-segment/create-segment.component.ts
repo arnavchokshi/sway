@@ -125,6 +125,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   draftFormations: Performer[][] = [];
   draftFormationDurations: number[] = [];
   draftAnimationDurations: number[] = [];
+  draftFormationStartTimes: number[] = []; // Individual start times for each draft formation
   draftStartTime: number = 0; // When draft timeline begins (e.g., end of main F2)
   currentPlaybackMode: 'main' | 'draft' = 'main'; // Current priority mode
 
@@ -5150,12 +5151,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const draftFormation = this.formations[formationIndex].map(p => ({...p}));
     const draftDuration = this.formationDurations[formationIndex];
     
+    // Calculate the start time of the formation in the main timeline
+    const formationStartTime = this.getFormationStartTime(formationIndex);
+    
     // Add to draft timeline
     this.draftFormations.push(draftFormation);
     this.draftFormationDurations.push(draftDuration);
+    this.draftFormationStartTimes.push(formationStartTime); // Store individual start time
     
     // Set draft start time to formation start time
-    this.draftStartTime = this.getFormationStartTime(formationIndex);
+    this.draftStartTime = formationStartTime;
     
     // Create initial draft transition (from previous formation end to draft start)
     this.draftAnimationDurations.push(this.calculateDraftTransitionDuration());
@@ -5169,7 +5174,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     console.log(`Created draft for formation ${formationIndex + 1}:`, {
       formation: draftFormation,
       duration: draftDuration,
-      startTime: this.draftStartTime
+      startTime: formationStartTime
     });
   }
 
@@ -5448,6 +5453,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftFormations.splice(formationIndex, 1);
     this.draftFormationDurations.splice(formationIndex, 1);
     this.draftAnimationDurations.splice(formationIndex, 1);
+    this.draftFormationStartTimes.splice(formationIndex, 1);
 
     // Adjust current formation index if needed
     if (this.currentFormationIndex >= formationIndex) {
