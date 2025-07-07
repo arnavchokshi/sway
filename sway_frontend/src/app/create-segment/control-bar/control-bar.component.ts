@@ -55,7 +55,7 @@ export class ControlBarComponent {
   @Output() transitionsToggle = new EventEmitter<void>();
   
   // New draft timeline output events
-  @Output() switchToMainTimeline = new EventEmitter<void>();
+    @Output() switchToMainTimeline = new EventEmitter<void>();
   @Output() switchToDraftTimeline = new EventEmitter<void>();
   @Output() createDraftFromCurrent = new EventEmitter<void>();
   @Output() deleteDraftFormation = new EventEmitter<void>();

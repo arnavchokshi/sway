@@ -615,15 +615,16 @@
     (quickSwap)="onControlBarQuickSwap()"
     (mirrorModeToggle)="onControlBarMirrorModeToggle()"
     (transitionsToggle)="toggleShowTransitions()"
-    (switchToMainTimeline)="onControlBarSwitchToMainTimeline()"
+        (switchToMainTimeline)="onControlBarSwitchToMainTimeline()"
     (switchToDraftTimeline)="onControlBarSwitchToDraftTimeline()"
     (createDraftFromCurrent)="onControlBarCreateDraftFromCurrent()"
     (deleteDraftFormation)="onControlBarDeleteDraftFormation()"
     >
   </app-control-bar>
-      <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl }">
+      <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl, 'has-drafts': hasAnyDrafts() }">
         <div class="timeline-audio-stack" 
              [class.no-audio]="!signedMusicUrl"
+             [class.has-drafts]="hasAnyDrafts()"
              style="position: relative;">
           <!-- Playhead container now overlays the timeline content exactly -->
           <div class="formation-timeline-bar simplified-timeline"
@@ -660,10 +661,26 @@
             <!-- Draft Timeline Row (NEW) -->
             <div *ngIf="hasDraftTimeline()" 
                  class="draft-timeline-row" 
-                 [style.width.px]="getTimelinePixelWidth()">
+                 [style.width.px]="getTimelinePixelWidth()" 
+                 style="position: relative;">
               <ng-container *ngFor="let formation of draftFormations; let i = index">
-                <div class="formation-timeline-column" [style.width.px]="getDraftFormationPixelWidth(i)">
-                  <!-- Draft formation box -->
+                <!-- Entry transition (before the formation) -->
+                <div *ngIf="i === 0" 
+                     class="timeline-transition-column" 
+                     [style.width.px]="getDraftEntryTransitionPixelWidth(i)"
+                     [style.left.px]="(draftFormationStartTimes[i] - (draftEntryTransitionDurations[i] || 1)) * pixelsPerSecond * timelineZoom"
+                     style="position: absolute;">
+                  <div class="timeline-transition-bar draft-transition">
+                    <span class="transition-label">{{ draftEntryTransitionDurations[i] | number:'1.1-1' }}s</span>
+                    <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onDraftEntryTransitionResizeStart($event, i)"></div>
+                  </div>
+                </div>
+                
+                <!-- Draft formation -->
+                <div class="formation-timeline-column" 
+                     [style.width.px]="getDraftFormationPixelWidth(i)"
+                     [style.left.px]="draftFormationStartTimes[i] * pixelsPerSecond * timelineZoom"
+                     style="position: absolute;">
                   <div class="formation-timeline-box draft-formation"
                        [class.active]="currentPlaybackMode === 'draft' && currentFormationIndex === i"
                        (click)="handleDraftFormationClick(i)"
@@ -675,15 +692,16 @@
                   </div>
                 </div>
                 
-                <ng-container *ngIf="i < draftFormations.length - 1">
-                  <div class="timeline-transition-column" [style.width.px]="getDraftTransitionPixelWidth(i)">
-                    <!-- Draft transition -->
-                    <div class="timeline-transition-bar draft-transition">
-                      <span class="transition-label">{{ draftAnimationDurations[i] | number:'1.1-1' }}s</span>
-                      <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onDraftTransitionResizeStart($event, i)"></div>
-                    </div>
+                <!-- Exit transition (after the formation) -->
+                <div class="timeline-transition-column" 
+                     [style.width.px]="getDraftExitTransitionPixelWidth(i)"
+                     [style.left.px]="(draftFormationStartTimes[i] + draftFormationDurations[i]) * pixelsPerSecond * timelineZoom"
+                     style="position: absolute;">
+                  <div class="timeline-transition-bar draft-transition">
+                    <span class="transition-label">{{ draftExitTransitionDurations[i] | number:'1.1-1' }}s</span>
+                    <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onDraftTransitionResizeStart($event, i)"></div>
                   </div>
-                </ng-container>
+                </div>
               </ng-container>
             </div>
             
@@ -698,7 +716,7 @@
                        class="formation-timeline-box"
                        [class.draft-formation]="isDraftFormationDraftColored(i)"
                        [class.main-formation-colored-as-draft]="!isDraftFormationDraftColored(i)"
-                       [class.active]="currentFormationIndex === i && isViewingDraft"
+                       [class.active]="currentFormationIndex === i && currentPlaybackMode === 'draft'"
                        (click)="handleFormationClick(i, true)"
                        (mouseenter)="hoveredFormationIndex = i"
                        (mouseleave)="hoveredFormationIndex = null">
@@ -723,7 +741,7 @@
                   <!-- Main formation box -->
                   <div class="formation-timeline-box main-formation"
                        [class.main-formation-colored-as-draft]="isMainFormationDraftColored(i)"
-                       [class.active]="currentFormationIndex === i && !isViewingDraft"
+                       [class.active]="currentFormationIndex === i && currentPlaybackMode === 'main'"
                        [class.has-draft]="hasDraft(i)"
                        (click)="handleFormationClick(i, false)"
                        (contextmenu)="onFormationRightClick($event, i)"
@@ -732,13 +750,6 @@
                     <div class="formation-label">F {{ i + 1 }}</div>
                     <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
                     <div *ngIf="isCaptain" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
-                    
-                    <!-- Create draft button - TEMPORARILY HIDDEN -->
-                    <!-- <div *ngIf="!hasDraft(i) && isCaptain" class="create-draft-btn" 
-                         (click)="createFormationDraft(i)"
-                         title="Create Draft for Formation {{ i + 1 }}">
-                      <span class="material-icons">add</span>
-                    </div> -->
                   </div>
                 </div>
                 

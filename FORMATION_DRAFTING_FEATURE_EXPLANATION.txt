@@ -1,0 +1,250 @@
+FORMATION DRAFTING FEATURE EXPLANATION
+=====================================
+
+Based on code analysis of the Sway application, this document explains how the formation drafting feature works.
+
+OVERVIEW
+--------
+The formation drafting feature allows team captains to create alternative versions of formations within a segment. This creates a separate timeline that can be used to experiment with different choreography without affecting the main performance timeline.
+
+CORE CONCEPTS
+-------------
+
+1. DUAL TIMELINE SYSTEM
+   - Main Timeline: The primary performance timeline with formations, durations, and transitions
+   - Draft Timeline: An independent timeline for experimental formations
+   - Both timelines can coexist and be switched between
+
+2. DRAFT TIMELINE PROPERTIES
+   - draftFormations: Array of performer positions for each draft formation
+   - draftFormationDurations: Duration of each draft formation in seconds
+   - draftAnimationDurations: Transition duration between draft formations
+   - draftFormationStartTimes: Individual start times for each draft formation
+   - draftStartTime: When the draft timeline begins relative to main timeline
+
+3. PLAYBACK MODES
+   - 'main': View and edit main timeline formations
+   - 'draft': View and edit draft timeline formations
+   - currentPlaybackMode tracks which timeline is active
+
+DATA STRUCTURE
+--------------
+
+The draft system uses several key data structures:
+
+1. Draft Timeline Arrays:
+   - draftFormations: Performer[][] - Array of formation arrays
+   - draftFormationDurations: number[] - Duration of each formation
+   - draftAnimationDurations: number[] - Transition durations
+   - draftFormationStartTimes: number[] - Start times for each formation
+
+2. Timeline Management:
+   - currentPlaybackMode: 'main' | 'draft' - Current active timeline
+   - draftStartTime: number - When draft timeline begins
+
+3. UI State:
+   - isViewingDraft: boolean - Whether currently viewing draft
+   - formationDrafts: { [formationIndex: number]: FormationDraft } - Legacy draft system
+
+CREATION PROCESS
+----------------
+
+1. DRAFT CREATION (createDraft method):
+   - Takes a formation index from main timeline
+   - Copies formation data to draft timeline
+   - Copies formation duration
+   - Calculates formation start time in main timeline
+   - Adds to draftFormations array
+   - Sets draftStartTime to formation start time
+   - Creates initial draft transition duration
+   - Saves state and triggers auto-save
+
+2. DRAFT FROM CURRENT (onControlBarCreateDraftFromCurrent):
+   - Creates draft from currently selected formation
+   - Only works if currentFormationIndex is valid
+   - Calls createDraft with current formation index
+
+TIMELINE NAVIGATION
+-------------------
+
+1. EFFECTIVE TIMELINE (getEffectiveTimeline):
+   - Determines which timeline to use at given time
+   - Prioritizes current playback mode
+   - Falls back to other timeline if current has no formation
+   - Returns timeline type and formation index
+
+2. MAIN TIMELINE NAVIGATION (getMainTimelineAtTime):
+   - Calculates formation and transition times
+   - Returns main timeline formation at given time
+   - Handles formation and transition periods
+
+3. DRAFT TIMELINE NAVIGATION (getDraftTimelineAtTime):
+   - Adjusts time relative to draft start time
+   - Returns draft timeline formation at given time
+   - Handles draft formation and transition periods
+
+4. TIMELINE SWITCHING (switchPlaybackMode):
+   - Changes currentPlaybackMode between 'main' and 'draft'
+   - Updates formation display
+   - Maintains playback position
+
+FORMATION MANAGEMENT
+-------------------
+
+1. DRAFT FORMATION OPERATIONS:
+   - deleteDraftFormation: Removes draft formation and updates arrays
+   - updateDraftFormationDuration: Changes duration of specific formation
+   - updateDraftTransitionDuration: Changes transition duration
+   - handleDraftFormationClick: Navigates to draft formation
+
+2. TIMELINE CALCULATIONS:
+   - getDraftFormationPixelWidth: Calculates visual width for timeline
+   - getDraftTransitionPixelWidth: Calculates transition visual width
+   - getDraftTimelineTotalDuration: Calculates total draft timeline duration
+   - hasDraftTimeline: Checks if draft timeline exists
+
+3. RESIZING OPERATIONS:
+   - onDraftFormationResizeStart: Begins formation duration resize
+   - onDraftFormationResizeMove: Handles resize drag
+   - onDraftFormationResizeEnd: Completes resize operation
+   - Similar operations for transition resizing
+
+UI COMPONENTS
+-------------
+
+1. CONTROL BAR:
+   - Timeline mode selector buttons (Main/Draft)
+   - Draft creation button (add_circle icon)
+   - Draft deletion button (remove_circle icon)
+   - Only visible to captains (isCaptain check)
+
+2. TIMELINE DISPLAY:
+   - Draft timeline row appears above main timeline
+   - Purple color scheme for draft formations
+   - Draft formations labeled "Draft F X"
+   - Drag handles for resizing (captains only)
+
+3. FORMATION BOXES:
+   - Draft formations have purple background
+   - Show duration in seconds
+   - Clickable for navigation
+   - Hover effects and active states
+
+VISUAL REPRESENTATION
+---------------------
+
+1. TIMELINE LAYOUT:
+   - Draft timeline row: Purple background, 35px height
+   - Main timeline row: Blue background, 40px height
+   - Draft formations: Purple borders and backgrounds
+   - Main formations: Blue borders and backgrounds
+
+2. COLOR SCHEME:
+   - Draft formations: rgba(139, 92, 246, 0.15) background
+   - Draft transitions: rgba(139, 92, 246, 0.2) background
+   - Draft labels: #8b5cf6 color
+   - Active draft: rgba(139, 92, 246, 0.4) background
+
+3. INTERACTIVE ELEMENTS:
+   - Drag handles for resizing (captains only)
+   - Click handlers for navigation
+   - Hover effects for visual feedback
+
+SAVE AND PERSISTENCE
+--------------------
+
+1. AUTO-SAVE:
+   - triggerAutoSave called after draft creation
+   - 2-second debounce time
+   - Saves draft formations and durations
+
+2. STATE MANAGEMENT:
+   - saveState called for undo/redo functionality
+   - Draft data included in segment save operations
+   - Backend stores draftFormations, draftFormationDurations, etc.
+
+3. DATA LOADING:
+   - Draft data loaded from segment on initialization
+   - Arrays mapped from backend format to frontend format
+   - Default empty arrays if no draft data exists
+
+PERMISSIONS AND ACCESS
+---------------------
+
+1. CAPTAIN ONLY FEATURES:
+   - Draft creation and deletion
+   - Timeline mode switching
+   - Formation and transition resizing
+   - All controlled by isCaptain boolean
+
+2. MEMBER ACCESS:
+   - Can view draft timeline
+   - Can navigate between formations
+   - Cannot modify draft formations
+   - Cannot switch timeline modes
+
+ERROR HANDLING
+--------------
+
+1. VALIDATION:
+   - Formation index bounds checking
+   - Duration validation (non-negative)
+   - Timeline existence checks
+   - Array bounds protection
+
+2. FALLBACKS:
+   - Default to main timeline if draft unavailable
+   - Default durations if not specified
+   - Graceful handling of missing data
+
+INTEGRATION POINTS
+-----------------
+
+1. AUDIO SYNCHRONIZATION:
+   - Draft timeline can sync with audio
+   - Playback position maintained across timeline switches
+   - Waveform visualization works with both timelines
+
+2. PERFORMER MANAGEMENT:
+   - Same performer roster used for both timelines
+   - Performer positions copied between timelines
+   - Skill levels and properties preserved
+
+3. UNDO/REDO SYSTEM:
+   - Draft operations included in undo stack
+   - State restoration handles draft data
+   - Action descriptions include draft operations
+
+LIMITATIONS AND CONSTRAINTS
+--------------------------
+
+1. SINGLE DRAFT TIMELINE:
+   - Only one draft timeline per segment
+   - Cannot have multiple draft versions
+   - Draft timeline is linear (no branching)
+
+2. CAPTAIN RESTRICTIONS:
+   - Only team captains can create/modify drafts
+   - Members can view but not edit
+   - Permission checks throughout code
+
+3. TIMELINE INDEPENDENCE:
+   - Draft timeline is separate from main timeline
+   - No automatic synchronization between timelines
+   - Manual switching required
+
+FUTURE ENHANCEMENTS (CODE COMMENTS)
+-----------------------------------
+
+1. TEMPORARILY HIDDEN FEATURES:
+   - Draft controls (make main, delete draft buttons)
+   - Create draft buttons on formation boxes
+   - These appear to be disabled in current version
+
+2. POTENTIAL IMPROVEMENTS:
+   - Multiple draft timelines
+   - Draft branching
+   - Automatic draft suggestions
+   - Draft comparison tools
+
+This formation drafting feature provides a powerful tool for choreographers to experiment with different formations while maintaining the integrity of the main performance timeline. The dual timeline system allows for creative exploration without affecting the primary choreography. 

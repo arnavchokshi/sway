@@ -69,6 +69,9 @@ const SegmentSchema = new mongoose_1.Schema({
     draftFormations: [[PositionSchema]],
     draftFormationDurations: [{ type: Number, default: 4 }],
     draftAnimationDurations: [{ type: Number, default: 1 }],
+    draftEntryTransitionDurations: [{ type: Number, default: 1 }], // Entry transition durations for draft formations
+    draftExitTransitionDurations: [{ type: Number, default: 1 }], // Exit transition durations for draft formations
+    draftFormationStartTimes: [{ type: Number, default: 0 }], // Individual start times for each draft formation
     draftStartTime: { type: Number, default: 0 },
     // Playback mode
     currentPlaybackMode: { type: String, enum: ['main', 'draft'], default: 'main' },

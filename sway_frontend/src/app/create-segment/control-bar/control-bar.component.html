@@ -64,12 +64,13 @@
         </button>
       </div>
       
-      <!-- Draft Creation Button (always visible for captains) -->
+      <!-- Draft Actions -->
       <div class="draft-actions">
         <button class="control-btn draft-action-btn" 
                 (click)="onCreateDraftFromCurrent()" 
                 title="Create Draft from Current Formation"
-                [disabled]="totalFormations === 0">
+                [disabled]="totalFormations === 0"
+                *ngIf="currentFormationIndex >= 0">
           <span class="material-icons">add_circle</span>
         </button>
         <button class="control-btn draft-action-btn" 
@@ -105,12 +106,7 @@
 
     <!-- Action Buttons -->
     <div class="action-controls" *ngIf="isCaptain">
-      <button class="control-btn action-btn draft-btn" 
-              (click)="onCreateDraftFromCurrent()" 
-              title="Create Draft"
-              [disabled]="totalFormations === 0">
-        <span class="material-icons">edit_document</span>
-      </button>
+
       <button class="control-btn action-btn duplicate-btn" 
               (click)="onDuplicateFormation()" 
               title="Duplicate Formation"
