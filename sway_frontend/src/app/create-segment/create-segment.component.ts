@@ -683,6 +683,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // New method to load team roster and map formations with fresh user data
   private loadTeamRosterAndMapFormations(teamId: string) {
+    // Prevent multiple simultaneous calls
+    if (this.isRefreshingData) {
+      console.log('Skipping loadTeamRosterAndMapFormations - already loading data');
+      return;
+    }
+    
+    this.isRefreshingData = true;
     this.teamService.getTeamById(teamId).subscribe({
       next: async (res) => {
         this.teamRoster = res.team.members || [];
@@ -946,9 +953,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         
         // Clear caches AFTER segment data is properly mapped
         this.clearAllCaches();
+        
+        // Reset the loading flag
+        this.isRefreshingData = false;
       },
       error: (err) => {
         console.error('Failed to load team roster:', err);
+        // Reset the loading flag on error too
+        this.isRefreshingData = false;
       }
     });
   }
@@ -5178,6 +5190,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   createDraft(formationIndex: number) {
     if (formationIndex < 0 || formationIndex >= this.formations.length) {
       console.error(`Invalid formation index: ${formationIndex}`);
+      return;
+    }
+
+    // Check if a draft already exists for this formation
+    const existingDraftIndex = this.draftFormations.findIndex((draft, index) => {
+      const draftStartTime = this.draftFormationStartTimes[index] || 0;
+      const formationStartTime = this.getFormationStartTime(formationIndex);
+      // Check if this draft corresponds to the same formation (same start time)
+      return Math.abs(draftStartTime - formationStartTime) < 0.1; // Allow small floating point differences
+    });
+
+    if (existingDraftIndex !== -1) {
+      console.log(`Draft already exists for formation ${formationIndex + 1} at draft index ${existingDraftIndex}`);
+      console.log('Current draft formations:', this.draftFormations.length);
+      console.log('Current draft start times:', this.draftFormationStartTimes);
       return;
     }
 
