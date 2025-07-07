@@ -174,6 +174,7 @@ export class HomeComponent implements OnInit, AfterViewInit {
    * Check if user is already logged in and redirect to dashboard if so
    */
   private checkAutoLogin() {
+    // First check if user is already authenticated
     if (this.authService.isAuthenticated()) {
       this.isCheckingAuth = true;
       
@@ -190,6 +191,46 @@ export class HomeComponent implements OnInit, AfterViewInit {
           // User data is invalid or expired, clear it
           console.log('Stored user data is invalid, clearing...');
           this.authService.logout();
+          this.isCheckingAuth = false;
+          
+          // Check for saved credentials after clearing invalid user data
+          this.checkSavedCredentials();
+        }
+      });
+    } else {
+      // Check for saved credentials if not authenticated
+      this.checkSavedCredentials();
+    }
+  }
+
+  /**
+   * Check for saved credentials and attempt auto-login
+   */
+  private checkSavedCredentials() {
+    const savedCredentials = this.authService.getSavedCredentials();
+    if (savedCredentials) {
+      this.isCheckingAuth = true;
+      
+      // Attempt to login with saved credentials
+      this.http.post(`${environment.apiUrl}/login`, {
+        email: savedCredentials.email,
+        password: savedCredentials.password
+      }).subscribe({
+        next: (response: any) => {
+          const userData = {
+            _id: response.user._id,
+            name: response.user.name,
+            team: response.user.team,
+            captain: response.user.captain
+          };
+          this.authService.setCurrentUser(userData);
+          this.isCheckingAuth = false;
+          this.router.navigate(['/dashboard']);
+        },
+        error: (err) => {
+          // Auto-login failed, clear saved credentials
+          console.log('Auto-login failed, clearing saved credentials...');
+          this.authService.clearSavedCredentials();
           this.isCheckingAuth = false;
         }
       });

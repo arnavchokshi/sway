@@ -26,8 +26,13 @@ export class ControlBarComponent {
   @Input() selectedPerformerCount: number = 0;
   @Input() isMirrorModeEnabled: boolean = false;
   @Input() showTransitions: boolean = false;
-  @Input() hasDraftRow: boolean = false;
-  @Input() isDraftRowActive: boolean = false;
+  
+  // New draft timeline properties
+  @Input() currentPlaybackMode: 'main' | 'draft' = 'main';
+  @Input() draftFormations: any[][] = [];
+  @Input() draftFormationDurations: number[] = [];
+  @Input() draftAnimationDurations: number[] = [];
+  @Input() draftStartTime: number = 0;
 
 
   // Delete confirmation state
@@ -48,7 +53,12 @@ export class ControlBarComponent {
   @Output() quickSwap = new EventEmitter<void>();
   @Output() mirrorModeToggle = new EventEmitter<void>();
   @Output() transitionsToggle = new EventEmitter<void>();
-  @Output() draftModeToggle = new EventEmitter<void>();
+  
+  // New draft timeline output events
+  @Output() switchToMainTimeline = new EventEmitter<void>();
+  @Output() switchToDraftTimeline = new EventEmitter<void>();
+  @Output() createDraftFromCurrent = new EventEmitter<void>();
+  @Output() deleteDraftFormation = new EventEmitter<void>();
 
 
   onPrevFormation() {
@@ -119,12 +129,34 @@ export class ControlBarComponent {
     this.mirrorModeToggle.emit();
   }
 
-  onDraftModeToggle() {
-    this.draftModeToggle.emit();
-  }
-
   onTransitionsToggle() {
     this.transitionsToggle.emit();
+  }
+
+  // New draft timeline methods
+  onSwitchToMainTimeline() {
+    this.switchToMainTimeline.emit();
+  }
+
+  onSwitchToDraftTimeline() {
+    this.switchToDraftTimeline.emit();
+  }
+
+  onCreateDraftFromCurrent() {
+    this.createDraftFromCurrent.emit();
+  }
+
+  onDeleteDraftFormation() {
+    this.deleteDraftFormation.emit();
+  }
+
+  hasDraftTimeline(): boolean {
+    return this.draftFormations.length > 0;
+  }
+
+  hasCurrentDraftFormation(): boolean {
+    return this.currentPlaybackMode === 'draft' && 
+           this.currentFormationIndex < this.draftFormations.length;
   }
 
 

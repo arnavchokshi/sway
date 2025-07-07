@@ -33,21 +33,10 @@
       </button>
     </div>
 
-    <!-- Draft Mode Toggle -->
-    <div class="draft-mode-controls" *ngIf="isCaptain && hasDraftRow">
-      <button class="control-btn draft-mode-btn" 
-              (click)="onDraftModeToggle()" 
-              title="Switch to Draft Mode"
-              [class.active]="isDraftRowActive">
-        <span class="material-icons">{{ isDraftRowActive ? 'edit_document' : 'description' }}</span>
-        <span class="draft-mode-label">{{ isDraftRowActive ? 'Draft' : 'Main' }}</span>
-      </button>
-    </div>
-
    
   </div>
 
-  <!-- Center Section: Time Display -->
+  <!-- Center Section: Time Display and Draft Timeline Controls -->
   <div class="control-bar-center">
     <button class="control-btn quick-swap-btn" 
               (click)="onQuickSwap()" 
@@ -55,6 +44,44 @@
               *ngIf="selectedPerformerCount === 2">
         <span class="material-icons">swap_horiz</span>
       </button>
+    
+    <!-- Draft Timeline Controls -->
+    <div class="draft-timeline-controls" *ngIf="isCaptain">
+      <div class="timeline-mode-selector" *ngIf="hasDraftTimeline()">
+        <button class="control-btn timeline-mode-btn" 
+                [class.active]="currentPlaybackMode === 'main'"
+                (click)="onSwitchToMainTimeline()" 
+                title="Main Timeline">
+          <span class="material-icons">schedule</span>
+          <span class="timeline-label">Main</span>
+        </button>
+        <button class="control-btn timeline-mode-btn" 
+                [class.active]="currentPlaybackMode === 'draft'"
+                (click)="onSwitchToDraftTimeline()" 
+                title="Draft Timeline">
+          <span class="material-icons">edit_note</span>
+          <span class="timeline-label">Draft</span>
+        </button>
+      </div>
+      
+      <!-- Draft Creation Button (always visible for captains) -->
+      <div class="draft-actions">
+        <button class="control-btn draft-action-btn" 
+                (click)="onCreateDraftFromCurrent()" 
+                title="Create Draft from Current Formation"
+                [disabled]="totalFormations === 0">
+          <span class="material-icons">add_circle</span>
+        </button>
+        <button class="control-btn draft-action-btn" 
+                (click)="onDeleteDraftFormation()" 
+                title="Delete Draft Formation"
+                [disabled]="!hasCurrentDraftFormation()"
+                *ngIf="hasDraftTimeline()">
+          <span class="material-icons">remove_circle</span>
+        </button>
+      </div>
+    </div>
+    
     <div class="time-display">
       {{ formatTime(playbackTime) }} / {{ formatTime(totalSegmentDuration) }}
     </div>
@@ -78,9 +105,8 @@
 
     <!-- Action Buttons -->
     <div class="action-controls" *ngIf="isCaptain">
-      <!-- Create Draft Button -->
       <button class="control-btn action-btn draft-btn" 
-              (click)="onCreateDraft()" 
+              (click)="onCreateDraftFromCurrent()" 
               title="Create Draft"
               [disabled]="totalFormations === 0">
         <span class="material-icons">edit_document</span>

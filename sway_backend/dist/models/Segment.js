@@ -61,17 +61,23 @@ const SegmentSchema = new mongoose_1.Schema({
     team: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Team', required: true },
     segmentSet: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Set', required: false },
     roster: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
+    // Main timeline
     formations: [[PositionSchema]],
+    formationDurations: [{ type: Number, default: 4 }],
+    animationDurations: [{ type: Number, default: 1 }],
+    // Draft timeline
     draftFormations: [[PositionSchema]],
     draftFormationDurations: [{ type: Number, default: 4 }],
     draftAnimationDurations: [{ type: Number, default: 1 }],
-    connectedDraftGroups: [[{ type: Number }]], // Array of arrays for connected draft groups
+    draftStartTime: { type: Number, default: 0 },
+    // Playback mode
+    currentPlaybackMode: { type: String, enum: ['main', 'draft'], default: 'main' },
+    // Legacy draft support
+    formationDrafts: { type: Map, of: FormationDraftSchema, required: false },
     dummyTemplates: [DummyTemplateSchema], // Add dummy templates array
     depth: { type: Number, default: 24 },
     width: { type: Number, default: 32 },
     divisions: { type: Number, default: 3 },
-    animationDurations: [{ type: Number, default: 1 }],
-    formationDurations: [{ type: Number, default: 4 }],
     musicUrl: { type: String },
     videoUrl: { type: String },
     segmentOrder: { type: Number, default: 0 },
