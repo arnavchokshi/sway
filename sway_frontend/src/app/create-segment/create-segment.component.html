@@ -470,8 +470,8 @@
              [style.height.px]="stageGridHeightPx"
              [style.transform]="getStageTransform()">
           <div class="stage-header-center">
-            <div class="formation-title" *ngIf="formations[playingFormationIndex]">
-              F {{ playingFormationIndex + 1 }}
+            <div class="formation-title" *ngIf="getCurrentFormationTitle()">
+              {{ getCurrentFormationTitle() }}
             </div>
             <div class="stage-label">{{ isStageFlipped ? 'FRONTSTAGE' : 'BACKSTAGE' }}</div>
           </div>

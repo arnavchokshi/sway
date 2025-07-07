@@ -130,6 +130,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   draftFormationStartTimes: number[] = []; // Individual start times for each draft formation
   draftStartTime: number = 0; // When draft timeline begins (e.g., end of main F2)
   currentPlaybackMode: 'main' | 'draft' = 'main'; // Current priority mode
+  currentDraftFormationIndex: number = -1; // Track which draft formation is currently being viewed (-1 = none)
 
 
 
@@ -501,29 +502,42 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   get performers(): Performer[] {
-    // During playback or animation, ALWAYS use main formations (never drafts)
+    // During playback or animation, use the appropriate formation data
     if (this.isPlaying || this.inTransition) {
-      const mainPerformers = this.formations[this.playingFormationIndex] || [];
-      
-      if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
-        // Return animated positions during transition
-        return mainPerformers.map(p => ({
-          ...p,
-          ...this.animatedPositions[p.id]
-        }));
+      // Check if we're currently viewing a draft formation
+      if (this.currentDraftFormationIndex !== -1) {
+        // We're playing a draft formation
+        const draftPerformers = this.draftFormations[this.currentDraftFormationIndex] || [];
+        
+        if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
+          // Return animated positions during transition
+          return draftPerformers.map(p => ({
+            ...p,
+            ...this.animatedPositions[p.id]
+          }));
+        }
+        return draftPerformers;
+      } else {
+        // We're playing a main formation
+        const mainPerformers = this.formations[this.playingFormationIndex] || [];
+        
+        if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
+          // Return animated positions during transition
+          return mainPerformers.map(p => ({
+            ...p,
+            ...this.animatedPositions[p.id]
+          }));
+        }
+        return mainPerformers;
       }
-      return mainPerformers;
     }
     
-    // When not playing, get performers from current view (main or draft)
-    if (this.currentPlaybackMode === 'draft' && this.draftFormations.length > 0) {
-      // Return the draft formation data from the new draft timeline system
-      return this.draftFormations[this.currentFormationIndex] || [];
-    } else if (this.currentPlaybackMode === 'draft' && this.formationDrafts[this.currentFormationIndex]) {
-      // Legacy draft system fallback for backward compatibility
-      return this.formationDrafts[this.currentFormationIndex].formation;
+    // When not playing, check if we're currently viewing a draft formation
+    if (this.currentDraftFormationIndex !== -1) {
+      // We're viewing a draft formation - return the draft data
+      return this.draftFormations[this.currentDraftFormationIndex] || [];
     } else {
-      // Return the main formation data
+      // We're viewing a main formation - return the main data
       return this.formations[this.currentFormationIndex] || [];
     }
   }
@@ -552,16 +566,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   set performers(val: Performer[]) {
-    if (this.currentPlaybackMode === 'draft' && this.draftFormations.length > 0) {
+    if (this.currentDraftFormationIndex !== -1) {
       // Update draft formation in the new draft timeline system
-      this.draftFormations[this.currentFormationIndex] = val;
+      this.draftFormations[this.currentDraftFormationIndex] = val;
       // Force change detection by creating new reference
       this.draftFormations = [...this.draftFormations];
-    } else if (this.currentPlaybackMode === 'draft' && this.formationDrafts[this.currentFormationIndex]) {
-      // Update draft formation in legacy system for backward compatibility
-      this.formationDrafts[this.currentFormationIndex].formation = val;
-      // Force change detection by creating new reference
-      this.formationDrafts = { ...this.formationDrafts };
     } else {
       // Update main formation
       this.formations[this.currentFormationIndex] = val;
@@ -1801,7 +1810,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       const deltaY = y - initialPos.y;
 
       // Move all selected performers by the same delta
-      this.performers = this.performers.map(p => {
+      const updatedPerformers = this.performers.map(p => {
         if (this.selectedPerformerIds.has(p.id)) {
           const initialPos = this.selectedPerformersInitialPositions[p.id];
           if (initialPos) {
@@ -1821,6 +1830,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
         return p;
       });
+      
+      // Use the setter to ensure the correct formation data is updated
+      this.performers = updatedPerformers;
 
       // Mirror movement: if mirror mode is enabled, also move mirror performers
       if (this.isMirrorModeEnabled) {
@@ -3315,37 +3327,101 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           }
         }
 
-        let t = 0;
-        let found = false;
-        for (let i = 0; i < this.formations.length; i++) {
-          const hold = this.formationDurations[i] || 4;
-          if (currentTime < t + hold) {
-            this.playingFormationIndex = i;
-            this.inTransition = false;
-            this.animatedPositions = {};
-            found = true;
-            break;
-          }
-          t += hold;
-          if (i < this.animationDurations.length) {
-            const trans = this.animationDurations[i] || 1;
-            if (currentTime < t + trans) {
-              // During transition, animate between i and i+1
-              this.playingFormationIndex = i + 1;
-              this.inTransition = true;
-              const progress = (currentTime - t) / trans;
-              this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+        // Use the effective timeline logic to determine which formation to show
+        const effectiveTimeline = this.getEffectiveTimeline(currentTime);
+        
+        if (effectiveTimeline.timeline === 'main') {
+          // Main timeline playback
+          let t = 0;
+          let found = false;
+          for (let i = 0; i < this.formations.length; i++) {
+            const hold = this.formationDurations[i] || 4;
+            if (currentTime < t + hold) {
+              this.playingFormationIndex = i;
+              this.currentFormationIndex = i;
+              this.currentDraftFormationIndex = -1; // Clear draft formation index
+              this.inTransition = false;
+              this.animatedPositions = {};
               found = true;
               break;
             }
-            t += trans;
+            t += hold;
+            if (i < this.animationDurations.length) {
+              const trans = this.animationDurations[i] || 1;
+              if (currentTime < t + trans) {
+                // During transition, animate between i and i+1
+                this.playingFormationIndex = i + 1;
+                this.currentFormationIndex = i + 1;
+                this.currentDraftFormationIndex = -1; // Clear draft formation index
+                this.inTransition = true;
+                const progress = (currentTime - t) / trans;
+                this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+                found = true;
+                break;
+              }
+              t += trans;
+            }
           }
-        }
-        if (!found) {
-          // If past all, show last formation
-          this.playingFormationIndex = this.formations.length - 1;
-          this.inTransition = false;
-          this.animatedPositions = {};
+          if (!found) {
+            // If past all, show last formation
+            this.playingFormationIndex = this.formations.length - 1;
+            this.currentFormationIndex = this.formations.length - 1;
+            this.currentDraftFormationIndex = -1; // Clear draft formation index
+            this.inTransition = false;
+            this.animatedPositions = {};
+          }
+        } else {
+          // Draft timeline playback
+          const draftIndex = effectiveTimeline.formationIndex;
+          this.playingFormationIndex = draftIndex;
+          this.currentFormationIndex = draftIndex;
+          this.currentDraftFormationIndex = draftIndex;
+          this.inTransition = effectiveTimeline.inTransition;
+          
+          if (effectiveTimeline.inTransition) {
+            // Handle draft transitions
+            if (effectiveTimeline.transitionType === 'entry') {
+              // Entry transition: interpolate from previous main formation to draft formation
+              const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
+              const entryTransitionDuration = this.draftEntryTransitionDurations[draftIndex] || 1;
+              const transitionStartTime = formationStartTime - entryTransitionDuration;
+              const progress = (currentTime - transitionStartTime) / entryTransitionDuration;
+              
+              // Find the main formation that comes before this draft
+              let mainFormationIndex = 0;
+              for (let i = 0; i < this.formations.length; i++) {
+                const formationStartTime = this.getFormationStartTime(i);
+                if (formationStartTime <= transitionStartTime) {
+                  mainFormationIndex = i;
+                } else {
+                  break;
+                }
+              }
+              
+              this.animatedPositions = this.interpolateFormations(mainFormationIndex, draftIndex, progress, 'main', 'draft');
+            } else if (effectiveTimeline.transitionType === 'exit') {
+              // Exit transition: interpolate from draft formation to next main formation
+              const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
+              const formationDuration = this.draftFormationDurations[draftIndex] || 4;
+              const exitTransitionDuration = this.draftExitTransitionDurations[draftIndex] || 1;
+              const transitionStartTime = formationStartTime + formationDuration;
+              const progress = (currentTime - transitionStartTime) / exitTransitionDuration;
+              
+              // Find the main formation that comes after this draft
+              let mainFormationIndex = this.formations.length - 1;
+              for (let i = 0; i < this.formations.length; i++) {
+                const formationStartTime = this.getFormationStartTime(i);
+                if (formationStartTime >= transitionStartTime + exitTransitionDuration) {
+                  mainFormationIndex = i;
+                  break;
+                }
+              }
+              
+              this.animatedPositions = this.interpolateFormations(draftIndex, mainFormationIndex, progress, 'draft', 'main');
+            }
+          } else {
+            this.animatedPositions = {};
+          }
         }
 
         // Schedule next frame if still playing
@@ -3457,9 +3533,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
   }
 
-  interpolateFormations(fromIdx: number, toIdx: number, progress: number) {
-    const from = this.formations[fromIdx] || [];
-    const to = this.formations[toIdx] || [];
+  interpolateFormations(fromIdx: number, toIdx: number, progress: number, fromTimeline: 'main' | 'draft' = 'main', toTimeline: 'main' | 'draft' = 'main') {
+    let from: Performer[] = [];
+    let to: Performer[] = [];
+    
+    if (fromTimeline === 'main') {
+      from = this.formations[fromIdx] || [];
+    } else {
+      from = this.draftFormations[fromIdx] || [];
+    }
+    
+    if (toTimeline === 'main') {
+      to = this.formations[toIdx] || [];
+    } else {
+      to = this.draftFormations[toIdx] || [];
+    }
+    
     const pos: { [id: string]: { x: number, y: number } } = {};
     // Map by performer id
     const fromMap: { [id: string]: Performer } = {};
@@ -4205,19 +4294,57 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           videoElement.pause();
         }
       }
-      // Update formation position
-      let t = 0;
-      for (let i = 0; i < this.formations.length; i++) {
-        const formationDuration = this.formationDurations[i] || 4;
-        if (this.playbackTime < t + formationDuration) {
-          this.updateFormationAndRecalculateSelection(i);
-          this.inTransition = false;
+      // Update formation position using effective timeline logic
+      const effectiveTimeline = this.getEffectiveTimeline(this.playbackTime);
+      
+      if (effectiveTimeline.timeline === 'main') {
+        // Main timeline formation
+        this.currentFormationIndex = effectiveTimeline.formationIndex;
+        this.currentDraftFormationIndex = -1; // Clear draft formation index
+        this.inTransition = false;
+        this.animatedPositions = {};
+      } else {
+        // Draft timeline formation
+        this.currentFormationIndex = effectiveTimeline.formationIndex;
+        this.currentDraftFormationIndex = effectiveTimeline.formationIndex;
+        this.inTransition = effectiveTimeline.inTransition;
+      
+        if (effectiveTimeline.inTransition) {
+          if (effectiveTimeline.transitionType === 'entry') {
+            // Entry transition: interpolate from previous main formation to draft formation
+            const formationStartTime = this.draftFormationStartTimes[effectiveTimeline.formationIndex] || 0;
+            const entryTransitionDuration = this.draftEntryTransitionDurations[effectiveTimeline.formationIndex] || 1;
+            const transitionStartTime = formationStartTime - entryTransitionDuration;
+            const progress = (this.playbackTime - transitionStartTime) / entryTransitionDuration;
+            let mainFormationIndex = 0;
+            for (let i = 0; i < this.formations.length; i++) {
+              const formationStartTime = this.getFormationStartTime(i);
+              if (formationStartTime <= transitionStartTime) {
+                mainFormationIndex = i;
+              } else {
+                break;
+              }
+            }
+            this.animatedPositions = this.interpolateFormations(mainFormationIndex, effectiveTimeline.formationIndex, progress, 'main', 'draft');
+          } else if (effectiveTimeline.transitionType === 'exit') {
+            // Exit transition: interpolate from draft formation to next main formation
+            const formationStartTime = this.draftFormationStartTimes[effectiveTimeline.formationIndex] || 0;
+            const formationDuration = this.draftFormationDurations[effectiveTimeline.formationIndex] || 4;
+            const exitTransitionDuration = this.draftExitTransitionDurations[effectiveTimeline.formationIndex] || 1;
+            const transitionStartTime = formationStartTime + formationDuration;
+            const progress = (this.playbackTime - transitionStartTime) / exitTransitionDuration;
+            let mainFormationIndex = this.formations.length - 1;
+            for (let i = 0; i < this.formations.length; i++) {
+              const formationStartTime = this.getFormationStartTime(i);
+              if (formationStartTime >= transitionStartTime + exitTransitionDuration) {
+                mainFormationIndex = i;
+                break;
+              }
+            }
+            this.animatedPositions = this.interpolateFormations(effectiveTimeline.formationIndex, mainFormationIndex, progress, 'draft', 'main');
+          }
+        } else {
           this.animatedPositions = {};
-          break;
-        }
-        t += formationDuration;
-        if (i < this.animationDurations.length) {
-          t += this.animationDurations[i] || 1;
         }
       }
     }
@@ -4265,28 +4392,57 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         }
       }
 
-      // Update formation position
-      let t = 0;
-      for (let i = 0; i < this.formations.length; i++) {
-        const hold = this.formationDurations[i] || 4;
-        if (this.playbackTime < t + hold) {
-          this.updateFormationAndRecalculateSelection(i);
-          this.inTransition = false;
-          this.animatedPositions = {};
-          break;
-        }
-        t += hold;
-        if (i < this.animationDurations.length) {
-          const trans = this.animationDurations[i] || 1;
-          if (this.playbackTime < t + trans) {
-            // During transition, animate between i and i+1
-            this.updateFormationAndRecalculateSelection(i + 1);
-            this.inTransition = true;
-            const progress = (this.playbackTime - t) / trans;
-            this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
-            break;
+      // Update formation position using effective timeline logic
+      const effectiveTimeline = this.getEffectiveTimeline(this.playbackTime);
+      
+      if (effectiveTimeline.timeline === 'main') {
+        // Main timeline formation
+        this.currentFormationIndex = effectiveTimeline.formationIndex;
+        this.currentDraftFormationIndex = -1; // Clear draft formation index
+        this.inTransition = false;
+        this.animatedPositions = {};
+      } else {
+        // Draft timeline formation
+        this.currentFormationIndex = effectiveTimeline.formationIndex;
+        this.currentDraftFormationIndex = effectiveTimeline.formationIndex;
+        this.inTransition = effectiveTimeline.inTransition;
+      
+        if (effectiveTimeline.inTransition) {
+          if (effectiveTimeline.transitionType === 'entry') {
+            // Entry transition: interpolate from previous main formation to draft formation
+            const formationStartTime = this.draftFormationStartTimes[effectiveTimeline.formationIndex] || 0;
+            const entryTransitionDuration = this.draftEntryTransitionDurations[effectiveTimeline.formationIndex] || 1;
+            const transitionStartTime = formationStartTime - entryTransitionDuration;
+            const progress = (this.playbackTime - transitionStartTime) / entryTransitionDuration;
+            let mainFormationIndex = 0;
+            for (let i = 0; i < this.formations.length; i++) {
+              const formationStartTime = this.getFormationStartTime(i);
+              if (formationStartTime <= transitionStartTime) {
+                mainFormationIndex = i;
+              } else {
+                break;
+              }
+            }
+            this.animatedPositions = this.interpolateFormations(mainFormationIndex, effectiveTimeline.formationIndex, progress, 'main', 'draft');
+          } else if (effectiveTimeline.transitionType === 'exit') {
+            // Exit transition: interpolate from draft formation to next main formation
+            const formationStartTime = this.draftFormationStartTimes[effectiveTimeline.formationIndex] || 0;
+            const formationDuration = this.draftFormationDurations[effectiveTimeline.formationIndex] || 4;
+            const exitTransitionDuration = this.draftExitTransitionDurations[effectiveTimeline.formationIndex] || 1;
+            const transitionStartTime = formationStartTime + formationDuration;
+            const progress = (this.playbackTime - transitionStartTime) / exitTransitionDuration;
+            let mainFormationIndex = this.formations.length - 1;
+            for (let i = 0; i < this.formations.length; i++) {
+              const formationStartTime = this.getFormationStartTime(i);
+              if (formationStartTime >= transitionStartTime + exitTransitionDuration) {
+                mainFormationIndex = i;
+                break;
+              }
+            }
+            this.animatedPositions = this.interpolateFormations(effectiveTimeline.formationIndex, mainFormationIndex, progress, 'draft', 'main');
           }
-          t += trans;
+        } else {
+          this.animatedPositions = {};
         }
       }
     }
@@ -4312,38 +4468,103 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         if (!this.isPlaying) return;
         const elapsed = (now - this._playbackLoopStartTime) / 1000; // seconds
         this.playbackTime = Math.min(this._playbackLoopInitialTime + elapsed, totalDuration);
-        // Update formation index and transitions
-        let t = 0;
-        let found = false;
-        for (let i = 0; i < this.formations.length; i++) {
-          const hold = this.formationDurations[i] || 4;
-          if (this.playbackTime < t + hold) {
-            this.playingFormationIndex = i;
-            this.inTransition = false;
-            this.animatedPositions = {};
-            found = true;
-            break;
-          }
-          t += hold;
-          if (i < this.animationDurations.length) {
-            const trans = this.animationDurations[i] || 1;
-            if (this.playbackTime < t + trans) {
-              this.playingFormationIndex = i + 1;
-              this.inTransition = true;
-              const progress = (this.playbackTime - t) / trans;
-              this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+        
+        // Use the effective timeline logic to determine which formation to show
+        const effectiveTimeline = this.getEffectiveTimeline(this.playbackTime);
+        
+        if (effectiveTimeline.timeline === 'main') {
+          // Main timeline playback
+          let t = 0;
+          let found = false;
+          for (let i = 0; i < this.formations.length; i++) {
+            const hold = this.formationDurations[i] || 4;
+            if (this.playbackTime < t + hold) {
+              this.playingFormationIndex = i;
+              this.currentFormationIndex = i;
+              this.currentDraftFormationIndex = -1; // Clear draft formation index
+              this.inTransition = false;
+              this.animatedPositions = {};
               found = true;
               break;
             }
-            t += trans;
+            t += hold;
+            if (i < this.animationDurations.length) {
+              const trans = this.animationDurations[i] || 1;
+              if (this.playbackTime < t + trans) {
+                this.playingFormationIndex = i + 1;
+                this.currentFormationIndex = i + 1;
+                this.currentDraftFormationIndex = -1; // Clear draft formation index
+                this.inTransition = true;
+                const progress = (this.playbackTime - t) / trans;
+                this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+                found = true;
+                break;
+              }
+              t += trans;
+            }
+          }
+          if (!found) {
+            // If past all, show last formation
+            this.playingFormationIndex = this.formations.length - 1;
+            this.currentFormationIndex = this.formations.length - 1;
+            this.currentDraftFormationIndex = -1; // Clear draft formation index
+            this.inTransition = false;
+            this.animatedPositions = {};
+          }
+        } else {
+          // Draft timeline playback
+          const draftIndex = effectiveTimeline.formationIndex;
+          this.playingFormationIndex = draftIndex;
+          this.currentFormationIndex = draftIndex;
+          this.currentDraftFormationIndex = draftIndex;
+          this.inTransition = effectiveTimeline.inTransition;
+          
+          if (effectiveTimeline.inTransition) {
+            // Handle draft transitions
+            if (effectiveTimeline.transitionType === 'entry') {
+              // Entry transition: interpolate from previous main formation to draft formation
+              const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
+              const entryTransitionDuration = this.draftEntryTransitionDurations[draftIndex] || 1;
+              const transitionStartTime = formationStartTime - entryTransitionDuration;
+              const progress = (this.playbackTime - transitionStartTime) / entryTransitionDuration;
+              
+              // Find the main formation that comes before this draft
+              let mainFormationIndex = 0;
+              for (let i = 0; i < this.formations.length; i++) {
+                const formationStartTime = this.getFormationStartTime(i);
+                if (formationStartTime <= transitionStartTime) {
+                  mainFormationIndex = i;
+                } else {
+                  break;
+                }
+              }
+              
+              this.animatedPositions = this.interpolateFormations(mainFormationIndex, draftIndex, progress, 'main', 'draft');
+            } else if (effectiveTimeline.transitionType === 'exit') {
+              // Exit transition: interpolate from draft formation to next main formation
+              const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
+              const formationDuration = this.draftFormationDurations[draftIndex] || 4;
+              const exitTransitionDuration = this.draftExitTransitionDurations[draftIndex] || 1;
+              const transitionStartTime = formationStartTime + formationDuration;
+              const progress = (this.playbackTime - transitionStartTime) / exitTransitionDuration;
+              
+              // Find the main formation that comes after this draft
+              let mainFormationIndex = this.formations.length - 1;
+              for (let i = 0; i < this.formations.length; i++) {
+                const formationStartTime = this.getFormationStartTime(i);
+                if (formationStartTime >= transitionStartTime + exitTransitionDuration) {
+                  mainFormationIndex = i;
+                  break;
+                }
+              }
+              
+              this.animatedPositions = this.interpolateFormations(draftIndex, mainFormationIndex, progress, 'draft', 'main');
+            }
+          } else {
+            this.animatedPositions = {};
           }
         }
-        if (!found) {
-          // If past all, show last formation
-          this.playingFormationIndex = this.formations.length - 1;
-          this.inTransition = false;
-          this.animatedPositions = {};
-        }
+        
         // Update selection rectangle for selected performers in the new formation
         if (this.selectedPerformerIds.size > 0) {
           this.calculateSelectionRectangle();
@@ -4362,41 +4583,103 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         cancelAnimationFrame(this.playbackTimer);
         this.playbackTimer = null;
       }
+      
       // Update formation index and transition state to match current playback time
-      let t = 0;
-      let found = false;
-      for (let i = 0; i < this.formations.length; i++) {
-        const hold = this.formationDurations[i] || 4;
-        if (this.playbackTime < t + hold) {
-          this.playingFormationIndex = i;
-          this.currentFormationIndex = i; // Update the displayed formation
-          this.inTransition = false;
-          this.animatedPositions = {};
-          found = true;
-          break;
-        }
-        t += hold;
-        if (i < this.animationDurations.length) {
-          const trans = this.animationDurations[i] || 1;
-          if (this.playbackTime < t + trans) {
-            this.playingFormationIndex = i + 1;
-            this.currentFormationIndex = i + 1; // Update the displayed formation
-            this.inTransition = true;
-            const progress = (this.playbackTime - t) / trans;
-            this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+      const effectiveTimeline = this.getEffectiveTimeline(this.playbackTime);
+      
+      if (effectiveTimeline.timeline === 'main') {
+        // Main timeline playback
+        let t = 0;
+        let found = false;
+        for (let i = 0; i < this.formations.length; i++) {
+          const hold = this.formationDurations[i] || 4;
+          if (this.playbackTime < t + hold) {
+            this.playingFormationIndex = i;
+            this.currentFormationIndex = i;
+            this.currentDraftFormationIndex = -1; // Clear draft formation index
+            this.inTransition = false;
+            this.animatedPositions = {};
             found = true;
             break;
           }
-          t += trans;
+          t += hold;
+          if (i < this.animationDurations.length) {
+            const trans = this.animationDurations[i] || 1;
+            if (this.playbackTime < t + trans) {
+              this.playingFormationIndex = i + 1;
+              this.currentFormationIndex = i + 1;
+              this.currentDraftFormationIndex = -1; // Clear draft formation index
+              this.inTransition = true;
+              const progress = (this.playbackTime - t) / trans;
+              this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
+              found = true;
+              break;
+            }
+            t += trans;
+          }
+        }
+        if (!found) {
+          // If past all, show last formation
+          this.playingFormationIndex = this.formations.length - 1;
+          this.currentFormationIndex = this.formations.length - 1;
+          this.currentDraftFormationIndex = -1; // Clear draft formation index
+          this.inTransition = false;
+          this.animatedPositions = {};
+        }
+      } else {
+        // Draft timeline playback
+        const draftIndex = effectiveTimeline.formationIndex;
+        this.playingFormationIndex = draftIndex;
+        this.currentFormationIndex = draftIndex;
+        this.currentDraftFormationIndex = draftIndex;
+        this.inTransition = effectiveTimeline.inTransition;
+        
+        if (effectiveTimeline.inTransition) {
+          // Handle draft transitions
+          if (effectiveTimeline.transitionType === 'entry') {
+            // Entry transition: interpolate from previous main formation to draft formation
+            const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
+            const entryTransitionDuration = this.draftEntryTransitionDurations[draftIndex] || 1;
+            const transitionStartTime = formationStartTime - entryTransitionDuration;
+            const progress = (this.playbackTime - transitionStartTime) / entryTransitionDuration;
+            
+            // Find the main formation that comes before this draft
+            let mainFormationIndex = 0;
+            for (let i = 0; i < this.formations.length; i++) {
+              const formationStartTime = this.getFormationStartTime(i);
+              if (formationStartTime <= transitionStartTime) {
+                mainFormationIndex = i;
+              } else {
+                break;
+              }
+            }
+            
+            this.animatedPositions = this.interpolateFormations(mainFormationIndex, draftIndex, progress, 'main', 'draft');
+          } else if (effectiveTimeline.transitionType === 'exit') {
+            // Exit transition: interpolate from draft formation to next main formation
+            const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
+            const formationDuration = this.draftFormationDurations[draftIndex] || 4;
+            const exitTransitionDuration = this.draftExitTransitionDurations[draftIndex] || 1;
+            const transitionStartTime = formationStartTime + formationDuration;
+            const progress = (this.playbackTime - transitionStartTime) / exitTransitionDuration;
+            
+            // Find the main formation that comes after this draft
+            let mainFormationIndex = this.formations.length - 1;
+            for (let i = 0; i < this.formations.length; i++) {
+              const formationStartTime = this.getFormationStartTime(i);
+              if (formationStartTime >= transitionStartTime + exitTransitionDuration) {
+                mainFormationIndex = i;
+                break;
+              }
+            }
+            
+            this.animatedPositions = this.interpolateFormations(draftIndex, mainFormationIndex, progress, 'draft', 'main');
+          }
+        } else {
+          this.animatedPositions = {};
         }
       }
-      if (!found) {
-        // If past all, show last formation
-        this.playingFormationIndex = this.formations.length - 1;
-        this.currentFormationIndex = this.formations.length - 1; // Update the displayed formation
-        this.inTransition = false;
-        this.animatedPositions = {};
-      }
+      
       // Update selection rectangle for selected performers in the new formation
       if (this.selectedPerformerIds.size > 0) {
         this.calculateSelectionRectangle();
@@ -5059,12 +5342,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.currentFormationIndex = index;
     this.playingFormationIndex = index;
     
-    // Use the new draft timeline system instead of legacy isViewingDraft
-    if (isDraft) {
-      this.currentPlaybackMode = 'draft';
-    } else {
-      this.currentPlaybackMode = 'main';
+    // Clear draft formation index when jumping to main formation
+    if (!isDraft) {
+      this.currentDraftFormationIndex = -1;
     }
+    
+    // DO NOT automatically switch playback mode - only the mode button should do this
+    // The mode should remain whatever the user has set it to
+    
+    // If jumping to a draft formation, we need to show the draft data
+    // The performers getter will handle showing the correct formation data
+    // based on what formation we're viewing
     
     // Force change detection to update the stage immediately
     this.formations = [...this.formations];
@@ -5263,26 +5551,29 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   /**
    * Get the effective timeline at a given time
    */
-  getEffectiveTimeline(time: number): {timeline: 'main' | 'draft', formationIndex: number} {
+  getEffectiveTimeline(time: number): {timeline: 'main' | 'draft', formationIndex: number, inTransition: boolean, transitionType: 'entry' | 'exit' | null} {
     const mainTimeline = this.getMainTimelineAtTime(time);
     const draftTimeline = this.getDraftTimelineAtTime(time);
     
-    // If current mode has a formation at this time, use it
-    if (this.currentPlaybackMode === 'main' && mainTimeline) {
-      return {timeline: 'main', formationIndex: mainTimeline.index};
-    } else if (this.currentPlaybackMode === 'draft' && draftTimeline) {
-      return {timeline: 'draft', formationIndex: draftTimeline.index};
+    if (this.currentPlaybackMode === 'main') {
+      // In main mode: drafts should be ignored, always use main timeline
+      if (mainTimeline) {
+        return {timeline: 'main', formationIndex: mainTimeline.index, inTransition: false, transitionType: null};
+      }
+      // Fallback to main timeline if no formation at this time
+      return {timeline: 'main', formationIndex: 0, inTransition: false, transitionType: null};
+    } else {
+      // In draft mode: show main formations when no draft is active, and draft formations when drafts exist
+      if (draftTimeline) {
+        // Draft formation exists at this time, use it
+        return {timeline: 'draft', formationIndex: draftTimeline.index, inTransition: draftTimeline.inTransition, transitionType: draftTimeline.transitionType};
+      } else if (mainTimeline) {
+        // No draft at this time, but main formation exists, use main
+        return {timeline: 'main', formationIndex: mainTimeline.index, inTransition: false, transitionType: null};
+      }
+      // Fallback to main timeline if no formation at this time
+      return {timeline: 'main', formationIndex: 0, inTransition: false, transitionType: null};
     }
-    
-    // Otherwise, use the other timeline
-    if (mainTimeline) {
-      return {timeline: 'main', formationIndex: mainTimeline.index};
-    } else if (draftTimeline) {
-      return {timeline: 'draft', formationIndex: draftTimeline.index};
-    }
-    
-    // Fallback to main timeline if no timeline is available
-    return {timeline: 'main', formationIndex: 0};
   }
 
   /**
@@ -5316,23 +5607,29 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   /**
    * Get draft timeline information at a given time
    */
-  getDraftTimelineAtTime(time: number): {timeline: 'draft', index: number} | null {
+  getDraftTimelineAtTime(time: number): {timeline: 'draft', index: number, inTransition: boolean, transitionType: 'entry' | 'exit' | null} | null {
     if (this.draftFormations.length === 0) return null;
     
     // Check if time is within any draft formation's time range
     for (let i = 0; i < this.draftFormations.length; i++) {
       const formationStartTime = this.draftFormationStartTimes[i] || 0;
       const formationDuration = this.draftFormationDurations[i] || 4;
-      const transitionDuration = this.draftAnimationDurations[i] || 1;
+      const entryTransitionDuration = this.draftEntryTransitionDurations[i] || 1;
+      const exitTransitionDuration = this.draftExitTransitionDurations[i] || 1;
+      
+      // Check if time is within entry transition (before formation starts)
+      if (time >= formationStartTime - entryTransitionDuration && time < formationStartTime) {
+        return {timeline: 'draft', index: i, inTransition: true, transitionType: 'entry'};
+      }
       
       // Check if time is within this formation
       if (time >= formationStartTime && time < formationStartTime + formationDuration) {
-        return {timeline: 'draft', index: i};
+        return {timeline: 'draft', index: i, inTransition: false, transitionType: null};
       }
       
-      // Check if time is within transition to next formation
-      if (i < this.draftFormations.length - 1 && time >= formationStartTime + formationDuration && time < formationStartTime + formationDuration + transitionDuration) {
-        return {timeline: 'draft', index: i + 1};
+      // Check if time is within exit transition (after formation ends)
+      if (time >= formationStartTime + formationDuration && time < formationStartTime + formationDuration + exitTransitionDuration) {
+        return {timeline: 'draft', index: i, inTransition: true, transitionType: 'exit'};
       }
     }
     
@@ -5569,16 +5866,34 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   handleDraftFormationClick(index: number) {
     if (index < 0 || index >= this.draftFormations.length) return;
     
-    // Set playback mode to draft and update formation index
-    this.currentPlaybackMode = 'draft';
-    this.currentFormationIndex = index;
+    // DO NOT automatically switch playback mode - only the mode button should do this
+    // The mode should remain whatever the user has set it to
     
-    // Force change detection to update the stage immediately
-    this.cdr.detectChanges();
+    // Find which main formation this draft corresponds to
+    const draftStartTime = this.draftFormationStartTimes[index] || 0;
+    const mainFormationIndex = this.formations.findIndex((_, i) => {
+      const formationStartTime = this.getFormationStartTime(i);
+      return Math.abs(draftStartTime - formationStartTime) < 0.1;
+    });
     
-    // Update selection rectangle for selected performers in the new formation
-    if (this.selectedPerformerIds.size > 0) {
-      this.calculateSelectionRectangle();
+    if (mainFormationIndex !== -1) {
+      // Use jumpToFormation to properly update both indices
+      this.jumpToFormation(mainFormationIndex, true); // true = isDraft
+      // Set the current draft formation index
+      this.currentDraftFormationIndex = index;
+    } else {
+      // Fallback: use the draft index as formation index
+      this.currentFormationIndex = index;
+      this.playingFormationIndex = index;
+      this.currentDraftFormationIndex = index;
+      
+      // Force change detection to update the stage immediately
+      this.cdr.detectChanges();
+      
+      // Update selection rectangle for selected performers in the new formation
+      if (this.selectedPerformerIds.size > 0) {
+        this.calculateSelectionRectangle();
+      }
     }
     
     console.log(`🎯 DRAFT FORMATION CLICK:`, {
@@ -7843,6 +8158,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftFormationStartTimes = [];
     this.draftStartTime = 0;
     this.currentPlaybackMode = 'main';
+    this.currentDraftFormationIndex = -1;
     
     // Clear selections
     this.selectedPerformerIds.clear();
@@ -7905,6 +8221,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   getPerformerCoordinatesFromTotal(totalX: number, totalY: number): { x: number, y: number } {
     const x = totalX - this.offstageWidth; // Remove offstage offset
     return { x, y: totalY };
+  }
+
+  /**
+   * Get the current formation title based on playback mode
+   */
+  getCurrentFormationTitle(): string {
+    // Check if we're currently viewing a draft formation using the new tracking property
+    if (this.currentDraftFormationIndex !== -1) {
+      // We're viewing a draft formation - show "Draft F X"
+      return `Draft F ${this.playingFormationIndex + 1}`;
+    } else {
+      // We're viewing a main formation - show "F X"
+      return `F ${this.playingFormationIndex + 1}`;
+    }
   }
 
   addCurtainsTo3DScene() {
@@ -8186,28 +8516,23 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }
     }
     
-    // Update formation position
-    let t = 0;
-    for (let i = 0; i < this.formations.length; i++) {
-      const hold = this.formationDurations[i] || 4;
-      if (newTime < t + hold) {
-        this.playingFormationIndex = i;
-        this.inTransition = false;
-        this.animatedPositions = {};
-        break;
-      }
-      t += hold;
-      if (i < this.animationDurations.length) {
-        const trans = this.animationDurations[i] || 1;
-        if (newTime < t + trans) {
-          this.playingFormationIndex = i + 1;
-          this.inTransition = true;
-          const progress = (newTime - t) / trans;
-          this.animatedPositions = this.interpolateFormations(i, i + 1, progress);
-          break;
-        }
-        t += trans;
-      }
+    // Update formation position using effective timeline logic
+    const effectiveTimeline = this.getEffectiveTimeline(newTime);
+    
+    if (effectiveTimeline.timeline === 'main') {
+      // Main timeline formation
+      this.playingFormationIndex = effectiveTimeline.formationIndex;
+      this.currentFormationIndex = effectiveTimeline.formationIndex;
+      this.currentDraftFormationIndex = -1; // Clear draft formation index
+      this.inTransition = false;
+      this.animatedPositions = {};
+    } else {
+      // Draft timeline formation
+      this.playingFormationIndex = effectiveTimeline.formationIndex;
+      this.currentFormationIndex = effectiveTimeline.formationIndex;
+      this.currentDraftFormationIndex = effectiveTimeline.formationIndex;
+      this.inTransition = false;
+      this.animatedPositions = {};
     }
     
     // Force change detection
@@ -8307,13 +8632,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.playbackTime = this.getFormationStartTimelineTime(index);
       this.currentFormationIndex = index;
       this.playingFormationIndex = index;
+      this.currentDraftFormationIndex = -1; // Clear draft formation index when clicking main formation
       
-      // Use the new draft timeline system instead of legacy isViewingDraft
-      if (isDraft) {
-        this.currentPlaybackMode = 'draft';
-      } else {
-        this.currentPlaybackMode = 'main';
-      }
+      // DO NOT automatically switch playback mode - only the mode button should do this
+      // The mode should remain whatever the user has set it to
+      
+      // If clicking on a draft formation, we need to show the draft data
+      // The performers getter will handle showing the correct formation data
+      // based on what formation we're viewing
       
       this.cdr.detectChanges();
       
