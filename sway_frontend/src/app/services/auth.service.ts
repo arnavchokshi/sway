@@ -17,6 +17,7 @@ interface User {
 interface SavedCredentials {
   email: string;
   password: string;
+  rememberMe: boolean;
 }
 
 @Injectable({
@@ -58,14 +59,40 @@ export class AuthService {
   }
 
   // Remember me functionality
-  saveCredentials(email: string, password: string) {
-    const credentials: SavedCredentials = { email, password };
+  saveCredentials(email: string, password: string, rememberMe: boolean) {
+    const credentials: SavedCredentials = { email, password, rememberMe };
     localStorage.setItem('savedCredentials', JSON.stringify(credentials));
   }
 
   getSavedCredentials(): SavedCredentials | null {
     const saved = localStorage.getItem('savedCredentials');
-    return saved ? JSON.parse(saved) : null;
+    if (!saved) return null;
+    
+    try {
+      const credentials = JSON.parse(saved);
+      
+      // Handle migration from old format (without rememberMe flag)
+      if (credentials && typeof credentials === 'object') {
+        if (credentials.rememberMe === undefined) {
+          // Old format - assume user didn't want to be remembered
+          // Clear the old credentials and return null
+          this.clearSavedCredentials();
+          return null;
+        }
+        return credentials;
+      }
+      
+      return null;
+    } catch (error) {
+      // Invalid JSON, clear it
+      this.clearSavedCredentials();
+      return null;
+    }
+  }
+
+  shouldAutoLogin(): boolean {
+    const savedCredentials = this.getSavedCredentials();
+    return savedCredentials !== null && savedCredentials.rememberMe === true;
   }
 
   clearSavedCredentials() {

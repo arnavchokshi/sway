@@ -207,33 +207,36 @@ export class HomeComponent implements OnInit, AfterViewInit {
    * Check for saved credentials and attempt auto-login
    */
   private checkSavedCredentials() {
-    const savedCredentials = this.authService.getSavedCredentials();
-    if (savedCredentials) {
-      this.isCheckingAuth = true;
-      
-      // Attempt to login with saved credentials
-      this.http.post(`${environment.apiUrl}/login`, {
-        email: savedCredentials.email,
-        password: savedCredentials.password
-      }).subscribe({
-        next: (response: any) => {
-          const userData = {
-            _id: response.user._id,
-            name: response.user.name,
-            team: response.user.team,
-            captain: response.user.captain
-          };
-          this.authService.setCurrentUser(userData);
-          this.isCheckingAuth = false;
-          this.router.navigate(['/dashboard']);
-        },
-        error: (err) => {
-          // Auto-login failed, clear saved credentials
-          console.log('Auto-login failed, clearing saved credentials...');
-          this.authService.clearSavedCredentials();
-          this.isCheckingAuth = false;
-        }
-      });
+    // Only auto-login if user explicitly wanted to be remembered
+    if (this.authService.shouldAutoLogin()) {
+      const savedCredentials = this.authService.getSavedCredentials();
+      if (savedCredentials) {
+        this.isCheckingAuth = true;
+        
+        // Attempt to login with saved credentials
+        this.http.post(`${environment.apiUrl}/login`, {
+          email: savedCredentials.email,
+          password: savedCredentials.password
+        }).subscribe({
+          next: (response: any) => {
+            const userData = {
+              _id: response.user._id,
+              name: response.user.name,
+              team: response.user.team,
+              captain: response.user.captain
+            };
+            this.authService.setCurrentUser(userData);
+            this.isCheckingAuth = false;
+            this.router.navigate(['/dashboard']);
+          },
+          error: (err) => {
+            // Auto-login failed, clear saved credentials
+            console.log('Auto-login failed, clearing saved credentials...');
+            this.authService.clearSavedCredentials();
+            this.isCheckingAuth = false;
+          }
+        });
+      }
     }
   }
 
@@ -508,10 +511,17 @@ export class HomeComponent implements OnInit, AfterViewInit {
                     this.currentStep = 'show-join-code';
                   }
                 });
-              }
+              },
+              error: (err: any) => alert('User update failed: ' + (err.error?.error || err.message))
             });
-          }
+          },
+          error: (err: any) => alert('Team creation failed: ' + (err.error?.error || err.message))
         });
+      },
+      error: (err: any) => {
+        // Handle specific error cases
+        const errorMessage = err.error?.error || err.message || 'User creation failed';
+        alert(errorMessage);
       }
     });
   }
@@ -568,7 +578,10 @@ export class HomeComponent implements OnInit, AfterViewInit {
           });
           this.currentStep = 'success';
         },
-        error: (err) => alert('User update failed: ' + (err.error?.error || err.message))
+        error: (err) => {
+          const errorMessage = err.error?.error || err.message || 'User update failed';
+          alert(errorMessage);
+        }
       });
     } else if (this.isNewUser && this.selectedTeam) {
       // Only create new user if no member was selected and we're in new user mode
@@ -590,7 +603,10 @@ export class HomeComponent implements OnInit, AfterViewInit {
           });
           this.currentStep = 'success';
         },
-        error: (err) => alert('User creation failed: ' + (err.error?.error || err.message))
+        error: (err) => {
+          const errorMessage = err.error?.error || err.message || 'User creation failed';
+          alert(errorMessage);
+        }
       });
     } else {
       alert('No user selected or team not found');

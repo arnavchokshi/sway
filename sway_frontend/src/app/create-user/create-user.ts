@@ -70,7 +70,11 @@ export class CreateUser implements OnInit {
           error: (err: any) => alert('Team creation failed: ' + (err.error?.error || err.message))
         });
       },
-      error: (err: any) => alert('User creation failed: ' + (err.error?.error || err.message))
+      error: (err: any) => {
+        // Handle specific error cases
+        const errorMessage = err.error?.error || err.message || 'User creation failed';
+        alert(errorMessage);
+      }
     });
   }
 

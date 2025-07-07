@@ -26,14 +26,14 @@ export class Login implements OnInit {
   ) {}
 
   ngOnInit() {
-    // Check if we have saved credentials
+    // Check if we have saved credentials and user wanted to be remembered
     const savedCredentials = this.authService.getSavedCredentials();
-    if (savedCredentials) {
+    if (savedCredentials && this.authService.shouldAutoLogin()) {
       this.email = savedCredentials.email;
       this.password = savedCredentials.password;
       this.rememberMe = true;
       
-      // Auto-login if credentials are saved
+      // Auto-login if credentials are saved and user wanted to be remembered
       this.autoLogin();
     }
   }
@@ -55,7 +55,7 @@ export class Login implements OnInit {
         
         // Handle remember me functionality
         if (this.rememberMe) {
-          this.authService.saveCredentials(this.email, this.password);
+          this.authService.saveCredentials(this.email, this.password, true);
         } else {
           this.authService.clearSavedCredentials();
         }
