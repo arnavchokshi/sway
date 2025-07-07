@@ -174,39 +174,6 @@ export class HomeComponent implements OnInit, AfterViewInit {
    * Check if user is already logged in and redirect to dashboard if so
    */
   private checkAutoLogin() {
-    // First check if user is already authenticated
-    if (this.authService.isAuthenticated()) {
-      this.isCheckingAuth = true;
-      
-      const currentUser = this.authService.getCurrentUser();
-      
-      // Validate the stored user data with the backend
-      this.http.get(`${environment.apiUrl}/users/${currentUser!._id}`).subscribe({
-        next: (response: any) => {
-          // User is still valid, redirect to dashboard
-          this.isCheckingAuth = false;
-          this.router.navigate(['/dashboard']);
-        },
-        error: (err) => {
-          // User data is invalid or expired, clear it
-          console.log('Stored user data is invalid, clearing...');
-          this.authService.logout();
-          this.isCheckingAuth = false;
-          
-          // Check for saved credentials after clearing invalid user data
-          this.checkSavedCredentials();
-        }
-      });
-    } else {
-      // Check for saved credentials if not authenticated
-      this.checkSavedCredentials();
-    }
-  }
-
-  /**
-   * Check for saved credentials and attempt auto-login
-   */
-  private checkSavedCredentials() {
     // Only auto-login if user explicitly wanted to be remembered
     if (this.authService.shouldAutoLogin()) {
       const savedCredentials = this.authService.getSavedCredentials();
@@ -236,6 +203,12 @@ export class HomeComponent implements OnInit, AfterViewInit {
             this.isCheckingAuth = false;
           }
         });
+      }
+    } else {
+      // If user didn't want to be remembered, clear any existing session
+      // This ensures that if they didn't check "remember me", they need to log in again
+      if (this.authService.isAuthenticated()) {
+        this.authService.logout();
       }
     }
   }

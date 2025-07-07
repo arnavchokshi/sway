@@ -1276,6 +1276,8 @@ select:focus {
                   opacity: 1;
                 }
               }
+
+
             }
 
             .member-details {
@@ -1307,6 +1309,39 @@ select:focus {
                   opacity: 0.7;
                   cursor: not-allowed;
                 }
+              }
+            }
+
+            .connection-status {
+              display: flex;
+              align-items: center;
+              gap: 0.5rem;
+              margin-top: 0.25rem;
+              font-size: 0.75rem;
+              color: #e9d5ff;
+
+              .connection-indicator {
+                font-size: 0.75rem;
+                transition: all 0.2s ease;
+                
+                &.connected {
+                  color: #16a34a;
+                  opacity: 1;
+                }
+                
+                &.not-connected {
+                  color: #6b7280;
+                  opacity: 0.6;
+                }
+                
+                &:hover {
+                  transform: scale(1.1);
+                }
+              }
+
+              .connection-text {
+                font-size: 0.75rem;
+                opacity: 0.8;
               }
             }
           }
@@ -2010,6 +2045,26 @@ body.height-dragging {
   color: #facc15;
   font-size: 0.75rem;
   margin-left: 0.25rem;
+}
+
+.connection-indicator-small {
+  font-size: 0.75rem;
+  margin-left: 0.25rem;
+  transition: all 0.2s ease;
+  
+  &.connected {
+    color: #16a34a;
+    opacity: 1;
+  }
+  
+  &.not-connected {
+    color: #6b7280;
+    opacity: 0.6;
+  }
+  
+  &:hover {
+    transform: scale(1.1);
+  }
 }
 
 .segment-cell {

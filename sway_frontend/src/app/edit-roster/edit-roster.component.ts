@@ -66,6 +66,20 @@ export class EditRosterComponent implements OnInit {
   selectedSetId: string = '';
   filteredSegments: ISegment[] = [];
 
+  // Getter for sorted members
+  get sortedMembers() {
+    return [...this.members].sort((a, b) => {
+      // Keep new members at the top
+      if (a.isNew && !b.isNew) return -1;
+      if (!a.isNew && b.isNew) return 1;
+      
+      // If both are new or both are not new, sort alphabetically
+      const nameA = (a.name || '').toLowerCase();
+      const nameB = (b.name || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }
+
   constructor(
     private teamService: TeamService, 
     private authService: AuthService, 
@@ -210,6 +224,11 @@ export class EditRosterComponent implements OnInit {
     const ratings = Object.values(member.skillLevels || {}) as number[];
     if (ratings.length === 0) return '0';
     return (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1);
+  }
+
+  // Check if member has connected to their account
+  hasConnected(member: any): boolean {
+    return !!(member.email && member.email.trim() !== '');
   }
 
   // Style management
@@ -362,18 +381,40 @@ export class EditRosterComponent implements OnInit {
         // Create the new user and add them to the team
         this.teamService.addTeamMember(teamId, member.name.trim()).subscribe({
           next: (res) => {
-            this.loadTeamMembers(teamId);
+            // Update the member with the real data from the backend
+            const newMember = res.user;
+            const index = this.members.findIndex(m => m._id === member._id);
+            if (index > -1) {
+              // Replace the temporary member with the real one
+              this.members[index] = {
+                ...newMember,
+                feet: Math.floor((newMember.height || 66) / 12),
+                inches: (newMember.height || 66) % 12,
+                segmentCount: this.calculateMemberSegmentCount(newMember._id, this.segments),
+                isNew: false // Remove the isNew flag to move to alphabetical position
+              };
+            }
             this.errorMessage = '';
           },
           error: (err) => {
             console.error('Error adding member:', err);
             this.errorMessage = err.error?.message || 'Failed to add member';
+            // Remove the failed member from the list
+            const index = this.members.findIndex(m => m._id === member._id);
+            if (index > -1) {
+              this.members.splice(index, 1);
+            }
           }
         });
       },
       error: (err) => {
         console.error('Error getting user data:', err);
         this.errorMessage = 'Failed to get user data';
+        // Remove the failed member from the list
+        const index = this.members.findIndex(m => m._id === member._id);
+        if (index > -1) {
+          this.members.splice(index, 1);
+        }
       }
     });
   }
@@ -645,7 +686,16 @@ export class EditRosterComponent implements OnInit {
         // Create the new user and add them to the team
         this.teamService.addTeamMember(teamId, this.singleMemberName.trim()).subscribe({
           next: (res) => {
-            this.loadTeamMembers(teamId);
+            // Add new member to local array
+            if (res && res.user) {
+              const newMember = {
+                ...res.user,
+                feet: Math.floor((res.user.height || 66) / 12),
+                inches: (res.user.height || 66) % 12,
+                segmentCount: this.calculateMemberSegmentCount(res.user._id, this.segments)
+              };
+              this.members.push(newMember);
+            }
             this.singleMemberName = '';
             this.showSingleAddDialog = false;
             this.errorMessage = '';
@@ -693,13 +743,24 @@ export class EditRosterComponent implements OnInit {
           return;
         }
 
-        // Add members one by one
+        // Add members one by one and update local array
         const addPromises = names.map(name => 
           this.teamService.addTeamMember(teamId, name).toPromise()
         );
 
-        Promise.all(addPromises).then(() => {
-          this.loadTeamMembers(teamId);
+        Promise.all(addPromises).then((responses) => {
+          // Add new members to the local array
+          responses.forEach((res: any) => {
+            if (res && res.user) {
+              const newMember = {
+                ...res.user,
+                feet: Math.floor((res.user.height || 66) / 12),
+                inches: (res.user.height || 66) % 12,
+                segmentCount: this.calculateMemberSegmentCount(res.user._id, this.segments)
+              };
+              this.members.push(newMember);
+            }
+          });
           this.bulkAddText = '';
           this.showBulkAddDialog = false;
           this.errorMessage = '';
@@ -737,13 +798,24 @@ export class EditRosterComponent implements OnInit {
           return;
         }
 
-        // Add members one by one
+        // Add members one by one and update local array
         const addPromises = validNames.map(name => 
           this.teamService.addTeamMember(teamId, name.trim()).toPromise()
         );
 
-        Promise.all(addPromises).then(() => {
-          this.loadTeamMembers(teamId);
+        Promise.all(addPromises).then((responses) => {
+          // Add new members to the local array
+          responses.forEach((res: any) => {
+            if (res && res.user) {
+              const newMember = {
+                ...res.user,
+                feet: Math.floor((res.user.height || 66) / 12),
+                inches: (res.user.height || 66) % 12,
+                segmentCount: this.calculateMemberSegmentCount(res.user._id, this.segments)
+              };
+              this.members.push(newMember);
+            }
+          });
           this.quickAddNames = Array(this.quickAddCount).fill('');
           this.showBulkAddDialog = false;
           this.errorMessage = '';
@@ -807,7 +879,17 @@ export class EditRosterComponent implements OnInit {
 
     this.http.patch(`${environment.apiUrl}/users/${this.editingMember._id}`, updateData).subscribe({
       next: (res) => {
-        this.loadTeamMembers(currentUser.team._id);
+        // Update the local member data
+        const memberIndex = this.members.findIndex(m => m._id === this.editingMember._id);
+        if (memberIndex > -1) {
+          this.members[memberIndex] = {
+            ...this.members[memberIndex],
+            ...this.editingMember,
+            height: heightInInches,
+            feet: this.editingMember.feet,
+            inches: this.editingMember.inches
+          };
+        }
         this.closeEditMemberDialog();
         this.errorMessage = '';
       },
@@ -836,7 +918,11 @@ export class EditRosterComponent implements OnInit {
 
     this.teamService.removeTeamMember(currentUser.team._id, member._id).subscribe({
       next: (res: any) => {
-        this.loadTeamMembers(currentUser.team._id);
+        // Remove member from local array
+        const index = this.members.findIndex(m => m._id === member._id);
+        if (index > -1) {
+          this.members.splice(index, 1);
+        }
         this.errorMessage = '';
       },
       error: (err: any) => {

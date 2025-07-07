@@ -164,7 +164,7 @@
         </div>
         <div class="section-content">
           <div class="members-list">
-            <div *ngFor="let member of members" class="member-card" [class.new-member]="member.isNew">
+            <div *ngFor="let member of sortedMembers" class="member-card" [class.new-member]="member.isNew">
               
               <!-- Avatar & Basic Info -->
               <div class="member-avatar">
@@ -228,6 +228,20 @@
                     (mousedown)="startHeightDrag($event, member)"
                     [title]="member.isNew ? 'Height editing disabled for new members' : 'Click and drag to adjust height'"
                     >{{ member.feet || 5 }}'{{ member.inches || 6 }}"</span>• {{ getMemberSegmentCount(member) }} seg
+                </div>
+                <!-- Connection status indicator on new line -->
+                <div class="connection-status">
+                  <i 
+                    class="fas connection-indicator"
+                    [class.fa-check-circle]="hasConnected(member)"
+                    [class.fa-circle]="!hasConnected(member)"
+                    [class.connected]="hasConnected(member)"
+                    [class.not-connected]="!hasConnected(member)"
+                    [title]="hasConnected(member) ? 'Connected to account' : 'Not connected to account'"
+                    ></i>
+                  <span class="connection-text">
+                    {{ hasConnected(member) ? 'Signed in' : 'Not sign in' }}
+                  </span>
                 </div>
               </div>
 
@@ -309,12 +323,21 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let member of members" class="member-row">
+            <tr *ngFor="let member of sortedMembers" class="member-row">
               <td class="member-name-cell">
                 <div class="member-info-cell">
                   <div class="member-avatar-small">{{ member.name.charAt(0) || '?' }}</div>
                   <span class="member-name-text">{{ member.name }}</span>
                   <i *ngIf="member.captain" class="fas fa-crown crown-icon-small"></i>
+                  <!-- Connection status indicator -->
+                  <i 
+                    class="fas connection-indicator-small"
+                    [class.fa-check-circle]="hasConnected(member)"
+                    [class.fa-circle]="!hasConnected(member)"
+                    [class.connected]="hasConnected(member)"
+                    [class.not-connected]="!hasConnected(member)"
+                    [title]="hasConnected(member) ? 'Connected to account' : 'Not connected to account'"
+                    ></i>
                 </div>
               </td>
               <td *ngFor="let segment of filteredSegments; let segIdx = index" 

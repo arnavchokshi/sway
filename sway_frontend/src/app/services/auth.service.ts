@@ -47,6 +47,11 @@ export class AuthService {
     localStorage.setItem('currentUser', JSON.stringify(user));
   }
 
+  setCurrentUserWithoutPersistence(user: User) {
+    this.currentUser = user;
+    // Don't save to localStorage - this is for temporary sessions
+  }
+
   logout() {
     this.currentUser = null;
     localStorage.removeItem('currentUser');

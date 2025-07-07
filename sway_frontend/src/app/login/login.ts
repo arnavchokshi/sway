@@ -51,12 +51,14 @@ export class Login implements OnInit {
           team: response.user.team,
           captain: response.user.captain
         };
-        this.authService.setCurrentUser(userData);
         
         // Handle remember me functionality
         if (this.rememberMe) {
+          this.authService.setCurrentUser(userData);
           this.authService.saveCredentials(this.email, this.password, true);
         } else {
+          // Don't persist the session - use temporary session only
+          this.authService.setCurrentUserWithoutPersistence(userData);
           this.authService.clearSavedCredentials();
         }
         
