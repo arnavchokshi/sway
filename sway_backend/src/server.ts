@@ -10,6 +10,7 @@ import { Set } from './models/Set';
 import AWS from 'aws-sdk';
 import Stripe from 'stripe';
 import { MembershipService } from './services/membership.service';
+import nodemailer from 'nodemailer';
 
 const app = express();
 const port = process.env.PORT || 3000;

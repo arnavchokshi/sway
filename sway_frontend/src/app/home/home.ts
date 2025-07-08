@@ -70,6 +70,15 @@ export class HomeComponent implements OnInit, AfterViewInit {
   joinCodeError = '';
   joinTeamError: string = '';
 
+  feedbackText: string = '';
+  feedbackSending: boolean = false;
+  feedbackSuccess: boolean = false;
+  feedbackError: string = '';
+
+  feedbackType: string = 'general';
+  feedbackRating: number = 0;
+  feedbackEmail: string = '';
+
   constructor(
     private router: Router, 
     private http: HttpClient, 
@@ -731,5 +740,33 @@ export class HomeComponent implements OnInit, AfterViewInit {
     let val = Number(this.formData.heightInches);
     if (isNaN(val) || val < 0) this.formData.heightInches = '0';
     else if (val > 11) this.formData.heightInches = '11';
+  }
+
+  sendFeedback() {
+    if (!this.feedbackText.trim()) {
+      this.feedbackError = 'Please enter your feedback.';
+      this.feedbackSuccess = false;
+      return;
+    }
+    this.feedbackSending = true;
+    this.feedbackError = '';
+    this.feedbackSuccess = false;
+    this.http.post(`${environment.apiUrl}/feedback`, {
+      message: this.feedbackText,
+      type: this.feedbackType,
+      rating: this.feedbackRating,
+      email: this.feedbackEmail
+    })
+      .subscribe({
+        next: () => {
+          this.feedbackSuccess = true;
+          this.feedbackText = '';
+          this.feedbackSending = false;
+        },
+        error: (err) => {
+          this.feedbackError = err.error?.error || 'Failed to send feedback.';
+          this.feedbackSending = false;
+        }
+      });
   }
 }
