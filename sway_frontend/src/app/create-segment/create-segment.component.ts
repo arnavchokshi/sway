@@ -3873,6 +3873,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       event.preventDefault();
     }
     
+    // Save the index before clearing
+    const changedIndex = this.resizingFormationIndex;
     this.resizingFormationIndex = null;
     window.removeEventListener('mousemove', this.onFormationResizeMove);
     window.removeEventListener('mouseup', this.onFormationResizeEnd);
@@ -3890,7 +3892,36 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.updateMinTimelineZoom();
       this.updateMaxTimelineZoom();
     }, 100);
+    
+    // --- NEW LOGIC: Update draft start times for affected drafts ---
+    if (typeof changedIndex === 'number' && changedIndex >= 0) {
+      this.updateDraftStartTimesForMainFormationChange(changedIndex);
+    }
   };
+
+  /**
+   * Update draft formation start times for drafts whose entry transition starts at the end of a given main formation (the previous one)
+   */
+  private updateDraftStartTimesForMainFormationChange(mainFormationIndex: number) {
+    // For each draft, if its origin is a main formation with index > mainFormationIndex, update its entry transition anchor
+    for (let i = 0; i < this.draftOrigins.length; i++) {
+      const origin = this.draftOrigins[i];
+      if (origin && origin.type === 'main' && origin.sourceIndex > mainFormationIndex) {
+        // Calculate the new end time of the previous main formation
+        const prevMainFormationIndex = origin.sourceIndex - 1;
+        const prevMainFormationStart = this.getFormationStartTime(prevMainFormationIndex);
+        const prevMainFormationDuration = this.formationDurations[prevMainFormationIndex] || 4;
+        const prevMainFormationEnd = prevMainFormationStart + prevMainFormationDuration;
+        // Align the START of the entry transition with the end of the previous main formation
+        const entryDuration = this.draftEntryTransitionDurations[i] || 1;
+        this.draftFormationStartTimes[i] = prevMainFormationEnd + entryDuration;
+        // Update all connected drafts as well
+        this.recalculateConnectedDraftStartTimes(i);
+      }
+    }
+    // Force change detection if needed
+    this.draftFormationStartTimes = [...this.draftFormationStartTimes];
+  }
 
   getFormationFlex(i: number): number {
     if (!this.waveSurfer || !this.waveSurfer.getDuration()) return (this.formationDurations[i] || 4);
@@ -6092,7 +6123,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Save state before deleting
     this.saveState(`Delete draft formation ${formationIndex + 1}`);
 
-    // Remove the draft formation
+    // Store the origin of the draft being deleted
+    const deletedOrigin = this.draftOrigins[formationIndex];
+
+    // Remove the draft formation and related arrays
     this.draftFormations.splice(formationIndex, 1);
     this.draftFormationDurations.splice(formationIndex, 1);
     this.draftAnimationDurations.splice(formationIndex, 1); // Legacy
@@ -6100,6 +6134,52 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftExitTransitionDurations.splice(formationIndex, 1);
     this.draftFormationStartTimes.splice(formationIndex, 1);
     this.draftOrigins.splice(formationIndex, 1); // Remove the draft origin entry
+
+    // Update draftOrigins for all drafts after the deleted one
+    for (let i = 0; i < this.draftOrigins.length; i++) {
+      const origin = this.draftOrigins[i];
+      if (origin && origin.type === 'draft') {
+        // If this draft pointed to the deleted draft, update to deleted draft's origin
+        if (origin.sourceIndex === formationIndex) {
+          if (deletedOrigin) {
+            this.draftOrigins[i] = { ...deletedOrigin };
+            // If deletedOrigin was also a draft, adjust its index if needed
+            if (deletedOrigin.type === 'draft' && deletedOrigin.sourceIndex > formationIndex) {
+              this.draftOrigins[i].sourceIndex = deletedOrigin.sourceIndex - 1;
+            }
+          } else {
+            // If no origin, fallback to main (orphaned)
+            this.draftOrigins[i] = { type: 'main', sourceIndex: 0 };
+          }
+        } else if (origin.sourceIndex > formationIndex) {
+          // If this draft pointed to a draft after the deleted one, decrement index
+          this.draftOrigins[i] = { ...origin, sourceIndex: origin.sourceIndex - 1 };
+        }
+      }
+    }
+
+    // UI update: update the start time of the next draft if it was connected to the deleted one
+    const nextDraftIdx = formationIndex; // After splice, this is the next draft
+    if (nextDraftIdx < this.draftOrigins.length) {
+      const nextOrigin = this.draftOrigins[nextDraftIdx];
+      if (nextOrigin) {
+        let newStart = 0;
+        if (nextOrigin.type === 'draft') {
+          // End of the new origin draft
+          const originIdx = nextOrigin.sourceIndex;
+          newStart = this.draftFormationStartTimes[originIdx]
+            + this.draftFormationDurations[originIdx]
+            + this.draftExitTransitionDurations[originIdx];
+        } else if (nextOrigin.type === 'main') {
+          // End of the main formation (use getFormationStartTime and animationDurations)
+          const mainIdx = nextOrigin.sourceIndex;
+          newStart = this.getFormationStartTime(mainIdx)
+            + (this.formationDurations[mainIdx] || 0)
+            + (this.animationDurations[mainIdx] || 0);
+        }
+        this.draftFormationStartTimes[nextDraftIdx] = newStart;
+      }
+    }
 
     // Adjust current formation index if needed
     if (this.currentFormationIndex >= formationIndex) {
@@ -6126,7 +6206,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.currentDraftFormationIndex = index; // Always set this to the draft index
     
     // DO NOT automatically switch playback mode - only the mode button should do this
-    // The mode should remain whatever the user has set it to
+    // The mode should remain whatever the user has set it
     
     // Find which main formation this draft corresponds to
     const draftStartTime = this.draftFormationStartTimes[index] || 0;
@@ -6210,17 +6290,49 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   onDraftTransitionResizeMove = (event: MouseEvent) => {
     if (this.resizingTransitionIndex === null) return;
     
-    const deltaX = event.clientX - this.resizingTransitionStartX;
-    const deltaSeconds = deltaX / this.pixelsPerSecond;
-    const newDuration = Math.max(0.1, this.resizingTransitionStartDuration + deltaSeconds);
+    event.stopPropagation();
+    event.preventDefault();
     
-    this.draftExitTransitionDurations[this.resizingTransitionIndex] = newDuration;
-    this.draftAnimationDurations[this.resizingTransitionIndex] = newDuration; // Legacy compatibility
+    const dx = event.clientX - this.resizingTransitionStartX;
     
-    // Recalculate start times for connected drafts (starting from the current draft)
-    this.recalculateConnectedDraftStartTimes(this.resizingTransitionIndex);
+    // Account for zoom level in the calculation using pixels per second
+    const pixelsToDuration = 1 / (this.pixelsPerSecond * this.timelineZoom);
     
-    this.triggerAutoSave();
+    let newDuration = this.resizingTransitionStartDuration + (dx * pixelsToDuration);
+    newDuration = Math.max(0.2, newDuration);
+    
+    if (isNaN(newDuration)) {
+      return;
+    }
+
+    // --- BLOCK EXIT OVERLAP WITH NOT-CONNECTED DRAFT ENTRIES ---
+    const draftIdx = this.resizingTransitionIndex;
+    const currentDraftStart = this.draftFormationStartTimes[draftIdx];
+    const currentDraftDuration = this.draftFormationDurations[draftIdx];
+    // The new end time if this exit transition is applied
+    const newDraftEnd = currentDraftStart + currentDraftDuration + newDuration;
+
+    // Find all not-connected drafts
+    const connectedDrafts = new Set(this.findConnectedDrafts(draftIdx));
+    let minEntryAnchor = Infinity;
+    for (let i = 0; i < this.draftFormations.length; i++) {
+      if (i === draftIdx || connectedDrafts.has(i)) continue;
+      const entryAnchor = this.draftFormationStartTimes[i] - (this.draftEntryTransitionDurations[i] || 1);
+      if (entryAnchor > currentDraftStart && entryAnchor < minEntryAnchor) {
+        minEntryAnchor = entryAnchor;
+      }
+    }
+    // Clamp so the draft's end cannot pass the nearest not-connected draft's entry
+    if (minEntryAnchor !== Infinity && newDraftEnd > minEntryAnchor) {
+      newDuration = Math.max(0.2, minEntryAnchor - currentDraftStart - currentDraftDuration);
+    }
+    // --- END BLOCK ---
+
+    this.draftExitTransitionDurations[draftIdx] = newDuration;
+    this.draftExitTransitionDurations = [...this.draftExitTransitionDurations]; // force change detection
+
+    // Shift all subsequent connected drafts
+    this.recalculateConnectedDraftStartTimes(draftIdx);
   }
 
   onDraftTransitionResizeEnd = (event?: MouseEvent) => {
@@ -9659,393 +9771,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.addFormation();
     this.formations[this.currentFormationIndex] = newFormation;
     this.triggerAutoSave();
-  }
-
-  /**
-   * Create a rotating outer circle formation
-   */
-  private createRotatingOuterCircleFormation() {
-    const currentFormation = this.formations[this.currentFormationIndex];
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    
-    // Create inner and outer circles
-    const innerRadius = 4;
-    const outerRadius = 10;
-    const innerCount = Math.ceil(currentFormation.length / 3);
-    const outerCount = currentFormation.length - innerCount;
-    
-    const newFormation = currentFormation.map((performer, index) => {
-      let x, y;
-      
-      if (index < innerCount) {
-        // Inner circle (stationary)
-        const angle = (index / innerCount) * 2 * Math.PI;
-        x = centerX + innerRadius * Math.cos(angle);
-        y = centerY + innerRadius * Math.sin(angle);
-      } else {
-        // Outer circle (rotated)
-        const outerIndex = index - innerCount;
-        const angle = (outerIndex / outerCount) * 2 * Math.PI + Math.PI / 4; // Offset by 45 degrees
-        x = centerX + outerRadius * Math.cos(angle);
-        y = centerY + outerRadius * Math.sin(angle);
-      }
-      
-      return {
-        ...performer,
-        x,
-        y
-      };
-    });
-
-    this.addFormation();
-    this.formations[this.currentFormationIndex] = newFormation;
-    this.triggerAutoSave();
-  }
-
-  /**
-   * Create an expanding formation
-   */
-  private createExpandingFormation() {
-    const currentFormation = this.formations[this.currentFormationIndex];
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    
-    // Create expanding pattern
-    const newFormation = currentFormation.map((performer, index) => {
-      const progress = index / (currentFormation.length - 1);
-      const angle = (index / currentFormation.length) * 2 * Math.PI;
-      const radius = 3 + progress * 8; // Expand from 3 to 11 feet
-      
-      return {
-        ...performer,
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle)
-      };
-    });
-
-    this.addFormation();
-    this.formations[this.currentFormationIndex] = newFormation;
-    this.triggerAutoSave();
-  }
-
-  /**
-   * Create a wave formation
-   */
-  private createWaveFormation() {
-    const currentFormation = this.formations[this.currentFormationIndex];
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    
-    // Create wave pattern
-    const waveWidth = 12;
-    const waveHeight = 4;
-    const newFormation = currentFormation.map((performer, index) => {
-      const progress = index / (currentFormation.length - 1);
-      const x = centerX + (progress - 0.5) * waveWidth;
-      const waveOffset = Math.sin(progress * 3 * Math.PI) * waveHeight;
-      
-      return {
-        ...performer,
-        x,
-        y: centerY + waveOffset
-      };
-    });
-
-    this.addFormation();
-    this.formations[this.currentFormationIndex] = newFormation;
-    this.triggerAutoSave();
-  }
-
-  /**
-   * Generate preview formations for suggestions
-   */
-  private generateClumpPreview(currentFormation: Performer[]): Performer[] {
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    
-    return currentFormation.map((performer, index) => ({
-      ...performer,
-      x: centerX + (index % 3 - 1) * 1.5,
-      y: centerY + Math.floor(index / 3 - 1) * 1.5
-    }));
-  }
-
-  private generateSpreadPreview(currentFormation: Performer[]): Performer[] {
-    const stageWidth = this.width;
-    const stageDepth = this.depth;
-    
-    return currentFormation.map((performer, index) => ({
-      ...performer,
-      x: (index / (currentFormation.length - 1)) * (stageWidth - 4) + 2,
-      y: (index % 2) * (stageDepth - 4) + 2
-    }));
-  }
-
-  private generatePartialMovePreview(currentFormation: Performer[], groupType: 'front' | 'back'): Performer[] {
-    const ys = currentFormation.map(p => p.y);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    
-    return currentFormation.map(performer => {
-      const isFrontLine = Math.abs(performer.y - minY) < 1;
-      const isBackLine = Math.abs(performer.y - maxY) < 1;
-      
-      if ((groupType === 'front' && isFrontLine) || (groupType === 'back' && isBackLine)) {
-        return { ...performer, y: performer.y + 3 };
-      }
-      return performer;
-    });
-  }
-
-  private generateArcPreview(currentFormation: Performer[]): Performer[] {
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    const radius = 6;
-    
-    return currentFormation.map((performer, index) => {
-      const angle = (index / (currentFormation.length - 1)) * Math.PI - Math.PI / 2;
-      return {
-        ...performer,
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle)
-      };
-    });
-  }
-
-  private generateRotatingCirclePreview(currentFormation: Performer[]): Performer[] {
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    const radius = 6;
-    
-    return currentFormation.map((performer, index) => {
-      const angle = (index / currentFormation.length) * 2 * Math.PI;
-      return {
-        ...performer,
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle)
-      };
-    });
-  }
-
-  private generateSpiralPreview(currentFormation: Performer[]): Performer[] {
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    const maxRadius = 8;
-    const spiralTurns = 2;
-    
-    return currentFormation.map((performer, index) => {
-      const progress = index / (currentFormation.length - 1);
-      const angle = progress * spiralTurns * 2 * Math.PI;
-      const radius = progress * maxRadius;
-      
-      return {
-        ...performer,
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle)
-      };
-    });
-  }
-
-  private generateWindowPreview(currentFormation: Performer[]): Performer[] {
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    
-    const frontRowCount = Math.ceil(currentFormation.length / 2);
-    const backRowCount = currentFormation.length - frontRowCount;
-    
-    return currentFormation.map((performer, index) => {
-      let x, y;
-      
-      if (index < frontRowCount) {
-        // Front row - spread out
-        const spacing = 4;
-        x = centerX + (index - frontRowCount / 2) * spacing;
-        y = centerY - 3; // Front
-      } else {
-        // Back row - fill gaps
-        const backIndex = index - frontRowCount;
-        const spacing = 4;
-        x = centerX + (backIndex - backRowCount / 2) * spacing + 2; // Offset
-        y = centerY + 3; // Back
-      }
-      
-      return {
-        ...performer,
-        x,
-        y
-      };
-    });
-  }
-
-  private generateBackRowEmergesPreview(currentFormation: Performer[]): Performer[] {
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    
-    // Sort performers by Y position to identify front/back
-    const sortedPerformers = [...currentFormation].sort((a, b) => a.y - b.y);
-    const frontRowCount = Math.ceil(currentFormation.length / 2);
-    
-    return currentFormation.map((performer, index) => {
-      const performerIndex = sortedPerformers.findIndex(p => p.id === performer.id);
-      let x, y;
-      
-      if (performerIndex < frontRowCount) {
-        // Front row - move to sides to create openings
-        const spacing = 5;
-        x = centerX + (performerIndex - frontRowCount / 2) * spacing;
-        y = centerY - 4;
-      } else {
-        // Back row - emerge through front
-        const backIndex = performerIndex - frontRowCount;
-        const spacing = 4;
-        x = centerX + (backIndex - (sortedPerformers.length - frontRowCount) / 2) * spacing;
-        y = centerY; // Move to center
-      }
-      
-      return {
-        ...performer,
-        x,
-        y
-      };
-    });
-  }
-
-  private generateDiamondPreview(currentFormation: Performer[]): Performer[] {
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    const diamondSize = 6;
-    
-    return currentFormation.map((performer, index) => {
-      let x, y;
-      
-      if (index === 0) {
-        // Top point
-        x = centerX;
-        y = centerY - diamondSize;
-      } else if (index === 1) {
-        // Right point
-        x = centerX + diamondSize;
-        y = centerY;
-      } else if (index === 2) {
-        // Bottom point
-        x = centerX;
-        y = centerY + diamondSize;
-      } else if (index === 3) {
-        // Left point
-        x = centerX - diamondSize;
-        y = centerY;
-      } else {
-        // Fill center
-        const centerIndex = index - 4;
-        const centerSpacing = 2;
-        x = centerX + (centerIndex % 2) * centerSpacing - centerSpacing / 2;
-        y = centerY + Math.floor(centerIndex / 2) * centerSpacing - centerSpacing / 2;
-      }
-      
-      return {
-        ...performer,
-        x,
-        y
-      };
-    });
-  }
-
-  private generateVPreview(currentFormation: Performer[]): Performer[] {
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    const vAngle = Math.PI / 3; // 60 degrees
-    const vDepth = 8;
-    
-    return currentFormation.map((performer, index) => {
-      const progress = index / (currentFormation.length - 1);
-      const angle = (progress - 0.5) * vAngle;
-      const depth = progress * vDepth;
-      
-      return {
-        ...performer,
-        x: centerX + depth * Math.sin(angle),
-        y: centerY - depth * Math.cos(angle)
-      };
-    });
-  }
-
-  private generateCrossPreview(currentFormation: Performer[]): Performer[] {
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    const crossSize = 6;
-    
-    return currentFormation.map((performer, index) => {
-      let x, y;
-      
-      if (index < currentFormation.length / 4) {
-        // Vertical line (top)
-        const spacing = crossSize / (currentFormation.length / 4);
-        x = centerX;
-        y = centerY - crossSize + index * spacing;
-      } else if (index < currentFormation.length / 2) {
-        // Horizontal line (right)
-        const spacing = crossSize / (currentFormation.length / 4);
-        x = centerX + (index - currentFormation.length / 4) * spacing;
-        y = centerY;
-      } else if (index < 3 * currentFormation.length / 4) {
-        // Vertical line (bottom)
-        const spacing = crossSize / (currentFormation.length / 4);
-        x = centerX;
-        y = centerY + (index - currentFormation.length / 2) * spacing;
-      } else {
-        // Horizontal line (left)
-        const spacing = crossSize / (currentFormation.length / 4);
-        x = centerX - crossSize + (index - 3 * currentFormation.length / 4) * spacing;
-        y = centerY;
-      }
-      
-      return {
-        ...performer,
-        x,
-        y
-      };
-    });
-  }
-
-  private generateStaggeredLinesPreview(currentFormation: Performer[]): Performer[] {
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    
-    const rows = 3;
-    const performersPerRow = Math.ceil(currentFormation.length / rows);
-    const rowSpacing = 4;
-    const performerSpacing = 3.5;
-    
-    return currentFormation.map((performer, index) => {
-      const row = Math.floor(index / performersPerRow);
-      const col = index % performersPerRow;
-      const rowOffset = row * 2; // Stagger offset
-      
-      return {
-        ...performer,
-        x: centerX + (col - performersPerRow / 2) * performerSpacing + rowOffset,
-        y: centerY + (row - rows / 2) * rowSpacing
-      };
-    });
-  }
-
-  private generateCreativePreview(currentFormation: Performer[]): Performer[] {
-    const centerX = currentFormation.reduce((sum, p) => sum + p.x, 0) / currentFormation.length;
-    const centerY = currentFormation.reduce((sum, p) => sum + p.y, 0) / currentFormation.length;
-    const waveRadius = 8;
-    
-    return currentFormation.map((performer, index) => {
-      const progress = index / (currentFormation.length - 1);
-      const angle = progress * 2 * Math.PI;
-      const waveOffset = Math.sin(progress * 4 * Math.PI) * 2; // Wave effect
-      
-      return {
-        ...performer,
-        x: centerX + (waveRadius + waveOffset) * Math.cos(angle),
-        y: centerY + (waveRadius + waveOffset) * Math.sin(angle)
-      };
-    });
   }
 
   private generateRotatingOuterCirclePreview(currentFormation: Performer[]): Performer[] {

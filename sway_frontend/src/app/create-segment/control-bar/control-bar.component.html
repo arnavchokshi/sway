@@ -78,10 +78,7 @@
     <!-- Action Buttons -->
     <div class="action-controls" *ngIf="isCaptain">
 
-      <button class="control-btn action-btn mirror-btn" 
-              (click)="onMirrorModeToggle()" 
-              title="Apply to Mirrors"
-              [class.active]="isMirrorModeEnabled">
+      <button class="control-btn action-btn mirror-btn tooltip-parent" (click)="onMirrorModeToggle()" [class.active]="isMirrorModeEnabled">
         <svg class="mirror-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <!-- Left solid bracket -->
           <path d="M6 5 v14" />
@@ -94,26 +91,19 @@
           <path d="M18 19 h-2" stroke-dasharray="2,2" />
           <path d="M18 5 v14" stroke-dasharray="2,2" />
         </svg>
+        <span class="custom-tooltip">Auto Move Mirrors</span>
       </button>
-      <button class="control-btn action-btn draft-btn" 
-              (click)="onCreateDraftFromCurrent()" 
-              title="Create Draft from Current Formation"
-              [disabled]="totalFormations === 0"
-              *ngIf="currentFormationIndex >= 0">
+      <button class="control-btn action-btn draft-btn tooltip-parent" (click)="onCreateDraftFromCurrent()" [disabled]="totalFormations === 0" *ngIf="currentFormationIndex >= 0">
         <span class="material-icons">note_add</span>
+        <span class="custom-tooltip">Create Draft</span>
       </button>
-      <button class="control-btn action-btn duplicate-btn" 
-              (click)="onDuplicateFormation()" 
-              title="Duplicate Formation"
-              [disabled]="totalFormations === 0">
+      <button class="control-btn action-btn duplicate-btn tooltip-parent" (click)="onDuplicateFormation()" [disabled]="totalFormations === 0">
         <span class="material-icons">content_copy</span>
+        <span class="custom-tooltip">Duplicate Formation</span>
       </button>
-      <button class="control-btn action-btn delete-btn" 
-              [class.confirming]="isDeleteConfirming"
-              [class.draft-delete]="isDraftSelected"
-              (click)="onDeleteFormation()" 
-              [title]="isDeleteConfirming ? 'Click again to confirm delete' : (isDraftSelected ? 'Delete Draft' : 'Delete Formation')">
+      <button class="control-btn action-btn delete-btn tooltip-parent" [class.confirming]="isDeleteConfirming" [class.draft-delete]="isDraftSelected" (click)="onDeleteFormation()">
         <span class="material-icons">delete</span>
+        <span class="custom-tooltip">{{ isDeleteConfirming ? 'Click again to confirm delete' : (isDraftSelected ? 'Delete Draft' : 'Delete Formation') }}</span>
       </button>
     </div>
   </div>

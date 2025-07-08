@@ -43,7 +43,6 @@ interface Segment extends Document {
   draftEntryTransitionDurations: number[]; // Entry transition durations for draft formations
   draftExitTransitionDurations: number[]; // Exit transition durations for draft formations
   draftFormationStartTimes: number[]; // Individual start times for each draft formation
-  draftStartTime: number; // When draft timeline begins (e.g., end of main F2)
   draftOrigins: { type: 'main' | 'draft', sourceIndex: number }[]; // Origin of each draft formation
   
   // Playback mode
@@ -107,7 +106,6 @@ const SegmentSchema = new Schema<Segment>({
   draftEntryTransitionDurations: [{ type: Number, default: 1 }], // Entry transition durations for draft formations
   draftExitTransitionDurations: [{ type: Number, default: 1 }], // Exit transition durations for draft formations
   draftFormationStartTimes: [{ type: Number, default: 0 }], // Individual start times for each draft formation
-  draftStartTime: { type: Number, default: 0 },
   draftOrigins: [{
     type: { type: String, enum: ['main', 'draft'], required: true },
     sourceIndex: { type: Number, required: true }

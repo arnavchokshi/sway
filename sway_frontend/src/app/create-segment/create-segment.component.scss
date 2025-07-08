@@ -1032,8 +1032,8 @@ body {
     margin: 0;
     padding: 0;
     position: relative;
-    height: 35px;
-    overflow-y: visible !important;
+    height: 36px;
+    overflow-y: hidden;
     overflow-x: auto;
     border-bottom: 1px solid rgba(139, 92, 246, 0.2);
     margin-bottom: 2px;
@@ -2175,10 +2175,10 @@ body {
   }
 
   &.draft-formation {
-    background: rgba(139, 92, 246, 0.3);
+    background: rgba(212, 0, 255, 0.108);
     border: 2px solid rgba(139, 92, 246, 0.8);
     margin-bottom: 4px;
-    height: 45px;
+    height: 36px;
     padding: 4px 6px;
     z-index: 2;
     display: flex;
@@ -2445,7 +2445,7 @@ body {
   &.draft-transition {
     background: linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.1) 25%, rgba(139, 92, 246, 0.3) 75%, rgba(246, 159, 92, 0.5) 100%);
     border: 1px solid rgba(139, 92, 246, 0.4);
-    height: 45px;
+    height: 36px;
     margin-bottom: 4px;
     z-index: 2;
     

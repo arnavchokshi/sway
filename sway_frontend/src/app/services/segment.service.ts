@@ -29,14 +29,7 @@ export interface ISegment {
   draftFormationDurations: number[];
   draftAnimationDurations: number[];
   draftFormationStartTimes: number[]; // Individual start times for each draft formation
-  draftStartTime: number; // When draft timeline begins (e.g., end of main F2)
   draftOrigins: { type: 'main' | 'draft', sourceIndex: number }[]; // Origin of each draft formation
-  
-  // Playback mode
-  currentPlaybackMode: 'main' | 'draft';
-  
-  // Legacy draft support - optional for backward compatibility (single draft per formation)
-  formationDrafts?: { [formationIndex: number]: FormationDraft };
   
   dummyTemplates: any[];
   depth: number;
