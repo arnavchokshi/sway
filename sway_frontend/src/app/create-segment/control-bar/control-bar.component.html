@@ -19,24 +19,33 @@
       <button class="control-btn redo-btn" (click)="onRedo()" title="Redo" [disabled]="!canRedo">
         <span class="material-icons">redo</span>
       </button>
+    </div>
+
+    <!-- Draft Timeline Controls - Moved here -->
+    <div class="draft-timeline-controls" *ngIf="isCaptain">
+      <div class="timeline-mode-selector" *ngIf="hasDraftTimeline()">
+        <button class="control-btn timeline-mode-btn" 
+                [class.active]="currentPlaybackMode === 'main'"
+                (click)="onSwitchToMainTimeline()" 
+                title="Main Timeline">
+          <span class="timeline-label">Main</span>
+        </button>
+        <button class="control-btn timeline-mode-btn" 
+                [class.active]="currentPlaybackMode === 'draft'"
+                (click)="onSwitchToDraftTimeline()" 
+                title="Draft Timeline">
+          <span class="timeline-label">Draft</span>
+        </button>
+      </div>
       
+      <!-- Draft Actions -->
+      <div class="draft-actions">
+        <!-- Draft creation button moved to right side -->
+      </div>
     </div>
-
-    <!-- Mirror Mode Toggle -->
-    <div class="mirror-controls" *ngIf="isCaptain">
-      <button class="control-btn mirror-btn" 
-              (click)="onMirrorModeToggle()" 
-              title="Apply to Mirrors"
-              [class.active]="isMirrorModeEnabled">
-        <span class="material-icons">{{ isMirrorModeEnabled ? 'sync' : 'sync_disabled' }}</span>
-        <span class="mirror-label">Move Mirrors</span>
-      </button>
-    </div>
-
-   
   </div>
 
-  <!-- Center Section: Time Display and Draft Timeline Controls -->
+  <!-- Center Section: Time Display and Quick Swap -->
   <div class="control-bar-center">
     <button class="control-btn quick-swap-btn" 
               (click)="onQuickSwap()" 
@@ -44,37 +53,6 @@
               *ngIf="selectedPerformerCount === 2">
         <span class="material-icons">swap_horiz</span>
       </button>
-    
-    <!-- Draft Timeline Controls -->
-    <div class="draft-timeline-controls" *ngIf="isCaptain">
-      <div class="timeline-mode-selector" *ngIf="hasDraftTimeline()">
-        <button class="control-btn timeline-mode-btn" 
-                [class.active]="currentPlaybackMode === 'main'"
-                (click)="onSwitchToMainTimeline()" 
-                title="Main Timeline">
-          <span class="material-icons">schedule</span>
-          <span class="timeline-label">Main</span>
-        </button>
-        <button class="control-btn timeline-mode-btn" 
-                [class.active]="currentPlaybackMode === 'draft'"
-                (click)="onSwitchToDraftTimeline()" 
-                title="Draft Timeline">
-          <span class="material-icons">edit_note</span>
-          <span class="timeline-label">Draft</span>
-        </button>
-      </div>
-      
-      <!-- Draft Actions -->
-      <div class="draft-actions">
-        <button class="control-btn draft-action-btn" 
-                (click)="onCreateDraftFromCurrent()" 
-                title="Create Draft from Current Formation"
-                [disabled]="totalFormations === 0"
-                *ngIf="currentFormationIndex >= 0">
-          <span class="material-icons">add_circle</span>
-        </button>
-      </div>
-    </div>
     
     <div class="time-display">
       {{ formatTime(playbackTime) }} / {{ formatTime(totalSegmentDuration) }}
@@ -100,6 +78,30 @@
     <!-- Action Buttons -->
     <div class="action-controls" *ngIf="isCaptain">
 
+      <button class="control-btn action-btn mirror-btn" 
+              (click)="onMirrorModeToggle()" 
+              title="Apply to Mirrors"
+              [class.active]="isMirrorModeEnabled">
+        <svg class="mirror-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Left solid bracket -->
+          <path d="M6 5 v14" />
+          <path d="M6 5 h2" />
+          <path d="M6 19 h2" />
+          <!-- Center vertical line -->
+          <line x1="12" y1="4" x2="12" y2="20" />
+          <!-- Right dashed bracket -->
+          <path d="M18 5 h-2" stroke-dasharray="2,2" />
+          <path d="M18 19 h-2" stroke-dasharray="2,2" />
+          <path d="M18 5 v14" stroke-dasharray="2,2" />
+        </svg>
+      </button>
+      <button class="control-btn action-btn draft-btn" 
+              (click)="onCreateDraftFromCurrent()" 
+              title="Create Draft from Current Formation"
+              [disabled]="totalFormations === 0"
+              *ngIf="currentFormationIndex >= 0">
+        <span class="material-icons">note_add</span>
+      </button>
       <button class="control-btn action-btn duplicate-btn" 
               (click)="onDuplicateFormation()" 
               title="Duplicate Formation"
@@ -111,8 +113,7 @@
               [class.draft-delete]="isDraftSelected"
               (click)="onDeleteFormation()" 
               [title]="isDeleteConfirming ? 'Click again to confirm delete' : (isDraftSelected ? 'Delete Draft' : 'Delete Formation')">
-        <span class="material-icons" *ngIf="!isDeleteConfirming">{{ isDraftSelected ? 'delete' : 'delete' }}</span>
-        <span *ngIf="isDeleteConfirming">{{ isDraftSelected ? 'Confirm Delete Draft' : 'Confirm Delete' }}</span>
+        <span class="material-icons">delete</span>
       </button>
     </div>
   </div>

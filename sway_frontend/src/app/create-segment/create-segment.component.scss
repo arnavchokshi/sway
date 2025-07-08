@@ -937,7 +937,7 @@ body {
   }
 
   &.has-drafts {
-    min-height: 120px; /* Increased to accommodate draft row */
+    min-height: 80px; /* Increased to accommodate draft row */
     height: auto;
   }
 
@@ -966,12 +966,12 @@ body {
     }
 
     &.has-drafts {
-      min-height: 220px; /* Increased to accommodate draft row */
+      min-height: 90px; /* Increased to accommodate draft row */
       height: auto;
     }
 
     &.has-drafts-and-audio {
-      min-height: 250px; /* Even larger when both drafts and audio are present */
+      min-height: 140px; /* Even larger when both drafts and audio are present */
       height: auto;
     }
   }
@@ -1715,25 +1715,22 @@ body {
   border-radius: 1px;
 }
 
-// Draft mode grid lines - purple color scheme
+// Draft mode grid lines - lavender color scheme
 .main-vertical.draft-mode,
 .main-horizontal.draft-mode {
-  background: #bd76ffe0;
-  box-shadow: 0 0 8px 0 rgba(139, 92, 246, 0.15);
+  background: #6d3fe0;
   transition: background 0.5s ease, box-shadow 0.5s ease;
 }
 
 .sub-vertical.draft-mode,
 .sub-horizontal.draft-mode {
-  background: #8b5cf6;
-  opacity: 0.2;
-  box-shadow: 0 0 4px 0 rgba(139, 92, 246, 0.12);
+  background: #835ff1;
   transition: background 0.5s ease, opacity 0.5s ease, box-shadow 0.5s ease;
 }
 
 .grid-number.draft-mode {
-  color: #a855f7;
-  text-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+  color: #c4b5fd;
+  text-shadow: 0 0 8px rgba(196, 181, 253, 0.6);
   transition: color 0.5s ease, text-shadow 0.5s ease;
 }
 .mirror-line {

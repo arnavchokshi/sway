@@ -511,27 +511,41 @@
             </svg>
 
             <!-- Main grid lines: vertical -->
-            <div *ngFor="let x of mainVerticals; let i = index" class="main-vertical" [style.left.px]="x + offstageWidthPx"></div>
+            <div *ngFor="let x of mainVerticals; let i = index" 
+                 class="main-vertical" 
+                 [class.draft-mode]="isCurrentFormationDraft()"
+                 [style.left.px]="x + offstageWidthPx"></div>
             <!-- Vertical grid numbers (bottom of grid) -->
             <div *ngFor="let x of mainVerticals; let i = index"
                  class="grid-number vertical-number"
+                 [class.draft-mode]="isCurrentFormationDraft()"
                  [style.left.px]="x + offstageWidthPx"
                  [style.bottom.px]="-28">
               {{ i - 4 }}
             </div>
             <!-- Main grid lines: horizontal -->
-            <div *ngFor="let y of mainHorizontals; let i = index" class="main-horizontal" [style.top.px]="y"></div>
+            <div *ngFor="let y of mainHorizontals; let i = index" 
+                 class="main-horizontal" 
+                 [class.draft-mode]="isCurrentFormationDraft()"
+                 [style.top.px]="y"></div>
             <!-- Horizontal grid numbers (right of grid) -->
             <div *ngFor="let y of mainHorizontals; let i = index"
                  class="grid-number horizontal-number"
+                 [class.draft-mode]="isCurrentFormationDraft()"
                  [style.top.px]="y"
                  [style.right.px]="-40">
               {{ i }}
             </div>
             <!-- Subgrid lines: vertical -->
-            <div *ngFor="let x of subVerticals" class="sub-vertical" [style.left.px]="x + offstageWidthPx"></div>
+            <div *ngFor="let x of subVerticals" 
+                 class="sub-vertical" 
+                 [class.draft-mode]="isCurrentFormationDraft()"
+                 [style.left.px]="x + offstageWidthPx"></div>
             <!-- Subgrid lines: horizontal -->
-            <div *ngFor="let y of subHorizontals" class="sub-horizontal" [style.top.px]="y"></div>
+            <div *ngFor="let y of subHorizontals" 
+                 class="sub-horizontal" 
+                 [class.draft-mode]="isCurrentFormationDraft()"
+                 [style.top.px]="y"></div>
             
             <!-- Offstage area indicators -->
             <div class="offstage-area left-offstage" 

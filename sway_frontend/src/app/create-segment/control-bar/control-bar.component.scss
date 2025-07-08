@@ -116,10 +116,6 @@
       background: rgba(239, 68, 68, 0.3);
       border-color: rgba(239, 68, 68, 0.7);
     }
-
-    .material-icons {
-      display: none;
-    }
   }
 }
 
@@ -231,12 +227,26 @@
 
   .undo-btn,
   .redo-btn {
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
     flex-shrink: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
 
     .material-icons {
-      font-size: 20px;
+      font-size: 16px;
+    }
+
+    &:hover:not(:disabled) {
+      background: transparent;
+      border: none;
+      transform: scale(1.1);
+    }
+
+    &:active:not(:disabled) {
+      transform: scale(0.95);
     }
   }
 }
@@ -303,6 +313,46 @@
     .transitions-label {
       color: #d97706;
     }
+  }
+}
+
+// New mirror button styles for the right side
+.mirror-btn {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  background: rgba(255, 152, 0, 0.1);
+  border-color: rgba(255, 152, 0, 0.3);
+  color: #ff9800;
+  transition: all 0.2s ease;
+
+  .mirror-icon {
+    width: 18px;
+    height: 18px;
+    color: #ff9800;
+    fill: none;
+    stroke: #ff9800;
+  }
+
+  &.active {
+    background: rgba(255, 152, 0, 0.2);
+    border-color: rgba(255, 152, 0, 0.5);
+    color: #ff9800;
+    
+    .mirror-icon {
+      color: #ff9800;
+      stroke: #ff9800;
+    }
+  }
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 152, 0, 0.15);
+    border-color: rgba(255, 152, 0, 0.4);
+    transform: scale(1.05);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.95);
   }
 }
 
@@ -518,11 +568,21 @@
 
   .undo-btn,
   .redo-btn {
-    width: 26px; // Keep small on mobile
-    height: 26px;
+    width: 20px; // Even smaller on mobile
+    height: 20px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
 
     .material-icons {
-      font-size: 14px;
+      font-size: 12px;
+    }
+
+    &:hover:not(:disabled) {
+      background: transparent;
+      border: none;
+      transform: scale(1.1);
     }
   }
 

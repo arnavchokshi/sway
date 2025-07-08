@@ -3397,43 +3397,67 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           if (effectiveTimeline.inTransition) {
             // Handle draft transitions
             if (effectiveTimeline.transitionType === 'entry') {
-              // Entry transition: interpolate from previous main formation to draft formation
+              // Entry transition: interpolate from previous formation to draft formation
               const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
               const entryTransitionDuration = this.draftEntryTransitionDurations[draftIndex] || 1;
               const transitionStartTime = formationStartTime - entryTransitionDuration;
-              const progress = (currentTime - transitionStartTime) / entryTransitionDuration;
+              const progress = (this.playbackTime - transitionStartTime) / entryTransitionDuration;
               
-              // Find the main formation that comes before this draft
-              let mainFormationIndex = 0;
-              for (let i = 0; i < this.formations.length; i++) {
-                const formationStartTime = this.getFormationStartTime(i);
-                if (formationStartTime <= transitionStartTime) {
-                  mainFormationIndex = i;
-                } else {
-                  break;
+              // Check if this is a connected draft (created from another draft)
+              const origin = this.draftOrigins[draftIndex];
+              if (origin && origin.type === 'draft') {
+                // Connected draft: interpolate from previous draft formation
+                const previousDraftIndex = origin.sourceIndex;
+                this.animatedPositions = this.interpolateFormations(previousDraftIndex, draftIndex, progress, 'draft', 'draft');
+              } else {
+                // Independent draft: interpolate from previous main formation
+                let mainFormationIndex = 0;
+                for (let i = 0; i < this.formations.length; i++) {
+                  const formationStartTime = this.getFormationStartTime(i);
+                  if (formationStartTime <= transitionStartTime) {
+                    mainFormationIndex = i;
+                  } else {
+                    break;
+                  }
                 }
+                this.animatedPositions = this.interpolateFormations(mainFormationIndex, draftIndex, progress, 'main', 'draft');
               }
-              
-              this.animatedPositions = this.interpolateFormations(mainFormationIndex, draftIndex, progress, 'main', 'draft');
             } else if (effectiveTimeline.transitionType === 'exit') {
-              // Exit transition: interpolate from draft formation to next main formation
+              // Exit transition: interpolate from draft formation to next formation
               const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
               const formationDuration = this.draftFormationDurations[draftIndex] || 4;
               const exitTransitionDuration = this.draftExitTransitionDurations[draftIndex] || 1;
               const transitionStartTime = formationStartTime + formationDuration;
-              const progress = (currentTime - transitionStartTime) / exitTransitionDuration;
+              const progress = (this.playbackTime - transitionStartTime) / exitTransitionDuration;
               
-              // Find the main formation that comes after this draft
-              let mainFormationIndex = this.formations.length - 1;
-              for (let i = 0; i < this.formations.length; i++) {
-                const formationStartTime = this.getFormationStartTime(i);
-                if (formationStartTime >= transitionStartTime + exitTransitionDuration) {
-                  mainFormationIndex = i;
-                  break;
+              // Check if there's a next connected draft
+              const nextDraftIndex = this.findNextConnectedDraft(draftIndex);
+              if (nextDraftIndex !== -1) {
+                // Connected draft: interpolate to next draft formation
+                this.animatedPositions = this.interpolateFormations(draftIndex, nextDraftIndex, progress, 'draft', 'draft');
+              } else {
+                // No connected draft: find the main formation that is active at the end of the exit transition
+                const exitTransitionEndTime = transitionStartTime + exitTransitionDuration;
+                let targetMainFormationIndex = this.formations.length - 1; // Default to last formation
+                let currentTime = 0;
+                for (let i = 0; i < this.formations.length; i++) {
+                  const formationDuration = this.formationDurations[i] || 4;
+                  const transitionDuration = this.animationDurations[i] || 1;
+                  // Check if exit transition end time falls within this formation
+                  if (exitTransitionEndTime >= currentTime && exitTransitionEndTime < currentTime + formationDuration) {
+                    targetMainFormationIndex = i;
+                    break;
+                  }
+                  currentTime += formationDuration;
+                  // Check if exit transition end time falls within transition to next formation
+                  if (i < this.formations.length - 1 && exitTransitionEndTime >= currentTime && exitTransitionEndTime < currentTime + transitionDuration) {
+                    targetMainFormationIndex = i + 1;
+                    break;
+                  }
+                  currentTime += transitionDuration;
                 }
+                this.animatedPositions = this.interpolateFormations(draftIndex, targetMainFormationIndex, progress, 'draft', 'main');
               }
-              
-              this.animatedPositions = this.interpolateFormations(draftIndex, mainFormationIndex, progress, 'draft', 'main');
             }
           } else {
             this.animatedPositions = {};
@@ -4327,37 +4351,67 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       
         if (effectiveTimeline.inTransition) {
           if (effectiveTimeline.transitionType === 'entry') {
-            // Entry transition: interpolate from previous main formation to draft formation
+            // Entry transition: interpolate from previous formation to draft formation
             const formationStartTime = this.draftFormationStartTimes[effectiveTimeline.formationIndex] || 0;
             const entryTransitionDuration = this.draftEntryTransitionDurations[effectiveTimeline.formationIndex] || 1;
             const transitionStartTime = formationStartTime - entryTransitionDuration;
             const progress = (this.playbackTime - transitionStartTime) / entryTransitionDuration;
-            let mainFormationIndex = 0;
-            for (let i = 0; i < this.formations.length; i++) {
-              const formationStartTime = this.getFormationStartTime(i);
-              if (formationStartTime <= transitionStartTime) {
-                mainFormationIndex = i;
-              } else {
-                break;
+            
+            // Check if this is a connected draft (created from another draft)
+            const origin = this.draftOrigins[effectiveTimeline.formationIndex];
+            if (origin && origin.type === 'draft') {
+              // Connected draft: interpolate from previous draft formation
+              const previousDraftIndex = origin.sourceIndex;
+              this.animatedPositions = this.interpolateFormations(previousDraftIndex, effectiveTimeline.formationIndex, progress, 'draft', 'draft');
+            } else {
+              // Independent draft: interpolate from previous main formation
+              let mainFormationIndex = 0;
+              for (let i = 0; i < this.formations.length; i++) {
+                const formationStartTime = this.getFormationStartTime(i);
+                if (formationStartTime <= transitionStartTime) {
+                  mainFormationIndex = i;
+                } else {
+                  break;
+                }
               }
+              this.animatedPositions = this.interpolateFormations(mainFormationIndex, effectiveTimeline.formationIndex, progress, 'main', 'draft');
             }
-            this.animatedPositions = this.interpolateFormations(mainFormationIndex, effectiveTimeline.formationIndex, progress, 'main', 'draft');
           } else if (effectiveTimeline.transitionType === 'exit') {
-            // Exit transition: interpolate from draft formation to next main formation
+            // Exit transition: interpolate from draft formation to next formation
             const formationStartTime = this.draftFormationStartTimes[effectiveTimeline.formationIndex] || 0;
             const formationDuration = this.draftFormationDurations[effectiveTimeline.formationIndex] || 4;
             const exitTransitionDuration = this.draftExitTransitionDurations[effectiveTimeline.formationIndex] || 1;
             const transitionStartTime = formationStartTime + formationDuration;
             const progress = (this.playbackTime - transitionStartTime) / exitTransitionDuration;
-            let mainFormationIndex = this.formations.length - 1;
-            for (let i = 0; i < this.formations.length; i++) {
-              const formationStartTime = this.getFormationStartTime(i);
-              if (formationStartTime >= transitionStartTime + exitTransitionDuration) {
-                mainFormationIndex = i;
-                break;
+            
+            // Check if there's a next connected draft
+            const nextDraftIndex = this.findNextConnectedDraft(effectiveTimeline.formationIndex);
+            if (nextDraftIndex !== -1) {
+              // Connected draft: interpolate to next draft formation
+              this.animatedPositions = this.interpolateFormations(effectiveTimeline.formationIndex, nextDraftIndex, progress, 'draft', 'draft');
+            } else {
+              // No connected draft: find the main formation that is active at the end of the exit transition
+              const exitTransitionEndTime = transitionStartTime + exitTransitionDuration;
+              let targetMainFormationIndex = this.formations.length - 1; // Default to last formation
+              let currentTime = 0;
+              for (let i = 0; i < this.formations.length; i++) {
+                const formationDuration = this.formationDurations[i] || 4;
+                const transitionDuration = this.animationDurations[i] || 1;
+                // Check if exit transition end time falls within this formation
+                if (exitTransitionEndTime >= currentTime && exitTransitionEndTime < currentTime + formationDuration) {
+                  targetMainFormationIndex = i;
+                  break;
+                }
+                currentTime += formationDuration;
+                // Check if exit transition end time falls within transition to next formation
+                if (i < this.formations.length - 1 && exitTransitionEndTime >= currentTime && exitTransitionEndTime < currentTime + transitionDuration) {
+                  targetMainFormationIndex = i + 1;
+                  break;
+                }
+                currentTime += transitionDuration;
               }
+              this.animatedPositions = this.interpolateFormations(effectiveTimeline.formationIndex, targetMainFormationIndex, progress, 'draft', 'main');
             }
-            this.animatedPositions = this.interpolateFormations(effectiveTimeline.formationIndex, mainFormationIndex, progress, 'draft', 'main');
           }
         } else {
           this.animatedPositions = {};
@@ -4425,37 +4479,67 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       
         if (effectiveTimeline.inTransition) {
           if (effectiveTimeline.transitionType === 'entry') {
-            // Entry transition: interpolate from previous main formation to draft formation
+            // Entry transition: interpolate from previous formation to draft formation
             const formationStartTime = this.draftFormationStartTimes[effectiveTimeline.formationIndex] || 0;
             const entryTransitionDuration = this.draftEntryTransitionDurations[effectiveTimeline.formationIndex] || 1;
             const transitionStartTime = formationStartTime - entryTransitionDuration;
             const progress = (this.playbackTime - transitionStartTime) / entryTransitionDuration;
-            let mainFormationIndex = 0;
-            for (let i = 0; i < this.formations.length; i++) {
-              const formationStartTime = this.getFormationStartTime(i);
-              if (formationStartTime <= transitionStartTime) {
-                mainFormationIndex = i;
-              } else {
-                break;
+            
+            // Check if this is a connected draft (created from another draft)
+            const origin = this.draftOrigins[effectiveTimeline.formationIndex];
+            if (origin && origin.type === 'draft') {
+              // Connected draft: interpolate from previous draft formation
+              const previousDraftIndex = origin.sourceIndex;
+              this.animatedPositions = this.interpolateFormations(previousDraftIndex, effectiveTimeline.formationIndex, progress, 'draft', 'draft');
+            } else {
+              // Independent draft: interpolate from previous main formation
+              let mainFormationIndex = 0;
+              for (let i = 0; i < this.formations.length; i++) {
+                const formationStartTime = this.getFormationStartTime(i);
+                if (formationStartTime <= transitionStartTime) {
+                  mainFormationIndex = i;
+                } else {
+                  break;
+                }
               }
+              this.animatedPositions = this.interpolateFormations(mainFormationIndex, effectiveTimeline.formationIndex, progress, 'main', 'draft');
             }
-            this.animatedPositions = this.interpolateFormations(mainFormationIndex, effectiveTimeline.formationIndex, progress, 'main', 'draft');
           } else if (effectiveTimeline.transitionType === 'exit') {
-            // Exit transition: interpolate from draft formation to next main formation
+            // Exit transition: interpolate from draft formation to next formation
             const formationStartTime = this.draftFormationStartTimes[effectiveTimeline.formationIndex] || 0;
             const formationDuration = this.draftFormationDurations[effectiveTimeline.formationIndex] || 4;
             const exitTransitionDuration = this.draftExitTransitionDurations[effectiveTimeline.formationIndex] || 1;
             const transitionStartTime = formationStartTime + formationDuration;
             const progress = (this.playbackTime - transitionStartTime) / exitTransitionDuration;
-            let mainFormationIndex = this.formations.length - 1;
-            for (let i = 0; i < this.formations.length; i++) {
-              const formationStartTime = this.getFormationStartTime(i);
-              if (formationStartTime >= transitionStartTime + exitTransitionDuration) {
-                mainFormationIndex = i;
-                break;
+            
+            // Check if there's a next connected draft
+            const nextDraftIndex = this.findNextConnectedDraft(effectiveTimeline.formationIndex);
+            if (nextDraftIndex !== -1) {
+              // Connected draft: interpolate to next draft formation
+              this.animatedPositions = this.interpolateFormations(effectiveTimeline.formationIndex, nextDraftIndex, progress, 'draft', 'draft');
+            } else {
+              // No connected draft: find the main formation that is active at the end of the exit transition
+              const exitTransitionEndTime = transitionStartTime + exitTransitionDuration;
+              let targetMainFormationIndex = this.formations.length - 1; // Default to last formation
+              let currentTime = 0;
+              for (let i = 0; i < this.formations.length; i++) {
+                const formationDuration = this.formationDurations[i] || 4;
+                const transitionDuration = this.animationDurations[i] || 1;
+                // Check if exit transition end time falls within this formation
+                if (exitTransitionEndTime >= currentTime && exitTransitionEndTime < currentTime + formationDuration) {
+                  targetMainFormationIndex = i;
+                  break;
+                }
+                currentTime += formationDuration;
+                // Check if exit transition end time falls within transition to next formation
+                if (i < this.formations.length - 1 && exitTransitionEndTime >= currentTime && exitTransitionEndTime < currentTime + transitionDuration) {
+                  targetMainFormationIndex = i + 1;
+                  break;
+                }
+                currentTime += transitionDuration;
               }
+              this.animatedPositions = this.interpolateFormations(effectiveTimeline.formationIndex, targetMainFormationIndex, progress, 'draft', 'main');
             }
-            this.animatedPositions = this.interpolateFormations(effectiveTimeline.formationIndex, mainFormationIndex, progress, 'draft', 'main');
           }
         } else {
           this.animatedPositions = {};
@@ -4538,43 +4622,67 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           if (effectiveTimeline.inTransition) {
             // Handle draft transitions
             if (effectiveTimeline.transitionType === 'entry') {
-              // Entry transition: interpolate from previous main formation to draft formation
+              // Entry transition: interpolate from previous formation to draft formation
               const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
               const entryTransitionDuration = this.draftEntryTransitionDurations[draftIndex] || 1;
               const transitionStartTime = formationStartTime - entryTransitionDuration;
               const progress = (this.playbackTime - transitionStartTime) / entryTransitionDuration;
               
-              // Find the main formation that comes before this draft
-              let mainFormationIndex = 0;
-              for (let i = 0; i < this.formations.length; i++) {
-                const formationStartTime = this.getFormationStartTime(i);
-                if (formationStartTime <= transitionStartTime) {
-                  mainFormationIndex = i;
-                } else {
-                  break;
+              // Check if this is a connected draft (created from another draft)
+              const origin = this.draftOrigins[draftIndex];
+              if (origin && origin.type === 'draft') {
+                // Connected draft: interpolate from previous draft formation
+                const previousDraftIndex = origin.sourceIndex;
+                this.animatedPositions = this.interpolateFormations(previousDraftIndex, draftIndex, progress, 'draft', 'draft');
+              } else {
+                // Independent draft: interpolate from previous main formation
+                let mainFormationIndex = 0;
+                for (let i = 0; i < this.formations.length; i++) {
+                  const formationStartTime = this.getFormationStartTime(i);
+                  if (formationStartTime <= transitionStartTime) {
+                    mainFormationIndex = i;
+                  } else {
+                    break;
+                  }
                 }
+                this.animatedPositions = this.interpolateFormations(mainFormationIndex, draftIndex, progress, 'main', 'draft');
               }
-              
-              this.animatedPositions = this.interpolateFormations(mainFormationIndex, draftIndex, progress, 'main', 'draft');
             } else if (effectiveTimeline.transitionType === 'exit') {
-              // Exit transition: interpolate from draft formation to next main formation
+              // Exit transition: interpolate from draft formation to next formation
               const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
               const formationDuration = this.draftFormationDurations[draftIndex] || 4;
               const exitTransitionDuration = this.draftExitTransitionDurations[draftIndex] || 1;
               const transitionStartTime = formationStartTime + formationDuration;
               const progress = (this.playbackTime - transitionStartTime) / exitTransitionDuration;
               
-              // Find the main formation that comes after this draft
-              let mainFormationIndex = this.formations.length - 1;
-              for (let i = 0; i < this.formations.length; i++) {
-                const formationStartTime = this.getFormationStartTime(i);
-                if (formationStartTime >= transitionStartTime + exitTransitionDuration) {
-                  mainFormationIndex = i;
-                  break;
+              // Check if there's a next connected draft
+              const nextDraftIndex = this.findNextConnectedDraft(draftIndex);
+              if (nextDraftIndex !== -1) {
+                // Connected draft: interpolate to next draft formation
+                this.animatedPositions = this.interpolateFormations(draftIndex, nextDraftIndex, progress, 'draft', 'draft');
+              } else {
+                // No connected draft: find the main formation that is active at the end of the exit transition
+                const exitTransitionEndTime = transitionStartTime + exitTransitionDuration;
+                let targetMainFormationIndex = this.formations.length - 1; // Default to last formation
+                let currentTime = 0;
+                for (let i = 0; i < this.formations.length; i++) {
+                  const formationDuration = this.formationDurations[i] || 4;
+                  const transitionDuration = this.animationDurations[i] || 1;
+                  // Check if exit transition end time falls within this formation
+                  if (exitTransitionEndTime >= currentTime && exitTransitionEndTime < currentTime + formationDuration) {
+                    targetMainFormationIndex = i;
+                    break;
+                  }
+                  currentTime += formationDuration;
+                  // Check if exit transition end time falls within transition to next formation
+                  if (i < this.formations.length - 1 && exitTransitionEndTime >= currentTime && exitTransitionEndTime < currentTime + transitionDuration) {
+                    targetMainFormationIndex = i + 1;
+                    break;
+                  }
+                  currentTime += transitionDuration;
                 }
+                this.animatedPositions = this.interpolateFormations(draftIndex, targetMainFormationIndex, progress, 'draft', 'main');
               }
-              
-              this.animatedPositions = this.interpolateFormations(draftIndex, mainFormationIndex, progress, 'draft', 'main');
             }
           } else {
             this.animatedPositions = {};
@@ -4653,43 +4761,67 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         if (effectiveTimeline.inTransition) {
           // Handle draft transitions
           if (effectiveTimeline.transitionType === 'entry') {
-            // Entry transition: interpolate from previous main formation to draft formation
+            // Entry transition: interpolate from previous formation to draft formation
             const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
             const entryTransitionDuration = this.draftEntryTransitionDurations[draftIndex] || 1;
             const transitionStartTime = formationStartTime - entryTransitionDuration;
             const progress = (this.playbackTime - transitionStartTime) / entryTransitionDuration;
             
-            // Find the main formation that comes before this draft
-            let mainFormationIndex = 0;
-            for (let i = 0; i < this.formations.length; i++) {
-              const formationStartTime = this.getFormationStartTime(i);
-              if (formationStartTime <= transitionStartTime) {
-                mainFormationIndex = i;
-              } else {
-                break;
+            // Check if this is a connected draft (created from another draft)
+            const origin = this.draftOrigins[draftIndex];
+            if (origin && origin.type === 'draft') {
+              // Connected draft: interpolate from previous draft formation
+              const previousDraftIndex = origin.sourceIndex;
+              this.animatedPositions = this.interpolateFormations(previousDraftIndex, draftIndex, progress, 'draft', 'draft');
+            } else {
+              // Independent draft: interpolate from previous main formation
+              let mainFormationIndex = 0;
+              for (let i = 0; i < this.formations.length; i++) {
+                const formationStartTime = this.getFormationStartTime(i);
+                if (formationStartTime <= transitionStartTime) {
+                  mainFormationIndex = i;
+                } else {
+                  break;
+                }
               }
+              this.animatedPositions = this.interpolateFormations(mainFormationIndex, draftIndex, progress, 'main', 'draft');
             }
-            
-            this.animatedPositions = this.interpolateFormations(mainFormationIndex, draftIndex, progress, 'main', 'draft');
           } else if (effectiveTimeline.transitionType === 'exit') {
-            // Exit transition: interpolate from draft formation to next main formation
+            // Exit transition: interpolate from draft formation to next formation
             const formationStartTime = this.draftFormationStartTimes[draftIndex] || 0;
             const formationDuration = this.draftFormationDurations[draftIndex] || 4;
             const exitTransitionDuration = this.draftExitTransitionDurations[draftIndex] || 1;
             const transitionStartTime = formationStartTime + formationDuration;
             const progress = (this.playbackTime - transitionStartTime) / exitTransitionDuration;
             
-            // Find the main formation that comes after this draft
-            let mainFormationIndex = this.formations.length - 1;
-            for (let i = 0; i < this.formations.length; i++) {
-              const formationStartTime = this.getFormationStartTime(i);
-              if (formationStartTime >= transitionStartTime + exitTransitionDuration) {
-                mainFormationIndex = i;
-                break;
+            // Check if there's a next connected draft
+            const nextDraftIndex = this.findNextConnectedDraft(draftIndex);
+            if (nextDraftIndex !== -1) {
+              // Connected draft: interpolate to next draft formation
+              this.animatedPositions = this.interpolateFormations(draftIndex, nextDraftIndex, progress, 'draft', 'draft');
+            } else {
+              // No connected draft: find the main formation that is active at the end of the exit transition
+              const exitTransitionEndTime = transitionStartTime + exitTransitionDuration;
+              let targetMainFormationIndex = this.formations.length - 1; // Default to last formation
+              let currentTime = 0;
+              for (let i = 0; i < this.formations.length; i++) {
+                const formationDuration = this.formationDurations[i] || 4;
+                const transitionDuration = this.animationDurations[i] || 1;
+                // Check if exit transition end time falls within this formation
+                if (exitTransitionEndTime >= currentTime && exitTransitionEndTime < currentTime + formationDuration) {
+                  targetMainFormationIndex = i;
+                  break;
+                }
+                currentTime += formationDuration;
+                // Check if exit transition end time falls within transition to next formation
+                if (i < this.formations.length - 1 && exitTransitionEndTime >= currentTime && exitTransitionEndTime < currentTime + transitionDuration) {
+                  targetMainFormationIndex = i + 1;
+                  break;
+                }
+                currentTime += transitionDuration;
               }
+              this.animatedPositions = this.interpolateFormations(draftIndex, targetMainFormationIndex, progress, 'draft', 'main');
             }
-            
-            this.animatedPositions = this.interpolateFormations(draftIndex, mainFormationIndex, progress, 'draft', 'main');
           }
         } else {
           this.animatedPositions = {};
@@ -5336,7 +5468,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Check if any formation has drafts (for expanding timeline height)
   hasAnyDrafts(): boolean {
-    return Object.keys(this.formationDrafts).length > 0;
+    // Check both legacy formationDrafts and new draftFormations systems
+    return Object.keys(this.formationDrafts).length > 0 || this.draftFormations.length > 0;
   }
 
   // Determine if the main formation should be colored as purple (contains draft data)
@@ -5377,6 +5510,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Force change detection to update the stage immediately
     this.formations = [...this.formations];
     this.cdr.detectChanges();
+    
+    // Update 3D grid colors if in 3D view
+    if (this.is3DView) {
+      this.update3DGridColors();
+    }
     
     // Update selection rectangle for selected performers in the new formation
     if (this.selectedPerformerIds.size > 0) {
@@ -5903,6 +6041,46 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   /**
+   * Check if the currently active formation is a draft formation
+   * This determines whether to show lavender grid lines
+   */
+  isCurrentFormationDraft(): boolean {
+    // Check if we're viewing a draft formation
+    if (this.selectedFormationType === 'draft') {
+      return true;
+    }
+    
+    // Check if we're in draft playback mode and have a valid draft formation index
+    if (this.currentPlaybackMode === 'draft' && this.currentDraftFormationIndex >= 0) {
+      return true;
+    }
+    
+    // Check if the current formation has draft data in the main position
+    if (this.currentFormationIndex >= 0 && this.isDraftDataInMainPosition[this.currentFormationIndex]) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Update 3D grid colors based on whether current formation is a draft
+   */
+  update3DGridColors(): void {
+    if (!this.scene) return;
+    
+    const isDraft = this.isCurrentFormationDraft();
+    const gridColor = isDraft ? 0xe6e6fa : 0x3b82f6; // Lavender for draft, blue for main
+    
+    // Update all grid lines in the scene
+    this.scene.children.forEach(child => {
+      if (child instanceof THREE.Line && child.material instanceof THREE.LineBasicMaterial) {
+        child.material.color.setHex(gridColor);
+      }
+    });
+  }
+
+  /**
    * Delete a draft formation
    */
   deleteDraftFormation(formationIndex: number) {
@@ -6056,10 +6234,24 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   /**
-   * Recalculate start times for connected drafts starting from the given index
-   * Connected drafts are those that share entry/exit transitions
-   * Independent drafts (created from main formations) should NOT be affected
+   * Find the next connected draft (draft that was created from the given draft)
    */
+  private findNextConnectedDraft(draftIndex: number): number {
+    if (draftIndex < 0 || draftIndex >= this.draftFormations.length) {
+      return -1;
+    }
+    
+    // Find all drafts that were created from this draft
+    for (let i = 0; i < this.draftOrigins.length; i++) {
+      const origin = this.draftOrigins[i];
+      if (origin && origin.type === 'draft' && origin.sourceIndex === draftIndex) {
+        return i;
+      }
+    }
+    
+    return -1; // No connected draft found
+  }
+
   /**
    * Find all drafts that are connected to a given draft (either directly or indirectly)
    * This includes the draft itself and all drafts that were created from it or its descendants
@@ -6089,13 +6281,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }
     }
     
-    const sortedDrafts = connectedDrafts.sort((a, b) => a - b);
+    const sortedDrafts = connectedDrafts.sort((a: number, b: number) => a - b);
     console.log('🔍 Final connected drafts:', sortedDrafts);
     return sortedDrafts;
   }
 
   /**
-   * Recalculate start times for all connected drafts when a draft's timing changes
+   * Recalculate start times for connected drafts when a draft's timing changes
    */
   private recalculateConnectedDraftStartTimes(startIndex: number) {
     console.log('🔍 Recalculating connected draft start times from index:', startIndex);
@@ -6370,9 +6562,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       setTimeout(() => {
         if (this.threeContainer && this.threeContainer.nativeElement) {
           this.init3DScene();
+          // Update grid colors after scene initialization
+          this.update3DGridColors();
         } else {
           // Try again on next tick if not ready
-          setTimeout(() => this.init3DScene(), 30);
+          setTimeout(() => {
+            this.init3DScene();
+            this.update3DGridColors();
+          }, 30);
         }
       }, 0);
     } else {
@@ -6583,6 +6780,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   private update3DPerformers() {
     if (!this.scene) return;
+    
+    // Update grid colors when performers change (formation changes)
+    this.update3DGridColors();
+    
     // Remove old performer meshes if count changed
     const performerIds = this.performers.map(p => p.id);
     Object.keys(this.performerMeshes).forEach(id => {
@@ -8531,6 +8732,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private clearSegmentState() {
     // Clear formations and drafts
     this.formations = [];
+    this.formationDurations = [];
+    this.animationDurations = [];
     this.formationDrafts = {};
     this.isDraftDataInMainPosition = {};
     this.currentPlaybackMode = 'main';
@@ -8911,18 +9114,28 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.playingFormationIndex = effectiveTimeline.formationIndex;
       this.currentFormationIndex = effectiveTimeline.formationIndex;
       this.currentDraftFormationIndex = -1; // Clear draft formation index when clicking main formation
-      this.inTransition = false;
-      this.animatedPositions = {};
-    } else {
-      // Draft timeline formation
-      this.playingFormationIndex = effectiveTimeline.formationIndex;
-      this.currentFormationIndex = effectiveTimeline.formationIndex;
-      this.currentDraftFormationIndex = effectiveTimeline.formationIndex;
-      this.inTransition = false;
-      this.animatedPositions = {};
+      this.lastClickedFormationIndex = effectiveTimeline.formationIndex; // Track the last clicked formation
+      
+      console.log('🔍 No audio - set currentFormationIndex to:', effectiveTimeline.formationIndex);
+      
+      // DO NOT automatically switch playback mode - only the mode button should do this
+      // The mode should remain whatever the user has set it to
+      
+      // If clicking on a draft formation, we need to show the draft data
+      // The performers getter will handle showing the correct formation data
+      // based on what formation we're viewing
+      
+      this.cdr.detectChanges();
+      
+      // Update selection rectangle for selected performers in the new formation
+      if (this.selectedPerformerIds.size > 0) {
+        this.calculateSelectionRectangle();
+      }
+      return;
     }
-    
-    // Force change detection
+    console.log('🔍 Audio connected - calling jumpToFormation with index:', effectiveTimeline.formationIndex);
+    this.jumpToFormation(effectiveTimeline.formationIndex, effectiveTimeline.timeline === 'draft');
+    // Force change detection to ensure control bar gets updated currentFormationIndex
     this.cdr.detectChanges();
   }
 
