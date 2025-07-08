@@ -12,6 +12,7 @@ import { FormsModule } from '@angular/forms';
 export class ControlBarComponent {
   // Input properties from parent component
   @Input() currentFormationIndex: number = 0;
+  @Input() lastClickedFormationIndex: number = 0;
   @Input() totalFormations: number = 0;
   @Input() isPlaying: boolean = false;
   @Input() playbackTime: number = 0;
@@ -57,7 +58,7 @@ export class ControlBarComponent {
   // New draft timeline output events
     @Output() switchToMainTimeline = new EventEmitter<void>();
   @Output() switchToDraftTimeline = new EventEmitter<void>();
-  @Output() createDraftFromCurrent = new EventEmitter<void>();
+  @Output() createDraftFromCurrent = new EventEmitter<number>();
   @Output() deleteDraftFormation = new EventEmitter<void>();
 
 
@@ -122,7 +123,7 @@ export class ControlBarComponent {
       if (this.isDraftSelected) {
         this.deleteDraftFormation.emit();
       } else {
-        this.deleteFormation.emit();
+      this.deleteFormation.emit();
       }
     }
   }
@@ -149,7 +150,7 @@ export class ControlBarComponent {
   }
 
   onCreateDraftFromCurrent() {
-    this.createDraftFromCurrent.emit();
+    this.createDraftFromCurrent.emit(this.lastClickedFormationIndex);
   }
 
   onDeleteDraftFormation() {

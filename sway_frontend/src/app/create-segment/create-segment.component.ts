@@ -38,6 +38,13 @@ interface SegmentState {
   formationDurations: number[];
   animationDurations: number[];
   currentFormationIndex: number;
+  // Draft-related state
+  draftFormations: Performer[][];
+  draftFormationDurations: number[];
+  draftEntryTransitionDurations: number[];
+  draftExitTransitionDurations: number[];
+  draftFormationStartTimes: number[];
+  draftOrigins: { type: 'main' | 'draft', sourceIndex: number }[];
   timestamp: number;
   action: string; // Description of the action that led to this state
 }
@@ -129,9 +136,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   draftExitTransitionDurations: number[] = []; // Exit transition durations
   draftFormationStartTimes: number[] = []; // Individual start times for each draft formation
   draftStartTime: number = 0; // When draft timeline begins (e.g., end of main F2)
+  
+  // Track the origin of each draft
+  draftOrigins: { type: 'main' | 'draft', sourceIndex: number }[] = []; // Origin of each draft formation
   currentPlaybackMode: 'main' | 'draft' = 'main'; // Current priority mode
   currentDraftFormationIndex: number = -1; // Track which draft formation is currently being viewed (-1 = none)
   selectedFormationType: 'main' | 'draft' = 'main'; // Track whether the currently selected formation is main or draft
+  lastClickedFormationIndex: number = 0; // Track the last formation that was clicked
 
 
 
@@ -948,6 +959,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           this.draftEntryTransitionDurations = this.segment.draftEntryTransitionDurations || [];
           this.draftExitTransitionDurations = this.segment.draftExitTransitionDurations || [];
           this.draftFormationStartTimes = this.segment.draftFormationStartTimes || [];
+          this.draftOrigins = this.segment.draftOrigins || [];
           this.draftStartTime = this.segment.draftStartTime || 0;
           this.currentPlaybackMode = this.segment.currentPlaybackMode || 'main';
         }
@@ -2726,6 +2738,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       draftEntryTransitionDurations: this.draftEntryTransitionDurations,
       draftExitTransitionDurations: this.draftExitTransitionDurations,
       draftFormationStartTimes: this.draftFormationStartTimes, // Add individual start times
+      draftOrigins: this.draftOrigins, // Add draft origins
       draftStartTime: this.draftStartTime,
       currentPlaybackMode: this.currentPlaybackMode,
       roster: this.segmentRoster.map(user => user._id),
@@ -2812,6 +2825,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       draftEntryTransitionDurations: this.draftEntryTransitionDurations,
       draftExitTransitionDurations: this.draftExitTransitionDurations,
       draftFormationStartTimes: this.draftFormationStartTimes, // Add individual start times
+      draftOrigins: this.draftOrigins, // Add draft origins
       draftStartTime: this.draftStartTime,
       currentPlaybackMode: this.currentPlaybackMode,
       stylesInSegment: this.segment.stylesInSegment || [],
@@ -5345,6 +5359,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     this.currentFormationIndex = index;
     this.playingFormationIndex = index;
+    this.lastClickedFormationIndex = index; // Track the last clicked formation
     
     // Clear draft formation index when jumping to main formation
     if (!isDraft) {
@@ -5504,9 +5519,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const draftFormation = this.formations[formationIndex].map(p => ({...p}));
     const draftDuration = this.formationDurations[formationIndex];
     
-    // Calculate the start time of the formation in the main timeline
-    // This ensures the draft starts at the same time as the original formation
+    // For independent drafts (created from main formations), start them at the same time as the main formation
+    // Calculate when the main formation starts
     const formationStartTime = this.getFormationStartTime(formationIndex);
+    
+    // The draft starts at the same time as the main formation
     let draftStartTime = formationStartTime;
     
     // Add to draft timeline
@@ -5514,23 +5531,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftFormationDurations.push(draftDuration);
     this.draftFormationStartTimes.push(draftStartTime); // Store draft formation start time
     
+    // Store the origin of this draft (created from main formation)
+    this.draftOrigins.push({ type: 'main', sourceIndex: formationIndex });
+    
     // Set draft start time to the new draft formation start time (for backward compatibility)
     this.draftStartTime = draftStartTime;
     
-    // Copy the transition duration from the main timeline for proper entry/exit transitions
-    // The entry transition should match the transition duration that leads INTO this formation
-    // For the first formation, use the formation's own transition duration
-    // For other formations, use the transition duration of the previous formation
-    let entryTransitionDuration: number;
-    if (formationIndex === 0) {
-      // First formation - use its own transition duration
-      entryTransitionDuration = this.animationDurations[formationIndex] || 1;
-    } else {
-      // Use the transition duration of the previous formation (which leads INTO this formation)
-      entryTransitionDuration = this.animationDurations[formationIndex - 1] || 1;
-    }
+    // For independent drafts (created from main formations), give them proper entry/exit transitions
+    // Entry transition duration - use the formation's entry transition duration (from previous formation)
+    const entryTransitionDuration = formationIndex > 0 ? this.animationDurations[formationIndex - 1] || 1 : 1;
     
-    // Exit transition uses the formation's own transition duration
+    // Exit transition uses the formation's own exit transition duration
     const exitTransitionDuration = this.animationDurations[formationIndex] || 1;
     
     this.draftAnimationDurations.push(exitTransitionDuration); // Legacy
@@ -5548,7 +5559,52 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       duration: draftDuration,
       startTime: draftStartTime,
       entryTransitionDuration: entryTransitionDuration,
-      exitTransitionDuration: exitTransitionDuration
+      exitTransitionDuration: exitTransitionDuration,
+      origin: { type: 'main', sourceIndex: formationIndex }
+    });
+  }
+
+  /**
+   * Create a draft from another draft (for connected drafts)
+   */
+  createDraftFromDraft(draftIndex: number) {
+    if (draftIndex < 0 || draftIndex >= this.draftFormations.length) {
+      console.error(`Invalid draft index: ${draftIndex}`);
+      return;
+    }
+
+    // Copy draft formation data
+    const sourceDraftFormation = this.draftFormations[draftIndex].map(p => ({...p}));
+    const sourceDraftDuration = this.draftFormationDurations[draftIndex];
+    const sourceDraftStartTime = this.draftFormationStartTimes[draftIndex];
+    
+    // Create new draft that starts after the source draft
+    const newDraftStartTime = sourceDraftStartTime + sourceDraftDuration + (this.draftExitTransitionDurations[draftIndex] || 1);
+    
+    // Add to draft timeline
+    this.draftFormations.push(sourceDraftFormation);
+    this.draftFormationDurations.push(sourceDraftDuration);
+    this.draftFormationStartTimes.push(newDraftStartTime);
+    
+    // Store the origin of this draft (created from another draft)
+    this.draftOrigins.push({ type: 'draft', sourceIndex: draftIndex });
+    
+    // Copy transition durations
+    this.draftAnimationDurations.push(this.draftAnimationDurations[draftIndex] || 1);
+    this.draftEntryTransitionDurations.push(this.draftEntryTransitionDurations[draftIndex] || 1);
+    this.draftExitTransitionDurations.push(this.draftExitTransitionDurations[draftIndex] || 1);
+    
+    // Save state
+    this.saveState(`Create draft from draft ${draftIndex + 1}`);
+    
+    // Trigger auto-save
+    this.triggerAutoSave();
+    
+    console.log(`Created draft from draft ${draftIndex + 1}:`, {
+      formation: sourceDraftFormation,
+      duration: sourceDraftDuration,
+      startTime: newDraftStartTime,
+      origin: { type: 'draft', sourceIndex: draftIndex }
     });
   }
 
@@ -5976,6 +6032,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     this.draftExitTransitionDurations[this.resizingTransitionIndex] = newDuration;
     this.draftAnimationDurations[this.resizingTransitionIndex] = newDuration; // Legacy compatibility
+    
+    // Recalculate start times for connected drafts (starting from the next draft)
+    this.recalculateConnectedDraftStartTimes(this.resizingTransitionIndex + 1);
+    
     this.triggerAutoSave();
   }
 
@@ -5989,34 +6049,174 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     document.removeEventListener('mouseup', this.onDraftTransitionResizeEnd);
   }
 
+  /**
+   * Recalculate start times for connected drafts starting from the given index
+   * Connected drafts are those that share entry/exit transitions
+   * Independent drafts (created from main formations) should NOT be affected
+   */
+  private recalculateConnectedDraftStartTimes(startIndex: number) {
+    if (startIndex >= this.draftFormations.length) return;
+    
+    // Start from the given index and recalculate each subsequent draft's start time
+    for (let i = startIndex; i < this.draftFormations.length; i++) {
+      // Check if this draft is independent (created from main formation) or connected (created from another draft)
+      const isIndependentDraft = this.isIndependentDraft(i);
+      
+      if (isIndependentDraft) {
+        // Independent drafts should NOT have their start times recalculated
+        // They maintain their original start time based on the main formation
+        continue;
+      }
+      
+      // This is a connected draft, so recalculate its start time
+      const prevIndex = i - 1;
+      const prevDraftStart = this.draftFormationStartTimes[prevIndex];
+      const prevDraftDuration = this.draftFormationDurations[prevIndex];
+      const prevDraftExit = this.draftExitTransitionDurations[prevIndex] || 1;
+      
+      // New start time = previous draft start + previous draft duration + previous draft exit transition
+      this.draftFormationStartTimes[i] = prevDraftStart + prevDraftDuration + prevDraftExit;
+    }
+  }
+
+  /**
+   * Check if a draft is independent (created from main formation) or connected (created from another draft)
+   */
+  isIndependentDraft(draftIndex: number): boolean {
+    if (draftIndex < 0 || draftIndex >= this.draftFormations.length) {
+      console.log('❌ Invalid draft index:', draftIndex);
+      return false;
+    }
+    
+    // Check if we have origin information for this draft
+    const origin = this.draftOrigins[draftIndex];
+    if (origin) {
+      console.log('🔍 Checking draft origin:', { draftIndex, origin });
+      // If origin type is 'main', it's independent; if 'draft', it's dependent
+      const isIndependent = origin.type === 'main';
+      console.log(isIndependent ? '✅ Draft is independent (created from main formation)' : '❌ Draft is dependent (created from another draft)');
+      return isIndependent;
+    }
+    
+    // Fallback to the old timing-based logic for backward compatibility
+    console.log('🔍 No origin info, using fallback timing logic');
+    const draftStartTime = this.draftFormationStartTimes[draftIndex] || 0;
+    
+    // Check if this draft start time matches any main formation start time
+    for (let i = 0; i < this.formations.length; i++) {
+      const formationStartTime = this.getFormationStartTime(i);
+      const difference = Math.abs(draftStartTime - formationStartTime);
+      
+      // Allow small floating point differences (increased tolerance for resizing)
+      if (difference < 2.1) {
+        console.log('✅ Draft is independent (matches formation start time)');
+        return true; // This is an independent draft created from main formation
+      }
+    }
+    
+    console.log('❌ Draft is not independent (no matching formation start time)');
+    return false; // This is a connected draft created from another draft
+  }
+
+  /**
+   * Get the anchor point for a draft entry transition (the end of the previous formation)
+   */
+  getDraftEntryTransitionAnchorPoint(draftIndex: number): number {
+    if (draftIndex < 0 || draftIndex >= this.draftFormations.length) return 0;
+    
+    // Check if we have origin information for this draft
+    const origin = this.draftOrigins[draftIndex];
+    if (origin && origin.type === 'main') {
+      // This draft was created from a main formation
+      const mainFormationIndex = origin.sourceIndex;
+      
+      // The anchor point is the end of the previous formation
+      if (mainFormationIndex === 0) {
+        // First formation - anchor at time 0
+        return 0;
+      } else {
+        // Anchor at the end of the previous formation
+        const previousFormationStart = this.getFormationStartTime(mainFormationIndex - 1);
+        const previousFormationDuration = this.formationDurations[mainFormationIndex - 1] || 4;
+        const previousFormationTransition = this.animationDurations[mainFormationIndex - 1] || 1;
+        return previousFormationStart + previousFormationDuration + previousFormationTransition;
+      }
+    }
+    
+    // Fallback to the old timing-based logic for backward compatibility
+    const draftStartTime = this.draftFormationStartTimes[draftIndex] || 0;
+    const mainFormationIndex = this.formations.findIndex((_, i) => {
+      const formationStartTime = this.getFormationStartTime(i);
+      return Math.abs(draftStartTime - formationStartTime) < 0.1;
+    });
+    
+    if (mainFormationIndex === -1) return 0;
+    
+    // The anchor point is the end of the previous formation
+    if (mainFormationIndex === 0) {
+      // First formation - anchor at time 0
+      return 0;
+    } else {
+      // Anchor at the end of the previous formation
+      const previousFormationStart = this.getFormationStartTime(mainFormationIndex - 1);
+      const previousFormationDuration = this.formationDurations[mainFormationIndex - 1] || 4;
+      const previousFormationTransition = this.animationDurations[mainFormationIndex - 1] || 1;
+      return previousFormationStart + previousFormationDuration + previousFormationTransition;
+    }
+  }
+
   // Entry transition resize for draft timeline
   onDraftEntryTransitionResizeStart(event: MouseEvent, index: number) {
-    // Only allow for the first draft formation
-    if (index !== 0) return;
+    console.log('🔍 Entry transition resize start:', { index, isIndependent: this.isIndependentDraft(index) });
+    
+    // Only allow for independent drafts (created from main formations)
+    if (!this.isIndependentDraft(index)) {
+      console.log('❌ Draft is not independent, returning early');
+      return;
+    }
+    
     event.stopPropagation();
     this.resizingEntryTransitionIndex = index;
     this.resizingEntryTransitionStartX = event.clientX;
     this.resizingEntryTransitionStartDuration = this.draftEntryTransitionDurations[index] || 1;
-    // Store the original entry transition position (formationStart - transitionDuration)
-    this.resizingEntryTransitionOriginalPosition = this.draftFormationStartTimes[index] - this.draftEntryTransitionDurations[index];
+    
+    // Store the anchor point (the end of the previous formation)
+    this.resizingEntryTransitionOriginalPosition = this.getDraftEntryTransitionAnchorPoint(index);
+    
+    console.log('🔍 Resize setup:', {
+      index,
+      startX: this.resizingEntryTransitionStartX,
+      startDuration: this.resizingEntryTransitionStartDuration,
+      anchorPoint: this.resizingEntryTransitionOriginalPosition,
+      currentFormationStartTime: this.draftFormationStartTimes[index],
+      currentEntryDuration: this.draftEntryTransitionDurations[index]
+    });
+    
     document.addEventListener('mousemove', this.onDraftEntryTransitionResizeMove);
     document.addEventListener('mouseup', this.onDraftEntryTransitionResizeEnd);
   }
 
   onDraftEntryTransitionResizeMove = (event: MouseEvent) => {
-    if (this.resizingEntryTransitionIndex === null) return;
+    if (this.resizingEntryTransitionIndex === null) {
+      return;
+    }
+    
     const i = this.resizingEntryTransitionIndex;
     const deltaX = event.clientX - this.resizingEntryTransitionStartX;
     const deltaSeconds = deltaX / this.pixelsPerSecond;
     const newDuration = Math.max(0.1, this.resizingEntryTransitionStartDuration + deltaSeconds);
+    
     // Update entry transition duration
     this.draftEntryTransitionDurations[i] = newDuration;
     this.draftAnimationDurations[i] = newDuration; // Legacy compatibility
     
-    // Keep the entry transition's left position anchored at the original position
-    // Entry position = formationStart - transitionDuration
-    // So: formationStart = originalPosition + newTransitionDuration
-    this.draftFormationStartTimes[i] = this.resizingEntryTransitionOriginalPosition + newDuration;
+    // For independent drafts, the entry transition should be anchored to the end of the previous formation
+    // The entry transition start time = anchor point
+    // The formation start time = anchor point + entry transition duration
+    const anchorPoint = this.resizingEntryTransitionOriginalPosition;
+    const newFormationStartTime = anchorPoint + newDuration;
+    this.draftFormationStartTimes[i] = newFormationStartTime;
+    
     this.triggerAutoSave();
   }
 
@@ -7751,6 +7951,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       formationDurations: [...this.formationDurations],
       animationDurations: [...this.animationDurations],
       currentFormationIndex: this.currentFormationIndex,
+      // Draft-related state
+      draftFormations: this.draftFormations.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } }))),
+      draftFormationDurations: [...this.draftFormationDurations],
+      draftEntryTransitionDurations: [...this.draftEntryTransitionDurations],
+      draftExitTransitionDurations: [...this.draftExitTransitionDurations],
+      draftFormationStartTimes: [...this.draftFormationStartTimes],
+      draftOrigins: [...this.draftOrigins],
       timestamp: Date.now(),
       action: action
     };
@@ -7776,6 +7983,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.formationDurations = [...state.formationDurations];
     this.animationDurations = [...state.animationDurations];
     this.currentFormationIndex = state.currentFormationIndex;
+    
+    // Restore draft-related state
+    this.draftFormations = state.draftFormations?.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } }))) || [];
+    this.draftFormationDurations = [...(state.draftFormationDurations || [])];
+    this.draftEntryTransitionDurations = [...(state.draftEntryTransitionDurations || [])];
+    this.draftExitTransitionDurations = [...(state.draftExitTransitionDurations || [])];
+    this.draftFormationStartTimes = [...(state.draftFormationStartTimes || [])];
+    this.draftOrigins = [...(state.draftOrigins || [])];
 
     // Force change detection
     this.formations = [...this.formations];
@@ -7808,6 +8023,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       formationDurations: [...this.formationDurations],
       animationDurations: [...this.animationDurations],
       currentFormationIndex: this.currentFormationIndex,
+      // Draft-related state
+      draftFormations: this.draftFormations.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } }))),
+      draftFormationDurations: [...this.draftFormationDurations],
+      draftEntryTransitionDurations: [...this.draftEntryTransitionDurations],
+      draftExitTransitionDurations: [...this.draftExitTransitionDurations],
+      draftFormationStartTimes: [...this.draftFormationStartTimes],
+      draftOrigins: [...this.draftOrigins],
       timestamp: Date.now(),
       action: 'Current state before undo'
     };
@@ -7832,6 +8054,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       formationDurations: [...this.formationDurations],
       animationDurations: [...this.animationDurations],
       currentFormationIndex: this.currentFormationIndex,
+      // Draft-related state
+      draftFormations: this.draftFormations.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } }))),
+      draftFormationDurations: [...this.draftFormationDurations],
+      draftEntryTransitionDurations: [...this.draftEntryTransitionDurations],
+      draftExitTransitionDurations: [...this.draftExitTransitionDurations],
+      draftFormationStartTimes: [...this.draftFormationStartTimes],
+      draftOrigins: [...this.draftOrigins],
       timestamp: Date.now(),
       action: 'Current state before redo'
     };
@@ -8017,9 +8246,46 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.switchPlaybackMode('draft');
   }
 
-  onControlBarCreateDraftFromCurrent() {
-    if (this.currentFormationIndex >= 0 && this.currentFormationIndex < this.formations.length) {
-      this.createDraft(this.currentFormationIndex);
+  onControlBarCreateDraftFromCurrent(formationIndex: number) {
+    console.log('🔍 Main component onControlBarCreateDraftFromCurrent called with formationIndex:', formationIndex);
+    console.log('🔍 Current state - currentFormationIndex:', this.currentFormationIndex, 'selectedFormationType:', this.selectedFormationType);
+    
+    // If a draft is selected, add a connected draft after it
+    if (this.selectedFormationType === 'draft' && this.currentDraftFormationIndex >= 0 && this.currentDraftFormationIndex < this.draftFormations.length) {
+      const draftIdx = this.currentDraftFormationIndex;
+      // Copy the selected draft formation as the new draft
+      const newDraftFormation = this.draftFormations[draftIdx].map(p => ({...p}));
+      const newDraftDuration = this.draftFormationDurations[draftIdx];
+      // The new draft starts after the selected draft's duration and exit transition
+      const prevDraftStart = this.draftFormationStartTimes[draftIdx];
+      const prevDraftDuration = this.draftFormationDurations[draftIdx];
+      const prevDraftExit = this.draftExitTransitionDurations[draftIdx] || 1;
+      const newDraftStart = prevDraftStart + prevDraftDuration + prevDraftExit;
+      // The new draft uses the previous draft's exit transition as its entry transition
+      // So we set entry transition to 0 (no separate entry transition)
+      const entryTransition = 0; // No separate entry transition
+      const exitTransition = prevDraftExit; // Use same exit transition as previous draft
+      // Insert the new draft after the selected draft
+      this.draftFormations.splice(draftIdx + 1, 0, newDraftFormation);
+      this.draftFormationDurations.splice(draftIdx + 1, 0, newDraftDuration);
+      this.draftFormationStartTimes.splice(draftIdx + 1, 0, newDraftStart);
+      this.draftEntryTransitionDurations.splice(draftIdx + 1, 0, entryTransition);
+      this.draftExitTransitionDurations.splice(draftIdx + 1, 0, exitTransition);
+      this.draftAnimationDurations.splice(draftIdx + 1, 0, exitTransition); // legacy
+      // Select the new draft
+      this.currentDraftFormationIndex = draftIdx + 1;
+      this.selectedFormationType = 'draft';
+      // Save state and auto-save
+      this.saveState(`Add connected draft after draft F${draftIdx + 1}`);
+      this.triggerAutoSave();
+      return;
+    }
+    // Otherwise, use the passed formation index to create draft for the correct formation
+    if (formationIndex >= 0 && formationIndex < this.formations.length) {
+      console.log('🔍 Creating draft for formation index:', formationIndex);
+      this.createDraft(formationIndex);
+    } else {
+      console.error('🔍 Invalid formation index:', formationIndex, 'formations.length:', this.formations.length);
     }
   }
 
@@ -8177,6 +8443,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftEntryTransitionDurations = [];
     this.draftExitTransitionDurations = [];
     this.draftFormationStartTimes = [];
+    this.draftOrigins = [];
     this.draftStartTime = 0;
     this.currentPlaybackMode = 'main';
     this.currentDraftFormationIndex = -1;
@@ -8648,6 +8915,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Handles clicking on a formation in the timeline
   handleFormationClick(index: number, isDraft: boolean = false) {
+    console.log('🔍 handleFormationClick called with index:', index, 'isDraft:', isDraft);
+    
     // Set the selected formation type based on what was clicked
     this.selectedFormationType = isDraft ? 'draft' : 'main';
     
@@ -8657,6 +8926,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.currentFormationIndex = index;
       this.playingFormationIndex = index;
       this.currentDraftFormationIndex = -1; // Clear draft formation index when clicking main formation
+      this.lastClickedFormationIndex = index; // Track the last clicked formation
+      
+      console.log('🔍 No audio - set currentFormationIndex to:', index);
       
       // DO NOT automatically switch playback mode - only the mode button should do this
       // The mode should remain whatever the user has set it to
@@ -8673,7 +8945,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       }
       return;
     }
+    console.log('🔍 Audio connected - calling jumpToFormation with index:', index);
     this.jumpToFormation(index, isDraft);
+    // Force change detection to ensure control bar gets updated currentFormationIndex
+    this.cdr.detectChanges();
   }
 
   // --- Predictive Formation Suggestions ---

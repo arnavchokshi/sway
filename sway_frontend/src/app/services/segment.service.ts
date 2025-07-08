@@ -30,6 +30,7 @@ export interface ISegment {
   draftAnimationDurations: number[];
   draftFormationStartTimes: number[]; // Individual start times for each draft formation
   draftStartTime: number; // When draft timeline begins (e.g., end of main F2)
+  draftOrigins: { type: 'main' | 'draft', sourceIndex: number }[]; // Origin of each draft formation
   
   // Playback mode
   currentPlaybackMode: 'main' | 'draft';

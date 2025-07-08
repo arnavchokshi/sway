@@ -583,6 +583,7 @@
       <!-- Control Bar -->
         <app-control-bar
     [currentFormationIndex]="currentFormationIndex"
+    [lastClickedFormationIndex]="lastClickedFormationIndex"
     [totalFormations]="formations.length"
     [isPlaying]="isPlaying"
     [playbackTime]="playbackTime"
@@ -618,7 +619,7 @@
     (transitionsToggle)="toggleShowTransitions()"
         (switchToMainTimeline)="onControlBarSwitchToMainTimeline()"
     (switchToDraftTimeline)="onControlBarSwitchToDraftTimeline()"
-    (createDraftFromCurrent)="onControlBarCreateDraftFromCurrent()"
+    (createDraftFromCurrent)="onControlBarCreateDraftFromCurrent($event)"
     (deleteDraftFormation)="onControlBarDeleteDraftFormation()"
     >
   </app-control-bar>
@@ -666,7 +667,7 @@
                  style="position: relative;">
               <ng-container *ngFor="let formation of draftFormations; let i = index">
                 <!-- Entry transition (before the formation) -->
-                <div *ngIf="i === 0" 
+                <div *ngIf="isIndependentDraft(i)" 
                      class="timeline-transition-column" 
                      [style.width.px]="getDraftEntryTransitionPixelWidth(i)"
                      [style.left.px]="(draftFormationStartTimes[i] - (draftEntryTransitionDurations[i] || 1)) * pixelsPerSecond * timelineZoom"
