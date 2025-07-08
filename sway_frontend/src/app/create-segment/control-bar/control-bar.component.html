@@ -73,13 +73,6 @@
                 *ngIf="currentFormationIndex >= 0">
           <span class="material-icons">add_circle</span>
         </button>
-        <button class="control-btn draft-action-btn" 
-                (click)="onDeleteDraftFormation()" 
-                title="Delete Draft Formation"
-                [disabled]="!hasCurrentDraftFormation()"
-                *ngIf="hasDraftTimeline()">
-          <span class="material-icons">remove_circle</span>
-        </button>
       </div>
     </div>
     
@@ -115,10 +108,11 @@
       </button>
       <button class="control-btn action-btn delete-btn" 
               [class.confirming]="isDeleteConfirming"
+              [class.draft-delete]="isDraftSelected"
               (click)="onDeleteFormation()" 
-              [title]="isDeleteConfirming ? 'Click again to confirm delete' : 'Delete Formation'">
-        <span class="material-icons" *ngIf="!isDeleteConfirming">delete</span>
-        <span *ngIf="isDeleteConfirming">Confirm Delete</span>
+              [title]="isDeleteConfirming ? 'Click again to confirm delete' : (isDraftSelected ? 'Delete Draft' : 'Delete Formation')">
+        <span class="material-icons" *ngIf="!isDeleteConfirming">{{ isDraftSelected ? 'delete' : 'delete' }}</span>
+        <span *ngIf="isDeleteConfirming">{{ isDraftSelected ? 'Confirm Delete Draft' : 'Confirm Delete' }}</span>
       </button>
     </div>
   </div>

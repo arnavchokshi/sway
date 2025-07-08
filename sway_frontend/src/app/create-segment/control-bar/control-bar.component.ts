@@ -33,7 +33,7 @@ export class ControlBarComponent {
   @Input() draftFormationDurations: number[] = [];
   @Input() draftAnimationDurations: number[] = [];
   @Input() draftStartTime: number = 0;
-
+  @Input() isDraftSelected: boolean = false;
 
   // Delete confirmation state
   private deleteConfirmationTimeout: any = null;
@@ -117,7 +117,13 @@ export class ControlBarComponent {
         clearTimeout(this.deleteConfirmationTimeout);
         this.deleteConfirmationTimeout = null;
       }
-      this.deleteFormation.emit();
+      
+      // If a draft is selected, delete the draft instead of the formation
+      if (this.isDraftSelected) {
+        this.deleteDraftFormation.emit();
+      } else {
+        this.deleteFormation.emit();
+      }
     }
   }
 

@@ -131,6 +131,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   draftStartTime: number = 0; // When draft timeline begins (e.g., end of main F2)
   currentPlaybackMode: 'main' | 'draft' = 'main'; // Current priority mode
   currentDraftFormationIndex: number = -1; // Track which draft formation is currently being viewed (-1 = none)
+  selectedFormationType: 'main' | 'draft' = 'main'; // Track whether the currently selected formation is main or draft
 
 
 
@@ -5339,6 +5340,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   jumpToFormation(index: number, isDraft: boolean = false) {
     if (index < 0 || index >= this.formations.length) return;
     
+    // Set the selected formation type based on what was clicked
+    this.selectedFormationType = isDraft ? 'draft' : 'main';
+    
     this.currentFormationIndex = index;
     this.playingFormationIndex = index;
     
@@ -5702,6 +5706,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
    */
   switchPlaybackMode(newMode: 'main' | 'draft') {
     this.currentPlaybackMode = newMode;
+    
+    // Reset selected formation type when switching to main mode
+    if (newMode === 'main') {
+      this.selectedFormationType = 'main';
+    }
+    
     // Keep same playback position, just show different timeline
     this.updateFormationDisplay();
   }
@@ -5827,6 +5837,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   /**
+   * Check if a draft is currently selected
+   */
+  isDraftSelected(): boolean {
+    return this.selectedFormationType === 'draft' && 
+           this.currentDraftFormationIndex >= 0 && 
+           this.currentDraftFormationIndex < this.draftFormations.length;
+  }
+
+  /**
    * Delete a draft formation
    */
   deleteDraftFormation(formationIndex: number) {
@@ -5866,6 +5885,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   handleDraftFormationClick(index: number) {
     if (index < 0 || index >= this.draftFormations.length) return;
     
+    // Set the selected formation type to draft
+    this.selectedFormationType = 'draft';
+    this.currentDraftFormationIndex = index; // Always set this to the draft index
+    
     // DO NOT automatically switch playback mode - only the mode button should do this
     // The mode should remain whatever the user has set it to
     
@@ -5879,13 +5902,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (mainFormationIndex !== -1) {
       // Use jumpToFormation to properly update both indices
       this.jumpToFormation(mainFormationIndex, true); // true = isDraft
-      // Set the current draft formation index
-      this.currentDraftFormationIndex = index;
     } else {
       // Fallback: use the draft index as formation index
       this.currentFormationIndex = index;
       this.playingFormationIndex = index;
-      this.currentDraftFormationIndex = index;
+      // this.currentDraftFormationIndex = index; // Already set above
       
       // Force change detection to update the stage immediately
       this.cdr.detectChanges();
@@ -8003,8 +8024,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onControlBarDeleteDraftFormation() {
-    if (this.currentPlaybackMode === 'draft' && this.currentFormationIndex < this.draftFormations.length) {
-      this.deleteDraftFormation(this.currentFormationIndex);
+    if (this.selectedFormationType === 'draft' && this.currentDraftFormationIndex >= 0 && this.currentDraftFormationIndex < this.draftFormations.length) {
+      this.deleteDraftFormation(this.currentDraftFormationIndex);
     }
   }
 
@@ -8229,8 +8250,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   getCurrentFormationTitle(): string {
     // Check if we're currently viewing a draft formation using the new tracking property
     if (this.currentDraftFormationIndex !== -1) {
-      // We're viewing a draft formation - show "Draft F X"
-      return `Draft F ${this.playingFormationIndex + 1}`;
+      // We're viewing a draft formation - show "Draft F X" using the draft index
+      return `Draft F ${this.currentDraftFormationIndex + 1}`;
     } else {
       // We're viewing a main formation - show "F X"
       return `F ${this.playingFormationIndex + 1}`;
@@ -8523,7 +8544,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       // Main timeline formation
       this.playingFormationIndex = effectiveTimeline.formationIndex;
       this.currentFormationIndex = effectiveTimeline.formationIndex;
-      this.currentDraftFormationIndex = -1; // Clear draft formation index
+      this.currentDraftFormationIndex = -1; // Clear draft formation index when clicking main formation
       this.inTransition = false;
       this.animatedPositions = {};
     } else {
@@ -8627,6 +8648,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Handles clicking on a formation in the timeline
   handleFormationClick(index: number, isDraft: boolean = false) {
+    // Set the selected formation type based on what was clicked
+    this.selectedFormationType = isDraft ? 'draft' : 'main';
+    
     // If no audio is connected, move playhead to the start of the formation
     if (!this.signedMusicUrl || !this.waveSurfer || !this.waveSurfer.getDuration || this.waveSurfer.getDuration() === 0) {
       this.playbackTime = this.getFormationStartTimelineTime(index);
@@ -9512,6 +9536,5 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   /**
    * Toggle formation suggestions panel
    */
-  
 }
  

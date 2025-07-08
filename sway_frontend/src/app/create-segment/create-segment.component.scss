@@ -1065,7 +1065,7 @@ body {
     }
 
     .timeline-transition-bar {
-      background: rgba(139, 92, 246, 0.2);
+      background: linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.1) 25%, rgba(139, 92, 246, 0.3) 75%, rgba(139, 92, 246, 0.5) 100%);
       border: 1px solid rgba(139, 92, 246, 0.3);
 
       .transition-label {
@@ -2446,7 +2446,7 @@ body {
   }
   
   &.draft-transition {
-    background: linear-gradient(90deg, transparent 15%, rgba(139, 92, 246, 0.3) 100%);
+    background: linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.1) 25%, rgba(139, 92, 246, 0.3) 75%, rgba(246, 159, 92, 0.5) 100%);
     border: 1px solid rgba(139, 92, 246, 0.4);
     height: 45px;
     margin-bottom: 4px;
