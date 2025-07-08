@@ -494,6 +494,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   resizingEntryTransitionStartX: number = 0;
   resizingEntryTransitionStartDuration: number = 0;
   resizingEntryTransitionOriginalPosition: number = 0;
+  resizingEntryTransitionOriginalFormationStartTime: number = 0;
 
   constructor(
     private route: ActivatedRoute,
@@ -5920,6 +5921,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftEntryTransitionDurations.splice(formationIndex, 1);
     this.draftExitTransitionDurations.splice(formationIndex, 1);
     this.draftFormationStartTimes.splice(formationIndex, 1);
+    this.draftOrigins.splice(formationIndex, 1); // Remove the draft origin entry
 
     // Adjust current formation index if needed
     if (this.currentFormationIndex >= formationIndex) {
@@ -6000,6 +6002,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const newDuration = Math.max(0.5, this.resizingStartDuration + deltaSeconds);
     
     this.draftFormationDurations[this.resizingFormationIndex] = newDuration;
+    
+    // Recalculate start times for connected drafts (starting from the current draft)
+    this.recalculateConnectedDraftStartTimes(this.resizingFormationIndex);
+    
     this.triggerAutoSave();
   }
 
@@ -6033,8 +6039,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftExitTransitionDurations[this.resizingTransitionIndex] = newDuration;
     this.draftAnimationDurations[this.resizingTransitionIndex] = newDuration; // Legacy compatibility
     
-    // Recalculate start times for connected drafts (starting from the next draft)
-    this.recalculateConnectedDraftStartTimes(this.resizingTransitionIndex + 1);
+    // Recalculate start times for connected drafts (starting from the current draft)
+    this.recalculateConnectedDraftStartTimes(this.resizingTransitionIndex);
     
     this.triggerAutoSave();
   }
@@ -6054,28 +6060,98 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
    * Connected drafts are those that share entry/exit transitions
    * Independent drafts (created from main formations) should NOT be affected
    */
-  private recalculateConnectedDraftStartTimes(startIndex: number) {
-    if (startIndex >= this.draftFormations.length) return;
+  /**
+   * Find all drafts that are connected to a given draft (either directly or indirectly)
+   * This includes the draft itself and all drafts that were created from it or its descendants
+   */
+  private findConnectedDrafts(draftIndex: number): number[] {
+    console.log('🔍 Finding connected drafts for draft index:', draftIndex);
+    console.log('🔍 Current draftOrigins:', this.draftOrigins);
     
-    // Start from the given index and recalculate each subsequent draft's start time
-    for (let i = startIndex; i < this.draftFormations.length; i++) {
-      // Check if this draft is independent (created from main formation) or connected (created from another draft)
-      const isIndependentDraft = this.isIndependentDraft(i);
+    const connectedDrafts: number[] = [draftIndex];
+    const toCheck: number[] = [draftIndex];
+    
+    while (toCheck.length > 0) {
+      const currentDraft = toCheck.shift()!;
+      console.log('🔍 Checking draft:', currentDraft);
       
-      if (isIndependentDraft) {
-        // Independent drafts should NOT have their start times recalculated
-        // They maintain their original start time based on the main formation
-        continue;
+      // Find all drafts that were created from this draft
+      for (let i = 0; i < this.draftOrigins.length; i++) {
+        const origin = this.draftOrigins[i];
+        console.log('🔍 Checking origin for draft', i, ':', origin);
+        if (origin && origin.type === 'draft' && origin.sourceIndex === currentDraft) {
+          console.log('🔍 Found connected draft:', i, 'created from draft:', currentDraft);
+          if (!connectedDrafts.includes(i)) {
+            connectedDrafts.push(i);
+            toCheck.push(i);
+          }
+        }
       }
+    }
+    
+    const sortedDrafts = connectedDrafts.sort((a, b) => a - b);
+    console.log('🔍 Final connected drafts:', sortedDrafts);
+    return sortedDrafts;
+  }
+
+  /**
+   * Recalculate start times for all connected drafts when a draft's timing changes
+   */
+  private recalculateConnectedDraftStartTimes(startIndex: number) {
+    console.log('🔍 Recalculating connected draft start times from index:', startIndex);
+    
+    if (startIndex >= this.draftFormations.length) {
+      console.log('❌ Start index out of bounds, returning early');
+      return;
+    }
+    
+    // Find all drafts that are connected to this draft
+    const connectedDrafts = this.findConnectedDrafts(startIndex);
+    
+    console.log('🔍 Connected drafts found:', connectedDrafts);
+    
+    if (connectedDrafts.length < 1) {
+      console.log('❌ No connected drafts found');
+      return;
+    }
+    
+    // Sort by index to ensure we update them in order
+    connectedDrafts.sort((a, b) => a - b);
+    
+    console.log('🔍 Sorted connected drafts:', connectedDrafts);
+    
+    // Find the position of the startIndex in the connected drafts array
+    const startIndexInConnected = connectedDrafts.indexOf(startIndex);
+    if (startIndexInConnected === -1) {
+      console.log('❌ Start index not found in connected drafts');
+      return;
+    }
+    
+    // Start from the changed draft and recalculate all subsequent ones
+    for (let i = startIndexInConnected; i < connectedDrafts.length - 1; i++) {
+      const currentDraftIndex = connectedDrafts[i];
+      const nextDraftIndex = connectedDrafts[i + 1];
       
-      // This is a connected draft, so recalculate its start time
-      const prevIndex = i - 1;
-      const prevDraftStart = this.draftFormationStartTimes[prevIndex];
-      const prevDraftDuration = this.draftFormationDurations[prevIndex];
-      const prevDraftExit = this.draftExitTransitionDurations[prevIndex] || 1;
+      console.log('🔍 Processing draft pair:', { current: currentDraftIndex, next: nextDraftIndex });
       
-      // New start time = previous draft start + previous draft duration + previous draft exit transition
-      this.draftFormationStartTimes[i] = prevDraftStart + prevDraftDuration + prevDraftExit;
+      // Calculate the end time of the current draft
+      const currentDraftStart = this.draftFormationStartTimes[currentDraftIndex];
+      const currentDraftDuration = this.draftFormationDurations[currentDraftIndex];
+      const currentDraftExit = this.draftExitTransitionDurations[currentDraftIndex];
+      const currentDraftEnd = currentDraftStart + currentDraftDuration + currentDraftExit;
+      
+      console.log('🔍 Current draft timing:', {
+        start: currentDraftStart,
+        duration: currentDraftDuration,
+        exit: currentDraftExit,
+        end: currentDraftEnd
+      });
+      
+      // Update the start time of the next draft
+      const oldStartTime = this.draftFormationStartTimes[nextDraftIndex];
+      this.draftFormationStartTimes[nextDraftIndex] = currentDraftEnd;
+      
+      console.log('🔍 Updated draft', nextDraftIndex, 'start time from', oldStartTime, 'to', currentDraftEnd);
     }
   }
 
@@ -6130,17 +6206,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       // This draft was created from a main formation
       const mainFormationIndex = origin.sourceIndex;
       
-      // The anchor point is the end of the previous formation
-      if (mainFormationIndex === 0) {
-        // First formation - anchor at time 0
-        return 0;
-      } else {
-        // Anchor at the end of the previous formation
-        const previousFormationStart = this.getFormationStartTime(mainFormationIndex - 1);
-        const previousFormationDuration = this.formationDurations[mainFormationIndex - 1] || 4;
-        const previousFormationTransition = this.animationDurations[mainFormationIndex - 1] || 1;
-        return previousFormationStart + previousFormationDuration + previousFormationTransition;
-      }
+      // For independent drafts, the entry transition should be anchored to the start of the main formation
+      // MINUS the transition time that comes before that main formation
+      const formationStartTime = this.getFormationStartTime(mainFormationIndex);
+      const previousTransitionTime = mainFormationIndex > 0 ? this.animationDurations[mainFormationIndex - 1] || 1 : 0;
+      const anchorPoint = formationStartTime - previousTransitionTime;
+      
+      console.log('🔍 Anchor point calculation:', {
+        draftIndex: draftIndex,
+        origin: origin,
+        mainFormationIndex: mainFormationIndex,
+        anchorPoint: anchorPoint,
+        formationStartTime: this.getFormationStartTime(mainFormationIndex)
+      });
+      
+      return anchorPoint;
     }
     
     // Fallback to the old timing-based logic for backward compatibility
@@ -6152,17 +6232,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     if (mainFormationIndex === -1) return 0;
     
-    // The anchor point is the end of the previous formation
-    if (mainFormationIndex === 0) {
-      // First formation - anchor at time 0
-      return 0;
-    } else {
-      // Anchor at the end of the previous formation
-      const previousFormationStart = this.getFormationStartTime(mainFormationIndex - 1);
-      const previousFormationDuration = this.formationDurations[mainFormationIndex - 1] || 4;
-      const previousFormationTransition = this.animationDurations[mainFormationIndex - 1] || 1;
-      return previousFormationStart + previousFormationDuration + previousFormationTransition;
-    }
+    // The anchor point is the start of the main formation MINUS the transition time that comes before it
+    const formationStartTime = this.getFormationStartTime(mainFormationIndex);
+    const previousTransitionTime = mainFormationIndex > 0 ? this.animationDurations[mainFormationIndex - 1] || 1 : 0;
+    return formationStartTime - previousTransitionTime;
   }
 
   // Entry transition resize for draft timeline
@@ -6183,12 +6256,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Store the anchor point (the end of the previous formation)
     this.resizingEntryTransitionOriginalPosition = this.getDraftEntryTransitionAnchorPoint(index);
     
+    // Store the original formation start time to use as the anchor point
+    this.resizingEntryTransitionOriginalFormationStartTime = this.draftFormationStartTimes[index];
+    
     console.log('🔍 Resize setup:', {
       index,
       startX: this.resizingEntryTransitionStartX,
       startDuration: this.resizingEntryTransitionStartDuration,
       anchorPoint: this.resizingEntryTransitionOriginalPosition,
-      currentFormationStartTime: this.draftFormationStartTimes[index],
+      originalFormationStartTime: this.resizingEntryTransitionOriginalFormationStartTime,
       currentEntryDuration: this.draftEntryTransitionDurations[index]
     });
     
@@ -6206,16 +6282,35 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const deltaSeconds = deltaX / this.pixelsPerSecond;
     const newDuration = Math.max(0.1, this.resizingEntryTransitionStartDuration + deltaSeconds);
     
+    console.log('🔍 Entry transition resize move:', {
+      index: i,
+      deltaX: deltaX,
+      deltaSeconds: deltaSeconds,
+      newDuration: newDuration,
+      oldDuration: this.draftEntryTransitionDurations[i],
+      anchorPoint: this.resizingEntryTransitionOriginalPosition,
+      oldFormationStartTime: this.draftFormationStartTimes[i]
+    });
+    
     // Update entry transition duration
     this.draftEntryTransitionDurations[i] = newDuration;
     this.draftAnimationDurations[i] = newDuration; // Legacy compatibility
     
-    // For independent drafts, the entry transition should be anchored to the end of the previous formation
-    // The entry transition start time = anchor point
-    // The formation start time = anchor point + entry transition duration
-    const anchorPoint = this.resizingEntryTransitionOriginalPosition;
+    // For independent drafts, the entry transition's starting time should NEVER change during resize
+    // The entry transition starts at the anchor point and the formation starts after the entry transition
+    // Only the entry transition duration should change, and the formation should move right
+    const anchorPoint = this.resizingEntryTransitionOriginalPosition; // This is the correct anchor point
     const newFormationStartTime = anchorPoint + newDuration;
     this.draftFormationStartTimes[i] = newFormationStartTime;
+    
+    console.log('🔍 Updated formation start time:', {
+      anchorPoint: anchorPoint,
+      newFormationStartTime: newFormationStartTime,
+      origin: this.draftOrigins[i]
+    });
+    
+    // Recalculate start times for connected drafts (starting from the current draft)
+    this.recalculateConnectedDraftStartTimes(i);
     
     this.triggerAutoSave();
   }
@@ -8272,6 +8367,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.draftEntryTransitionDurations.splice(draftIdx + 1, 0, entryTransition);
       this.draftExitTransitionDurations.splice(draftIdx + 1, 0, exitTransition);
       this.draftAnimationDurations.splice(draftIdx + 1, 0, exitTransition); // legacy
+      
+      // Add the draft origin information for the connected draft
+      this.draftOrigins.splice(draftIdx + 1, 0, { type: 'draft', sourceIndex: draftIdx });
+      
       // Select the new draft
       this.currentDraftFormationIndex = draftIdx + 1;
       this.selectedFormationType = 'draft';
