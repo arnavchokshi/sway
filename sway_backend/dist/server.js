@@ -68,8 +68,24 @@ const Set_1 = require("./models/Set");
 const aws_sdk_1 = __importDefault(require("aws-sdk"));
 const stripe_1 = __importDefault(require("stripe"));
 const membership_service_1 = require("./services/membership.service");
+const nodemailer_1 = __importDefault(require("nodemailer"));
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3000;
+// Email configuration
+let transporter = null;
+// Only create transporter if email credentials are provided
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    transporter = nodemailer_1.default.createTransport({
+        service: 'gmail',
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
+        }
+    });
+}
+else {
+    console.log('Email credentials not configured. Feedback emails will not be sent.');
+}
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 // Stripe
@@ -1262,6 +1278,59 @@ app.get('/api/teams/:id/membership-active', (req, res) => __awaiter(void 0, void
     catch (error) {
         console.error('Error checking membership status:', error);
         res.status(500).json({ error: error.message || 'Failed to check membership status' });
+    }
+}));
+// Feedback endpoint
+app.post('/api/feedback', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { message, type, rating, email } = req.body;
+        if (!message || !message.trim()) {
+            return res.status(400).json({ error: 'Feedback message is required' });
+        }
+        // Log the feedback
+        console.log('Feedback received:', {
+            message: message.trim(),
+            type: type || 'general',
+            rating: rating || 0,
+            email: email || 'anonymous',
+            timestamp: new Date().toISOString()
+        });
+        // Send email notification
+        if (transporter && process.env.EMAIL_USER) {
+            const mailOptions = {
+                from: process.env.EMAIL_USER,
+                to: 'achokshi38@gatech.edu',
+                subject: `Sway Feedback - ${type || 'General'}`,
+                html: `
+          <h2>New Feedback Received</h2>
+          <p><strong>Type:</strong> ${type || 'General'}</p>
+          <p><strong>Rating:</strong> ${rating || 'Not provided'}</p>
+          <p><strong>User Email:</strong> ${email || 'Anonymous'}</p>
+          <p><strong>Message:</strong></p>
+          <p>${message.trim()}</p>
+          <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
+        `
+            };
+            try {
+                yield transporter.sendMail(mailOptions);
+                console.log('Feedback email sent successfully');
+            }
+            catch (emailError) {
+                console.error('Error sending feedback email:', emailError);
+                // Don't fail the request if email fails, just log it
+            }
+        }
+        else {
+            console.log('Email not configured - feedback logged but not sent via email');
+        }
+        res.status(200).json({
+            message: 'Feedback received successfully',
+            timestamp: new Date().toISOString()
+        });
+    }
+    catch (error) {
+        console.error('Error processing feedback:', error);
+        res.status(500).json({ error: error.message || 'Failed to process feedback' });
     }
 }));
 app.listen(port, () => {

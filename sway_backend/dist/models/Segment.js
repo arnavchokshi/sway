@@ -65,6 +65,7 @@ const SegmentSchema = new mongoose_1.Schema({
     formations: [[PositionSchema]],
     formationDurations: [{ type: Number, default: 4 }],
     animationDurations: [{ type: Number, default: 1 }],
+    formationNames: [{ type: String }], // Persistent formation names
     // Draft timeline
     draftFormations: [[PositionSchema]],
     draftFormationDurations: [{ type: Number, default: 4 }],
@@ -72,7 +73,11 @@ const SegmentSchema = new mongoose_1.Schema({
     draftEntryTransitionDurations: [{ type: Number, default: 1 }], // Entry transition durations for draft formations
     draftExitTransitionDurations: [{ type: Number, default: 1 }], // Exit transition durations for draft formations
     draftFormationStartTimes: [{ type: Number, default: 0 }], // Individual start times for each draft formation
-    draftStartTime: { type: Number, default: 0 },
+    draftOrigins: [{
+            type: { type: String, enum: ['main', 'draft'], required: true },
+            sourceIndex: { type: Number, required: true }
+        }], // Origin of each draft formation
+    draftNames: [{ type: String }], // Persistent draft formation names
     // Playback mode
     currentPlaybackMode: { type: String, enum: ['main', 'draft'], default: 'main' },
     // Legacy draft support

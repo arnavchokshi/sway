@@ -15,6 +15,22 @@ import nodemailer from 'nodemailer';
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Email configuration
+let transporter: nodemailer.Transporter | null = null;
+
+// Only create transporter if email credentials are provided
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+  transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+} else {
+  console.log('Email credentials not configured. Feedback emails will not be sent.');
+}
+
 app.use(cors());
 app.use(express.json());
 
@@ -1366,7 +1382,7 @@ app.post('/api/feedback', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Feedback message is required' });
     }
 
-    // Log the feedback (you can extend this to save to database or send email)
+    // Log the feedback
     console.log('Feedback received:', {
       message: message.trim(),
       type: type || 'general',
@@ -1375,10 +1391,33 @@ app.post('/api/feedback', async (req: Request, res: Response) => {
       timestamp: new Date().toISOString()
     });
 
-    // Here you could:
-    // 1. Save to database
-    // 2. Send email notification
-    // 3. Integrate with external feedback services
+    // Send email notification
+    if (transporter && process.env.EMAIL_USER) {
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: 'achokshi38@gatech.edu',
+        subject: `Sway Feedback - ${type || 'General'}`,
+        html: `
+          <h2>New Feedback Received</h2>
+          <p><strong>Type:</strong> ${type || 'General'}</p>
+          <p><strong>Rating:</strong> ${rating || 'Not provided'}</p>
+          <p><strong>User Email:</strong> ${email || 'Anonymous'}</p>
+          <p><strong>Message:</strong></p>
+          <p>${message.trim()}</p>
+          <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
+        `
+      };
+
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log('Feedback email sent successfully');
+      } catch (emailError: any) {
+        console.error('Error sending feedback email:', emailError);
+        // Don't fail the request if email fails, just log it
+      }
+    } else {
+      console.log('Email not configured - feedback logged but not sent via email');
+    }
     
     res.status(200).json({ 
       message: 'Feedback received successfully',
