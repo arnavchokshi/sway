@@ -5712,23 +5712,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     });
   }
 
-  // Get the draft name for a specific formation index
-  getDraftNameForFormation(formationIndex: number): string {
-    const formationStartTime = this.getFormationStartTime(formationIndex);
-    const draftIndex = this.draftFormations.findIndex((draft, index) => {
-      const draftStartTime = this.draftFormationStartTimes[index] || 0;
-      // Check if this draft corresponds to the same formation (same start time)
-      return Math.abs(draftStartTime - formationStartTime) < 0.1; // Allow small floating point differences
-    });
-    
-    if (draftIndex !== -1 && this.draftNames[draftIndex]) {
-      return this.draftNames[draftIndex];
-    }
-    
-    // Fallback to default name
-    return `Draft ${formationIndex + 1}`;
-  }
-
   // Check if any formation has drafts (for expanding timeline height)
   hasAnyDrafts(): boolean {
     // Check both legacy formationDrafts and new draftFormations systems
@@ -5958,7 +5941,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftFormationStartTimes.push(draftStartTime); // Store draft formation start time
     
     // Generate a draft name
-    const draftName = `Draft ${this.draftFormations.length}`;
+    const draftName = `Draft ${this.draftNames.length + 1}`;
     this.draftNames.push(draftName);
     
     // Store the origin of this draft (created from main formation)
@@ -6050,7 +6033,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftFormationStartTimes.push(newDraftStartTime);
     
     // Generate a draft name
-    const draftName = `Draft ${this.draftFormations.length}`;
+    const draftName = `Draft ${this.draftNames.length + 1}`;
     this.draftNames.push(draftName);
     
     // Store the origin of this draft (created from another draft)
@@ -6489,6 +6472,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftExitTransitionDurations.splice(formationIndex, 1);
     this.draftFormationStartTimes.splice(formationIndex, 1);
     this.draftOrigins.splice(formationIndex, 1); // Remove the draft origin entry
+    this.draftNames.splice(formationIndex, 1);
 
     // Update draftOrigins for all drafts after the deleted one
     for (let i = 0; i < this.draftOrigins.length; i++) {
@@ -6510,29 +6494,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           // If this draft pointed to a draft after the deleted one, decrement index
           this.draftOrigins[i] = { ...origin, sourceIndex: origin.sourceIndex - 1 };
         }
-      }
-    }
-
-    // UI update: update the start time of the next draft if it was connected to the deleted one
-    const nextDraftIdx = formationIndex; // After splice, this is the next draft
-    if (nextDraftIdx < this.draftOrigins.length) {
-      const nextOrigin = this.draftOrigins[nextDraftIdx];
-      if (nextOrigin) {
-        let newStart = 0;
-        if (nextOrigin.type === 'draft') {
-          // End of the new origin draft
-          const originIdx = nextOrigin.sourceIndex;
-          newStart = this.draftFormationStartTimes[originIdx]
-            + this.draftFormationDurations[originIdx]
-            + this.draftExitTransitionDurations[originIdx];
-        } else if (nextOrigin.type === 'main') {
-          // End of the main formation (use getFormationStartTime and animationDurations)
-          const mainIdx = nextOrigin.sourceIndex;
-          newStart = this.getFormationStartTime(mainIdx)
-            + (this.formationDurations[mainIdx] || 0)
-            + (this.animationDurations[mainIdx] || 0);
-        }
-        this.draftFormationStartTimes[nextDraftIdx] = newStart;
       }
     }
 

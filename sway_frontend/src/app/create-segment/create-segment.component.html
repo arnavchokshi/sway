@@ -724,7 +724,7 @@
                        (contextmenu)="onDraftFormationRightClick($event, i)"
                        (mouseenter)="hoveredFormationIndex = i"
                        (mouseleave)="hoveredFormationIndex = null">
-                    <div class="formation-label">Draft F {{ i + 1 }}</div>
+                    <div class="formation-label">{{ draftNames[i] || 'Draft F ' + (i + 1) }}</div>
                     <div class="formation-duration">{{ draftFormationDurations[i] | number:'1.1-1' }}s</div>
                     <div *ngIf="isCaptain" class="formation-drag-handle" (mousedown)="onDraftFormationResizeStart($event, i)"></div>
                   </div>
@@ -768,7 +768,7 @@
                        (mouseenter)="hoveredFormationIndex = i"
                        (mouseleave)="hoveredFormationIndex = null">
                     <div class="formation-label">
-                      {{ getDraftNameForFormation(i) }}
+                      {{ draftNames[i] || 'Draft ' + (i + 1) }}
                     </div>
                     <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
                     

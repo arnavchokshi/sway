@@ -79,6 +79,11 @@ export class DashboardComponent implements OnInit {
   isDeleteConfirming: boolean = false;
   segmentToDelete: string | null = null;
 
+  // Join code modal state
+  showJoinCodeModal = false;
+  editJoinCodeValue = '';
+  joinCodeError = '';
+
   constructor(
     private authService: AuthService, 
     private teamService: TeamService,
@@ -777,6 +782,181 @@ export class DashboardComponent implements OnInit {
 
   closeProfileDropdown() {
     this.showProfileDropdown = false;
+  }
+
+  // Join Code Modal Methods
+  openJoinCodeModal() {
+    this.showJoinCodeModal = true;
+    this.editJoinCodeValue = this.team?.joinCode || '';
+    this.joinCodeError = '';
+  }
+
+  closeJoinCodeModal() {
+    this.showJoinCodeModal = false;
+    this.editJoinCodeValue = '';
+    this.joinCodeError = '';
+  }
+
+  clearJoinCodeError() {
+    this.joinCodeError = '';
+  }
+
+  validateJoinCodeInput() {
+    const code = this.editJoinCodeValue.trim().toUpperCase();
+    
+    // Clear error if input is empty
+    if (!code) {
+      this.joinCodeError = '';
+      return;
+    }
+    
+    // Check length
+    if (code.length !== 7) {
+      this.joinCodeError = 'Join code must be exactly 7 characters.';
+      return;
+    }
+    
+    // Check for alphanumeric characters only
+    if (!/^[A-Z0-9]{7}$/.test(code)) {
+      this.joinCodeError = 'Join code must contain only letters and numbers.';
+      return;
+    }
+    
+    // Check for all numbers
+    if (/^[0-9]{7}$/.test(code)) {
+      this.joinCodeError = 'Join code cannot be all numbers.';
+      return;
+    }
+    
+    // If we get here, the code is valid
+    this.joinCodeError = '';
+  }
+
+  generateNewJoinCode() {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    let newCode = '';
+    
+    // Generate a mix of letters and numbers (allowing all letters)
+    const letterCount = Math.floor(Math.random() * 8); // 0-7 letters
+    const numberCount = 7 - letterCount; // Remaining slots for numbers
+    
+    // Create arrays of letters and numbers
+    let lettersArray = [];
+    let numbersArray = [];
+    
+    for (let i = 0; i < letterCount; i++) {
+      lettersArray.push(letters.charAt(Math.floor(Math.random() * letters.length)));
+    }
+    
+    for (let i = 0; i < numberCount; i++) {
+      numbersArray.push(numbers.charAt(Math.floor(Math.random() * numbers.length)));
+    }
+    
+    // Shuffle and combine
+    const allChars = [...lettersArray, ...numbersArray];
+    for (let i = allChars.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allChars[i], allChars[j]] = [allChars[j], allChars[i]];
+    }
+    
+    newCode = allChars.join('');
+    this.editJoinCodeValue = newCode;
+    this.clearJoinCodeError();
+  }
+
+  copyJoinCode() {
+    const codeToCopy = this.editJoinCodeValue || this.team?.joinCode;
+    if (codeToCopy) {
+      navigator.clipboard.writeText(codeToCopy).then(() => {
+        // You could add a toast notification here
+        console.log('Join code copied to clipboard');
+      }).catch(err => {
+        console.error('Failed to copy join code:', err);
+      });
+    }
+  }
+
+  shareJoinCode() {
+    const codeToShare = this.editJoinCodeValue || this.team?.joinCode;
+    if (codeToShare && navigator.share) {
+      navigator.share({
+        title: 'Join my team on Sway',
+        text: `Join my team using this code: ${codeToShare}`,
+        url: 'https://swayformations.com'
+      }).catch(err => {
+        console.error('Failed to share join code:', err);
+        // Fallback to copying
+        this.copyJoinCode();
+      });
+    } else {
+      // Fallback to copying if Web Share API is not available
+      this.copyJoinCode();
+    }
+  }
+
+  saveJoinCodeEdit() {
+    const newCode = this.editJoinCodeValue.trim().toUpperCase();
+    
+    // Clear any previous errors
+    this.clearJoinCodeError();
+    
+    // Validation checks
+    if (!newCode) {
+      this.joinCodeError = 'Join code cannot be empty.';
+      return;
+    }
+    
+    if (newCode.length !== 7) {
+      this.joinCodeError = 'Join code must be exactly 7 characters.';
+      return;
+    }
+    
+    if (!/^[A-Z0-9]{7}$/.test(newCode)) {
+      this.joinCodeError = 'Join code must contain only letters and numbers.';
+      return;
+    }
+    
+    // Check for common patterns that might be confusing
+    if (/^[0-9]{7}$/.test(newCode)) {
+      this.joinCodeError = 'Join code cannot be all numbers.';
+      return;
+    }
+    
+    // Check if it's the same as current code
+    if (newCode === this.team?.joinCode) {
+      this.closeJoinCodeModal();
+      return;
+    }
+
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser?.team?._id) {
+      this.joinCodeError = 'No team found.';
+      return;
+    }
+
+    // Show loading state (you could add a loading spinner here)
+    console.log('Updating join code...');
+
+    this.teamService.updateJoinCode(currentUser.team._id, newCode).subscribe({
+      next: (res: any) => {
+        this.team.joinCode = newCode;
+        this.closeJoinCodeModal();
+        // You could add a success toast here
+        console.log('Join code updated successfully');
+      },
+      error: (err: any) => {
+        if (err.status === 409) {
+          this.joinCodeError = 'This join code is already in use.';
+        } else if (err.status === 400) {
+          this.joinCodeError = err.error?.error || 'Invalid join code format.';
+        } else if (err.status === 403) {
+          this.joinCodeError = 'You do not have permission to update the join code.';
+        } else {
+          this.joinCodeError = err.error?.error || 'Failed to update join code. Please try again.';
+        }
+      }
+    });
   }
 
   ngOnDestroy() {

@@ -12,7 +12,7 @@
           <i class="fas fa-users"></i> Edit Team
         </button>
         <div class="join-code-display" *ngIf="team">
-          Join Code: <span class="join-code">{{ team.joinCode }}</span>
+          Join Code: <span class="join-code clickable" (click)="openJoinCodeModal()">{{ team.joinCode }}</span>
         </div>
         <!-- User Profile Icon -->
         <div class="profile-container" (click)="toggleProfileDropdown()" tabindex="0">
@@ -489,4 +489,74 @@
       </div>
     </div>
   </ng-container>
+
+  <!-- Join Code Modal -->
+  <div class="modal-backdrop" *ngIf="showJoinCodeModal">
+    <div class="modal frosted-glass-modal join-code-modal">
+      <div class="modal-header">
+        <h2>Manage Join Code</h2>
+        <button type="button" class="modal-close-btn" (click)="closeJoinCodeModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="join-code-section">
+          <label class="form-label">Team Join Code</label>
+          <div class="join-code-input-group">
+            <input 
+              type="text" 
+              [(ngModel)]="editJoinCodeValue" 
+              maxlength="7" 
+              class="join-code-input"
+              placeholder="Enter 7-character code"
+              (input)="validateJoinCodeInput()"
+              (keyup)="validateJoinCodeInput()"
+              style="text-transform: uppercase;"
+            />
+            <button 
+              type="button" 
+              class="generate-code-btn" 
+              (click)="generateNewJoinCode()"
+              title="Generate new code">
+              <i class="fas fa-sync-alt"></i>
+            </button>
+          </div>
+          <div class="join-code-error" *ngIf="joinCodeError">{{ joinCodeError }}</div>
+        </div>
+
+        <div class="join-code-actions">
+          <button 
+            type="button" 
+            class="copy-code-btn" 
+            (click)="copyJoinCode()"
+            title="Copy to clipboard">
+            <i class="fas fa-copy"></i> Copy Code
+          </button>
+          <button 
+            type="button" 
+            class="share-code-btn" 
+            (click)="shareJoinCode()"
+            title="Share code">
+            <i class="fas fa-share-alt"></i> Share
+          </button>
+        </div>
+
+        <div class="join-code-info">
+          <p><i class="fas fa-info-circle"></i> Share this code with team members so they can join your team.</p>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" (click)="closeJoinCodeModal()" class="btn-cancel">Cancel</button>
+        <button 
+          type="button" 
+          (click)="saveJoinCodeEdit()" 
+          class="btn-save"
+          [disabled]="!editJoinCodeValue || editJoinCodeValue.length !== 7 || editJoinCodeValue === team?.joinCode">
+          Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
 </div> 

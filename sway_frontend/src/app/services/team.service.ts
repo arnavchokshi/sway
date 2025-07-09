@@ -78,4 +78,8 @@ export class TeamService {
   getSegmentById(segmentId: string) {
     return this.http.get<any>(`${this.apiUrl}/segment/${segmentId}`);
   }
+
+  updateJoinCode(teamId: string, joinCode: string): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/teams/${teamId}/join-code`, { joinCode });
+  }
 } 

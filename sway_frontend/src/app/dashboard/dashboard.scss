@@ -2540,3 +2540,222 @@
   line-height: 1.25;
   text-align: left;
 }
+
+// Join Code Modal Styles
+.join-code-modal {
+  max-width: 500px;
+  width: 90%;
+  
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    
+    h2 {
+      margin: 0;
+      color: #333;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+  }
+  
+  .modal-body {
+    .join-code-section {
+      margin-bottom: 1.5rem;
+      
+      .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #333;
+        font-size: 1rem;
+      }
+      
+      .join-code-input-group {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        
+        .join-code-input {
+          flex: 1;
+          padding: 0.75rem 1rem;
+          border: 2px solid #e5e7eb;
+          border-radius: 8px;
+          font-size: 1.1rem;
+          font-weight: 600;
+          text-align: center;
+          letter-spacing: 1px;
+          color: #333;
+          background: #fff;
+          transition: border-color 0.2s ease;
+          
+          &:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+          }
+          
+          &::placeholder {
+            color: #9ca3af;
+            font-weight: 400;
+          }
+        }
+        
+        .generate-code-btn {
+          background: #6366f1;
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          padding: 0.75rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 44px;
+          
+          &:hover {
+            background: #4f46e5;
+            transform: translateY(-1px);
+          }
+          
+          i {
+            font-size: 1rem;
+          }
+        }
+      }
+      
+      .join-code-error {
+        color: #dc2626;
+        font-size: 0.875rem;
+        margin-top: 0.5rem;
+        font-weight: 500;
+      }
+    }
+    
+    .join-code-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      
+      .copy-code-btn,
+      .share-code-btn {
+        flex: 1;
+        padding: 0.75rem 1rem;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        background: #fff;
+        color: #333;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        
+        &:hover {
+          border-color: #6366f1;
+          background: #f8fafc;
+          transform: translateY(-1px);
+        }
+        
+        i {
+          font-size: 1rem;
+        }
+      }
+      
+      .share-code-btn {
+        background: #6366f1;
+        color: #fff;
+        border-color: #6366f1;
+        
+        &:hover {
+          background: #4f46e5;
+          border-color: #4f46e5;
+        }
+      }
+    }
+    
+    .join-code-info {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+      
+      p {
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        
+        i {
+          color: #6366f1;
+          font-size: 1rem;
+        }
+      }
+    }
+  }
+  
+  .modal-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    
+    .btn-cancel {
+      background: #f3f4f6;
+      color: #555;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 0.75rem 1.5rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      
+      &:hover {
+        background: #e5e7eb;
+      }
+    }
+    
+    .btn-save {
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.75rem 1.5rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      
+      &:hover:not(:disabled) {
+        background: #4f46e5;
+        transform: translateY(-1px);
+      }
+      
+      &:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+        transform: none;
+      }
+    }
+  }
+}
+
+// Make join code clickable
+.join-code.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    color: #ffed4e;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    transform: scale(1.05);
+  }
+  
+  &:active {
+    transform: scale(0.98);
+  }
+}
