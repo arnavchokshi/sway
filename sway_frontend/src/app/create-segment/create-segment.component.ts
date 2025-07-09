@@ -35,6 +35,7 @@ interface Style {
 
 interface SegmentState {
   formations: Performer[][];
+  formationNames: string[];
   formationDurations: number[];
   animationDurations: number[];
   currentFormationIndex: number;
@@ -45,6 +46,7 @@ interface SegmentState {
   draftExitTransitionDurations: number[];
   draftFormationStartTimes: number[];
   draftOrigins: { type: 'main' | 'draft', sourceIndex: number }[];
+  draftNames: string[];
   timestamp: number;
   action: string; // Description of the action that led to this state
 }
@@ -118,6 +120,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // Multi-formation support
   formations: Performer[][] = [];
+  formationNames: string[] = []; // Persistent formation names
   currentFormationIndex = 0;
 
   // Formation drafts support (single draft per formation)
@@ -139,6 +142,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   
   // Track the origin of each draft
   draftOrigins: { type: 'main' | 'draft', sourceIndex: number }[] = []; // Origin of each draft formation
+  draftNames: string[] = []; // Persistent draft formation names
   currentPlaybackMode: 'main' | 'draft' = 'main'; // Current priority mode
   currentDraftFormationIndex: number = -1; // Track which draft formation is currently being viewed (-1 = none)
   selectedFormationType: 'main' | 'draft' = 'main'; // Track whether the currently selected formation is main or draft
@@ -773,38 +777,45 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
         if (this.segment) {
           // Pass 2: Map formations using dummy templates and real users
           if (this.segment.formations && this.segment.formations.length > 0) {
-            this.formations = this.segment.formations.map((formation: any[]) => 
-              formation.map((p: any) => {
-                // Check if this is a dummy performer by looking for dummyTemplateId
-                if (p.dummyTemplateId) {
-                  const dummyTemplate = dummyTemplateMap.get(p.dummyTemplateId);
-                  if (dummyTemplate) {
-                    return {
-                      id: dummyTemplate.id,
-                      name: dummyTemplate.name,
-                      x: p.x,
-                      y: p.y,
-                      skillLevels: dummyTemplate.skillLevels || {},
-                      height: dummyTemplate.height || 5.5,
-                      isDummy: true,
-                      dummyName: dummyTemplate.name,
-                      customColor: p.customColor || dummyTemplate.customColor
-                    };
-                  } else {
-                    // Fallback if template not found
-                    return {
-                      id: p.dummyTemplateId,
-                      name: `${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
-                      x: p.x,
-                      y: p.y,
-                      skillLevels: {},
-                      height: p.height || 5.5,
-                      isDummy: true,
-                      dummyName: `${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
-                      customColor: p.customColor
-                    };
-                  }
-                } else if (p.user) {
+                    // Load formation names or generate them if not present
+        this.formationNames = this.segment.formationNames || [];
+        if (this.formationNames.length === 0 && this.segment.formations.length > 0) {
+          // Generate formation names for existing formations
+          this.formationNames = this.segment.formations.map((_: any, index: number) => `F${index + 1}`);
+        }
+        
+        this.formations = this.segment.formations.map((formation: any[]) => 
+          formation.map((p: any) => {
+            // Check if this is a dummy performer by looking for dummyTemplateId
+            if (p.dummyTemplateId) {
+              const dummyTemplate = dummyTemplateMap.get(p.dummyTemplateId);
+              if (dummyTemplate) {
+                return {
+                  id: dummyTemplate.id,
+                  name: dummyTemplate.name,
+                  x: p.x,
+                  y: p.y,
+                  skillLevels: dummyTemplate.skillLevels || {},
+                  height: dummyTemplate.height || 5.5,
+                  isDummy: true,
+                  dummyName: dummyTemplate.name,
+                  customColor: p.customColor || dummyTemplate.customColor
+                };
+              } else {
+                // Fallback if template not found
+                return {
+                  id: p.dummyTemplateId,
+                  name: `${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
+                  x: p.x,
+                  y: p.y,
+                  skillLevels: {},
+                  height: p.height || 5.5,
+                  isDummy: true,
+                  dummyName: `${p.dummyTemplateId.split('-')[1] || 'Unknown'}`,
+                  customColor: p.customColor
+                };
+              }
+            } else if (p.user) {
                   // Handle real performers
                   const performerId = p.user;
                   console.log('🔍 DEBUG Mapping performer:', { 
@@ -1354,6 +1365,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Add the new formation with copied performers
     this.formations.push(newFormation);
     this.formationDurations.push(5); // Default duration
+    
+    // Generate a new formation name
+    const nextFormationNumber = this.formations.length;
+    this.formationNames.push(`F${nextFormationNumber}`);
     
     // Copy the transition duration from the current formation
     const currentTransitionDuration = this.animationDurations[this.currentFormationIndex] || 2;
@@ -2722,6 +2737,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           
               const updateData = {
       formations: transformedFormations,
+      formationNames: this.formationNames,
       formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
       formationDrafts: this.formationDrafts,
@@ -2809,6 +2825,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       depth: this.depth,
       divisions: this.divisions,
       formations: transformedFormations,
+      formationNames: this.formationNames,
       formationDurations: this.formationDurations,
       animationDurations: this.animationDurations,
       formationDrafts: this.formationDrafts,
@@ -5373,10 +5390,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (!this.isCaptain || this.formations.length <= 1) return;
     
     // Save state before making changes
-    this.saveState(`Delete formation ${index + 1}`);
+    this.saveState(`Delete formation ${this.formationNames[index] || index + 1}`);
     
     // Remove the formation
     this.formations.splice(index, 1);
+    this.formationNames.splice(index, 1); // Remove the formation name
     
     // Remove the corresponding duration
     this.formationDurations.splice(index, 1);
@@ -5398,6 +5416,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Force change detection
     this.formations = [...this.formations];
+    this.formationNames = [...this.formationNames];
     this.formationDurations = [...this.formationDurations];
     this.animationDurations = [...this.animationDurations];
     
@@ -5415,11 +5434,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (!this.isCaptain || this.formations.length === 0) return;
     
     // Save state before making changes
-    this.saveState(`Duplicate formation ${index + 1}`);
+    this.saveState(`Duplicate formation ${this.formationNames[index] || index + 1}`);
     
     // Deep copy the formation
     const formationCopy = this.formations[index].map(p => ({ ...p }));
     this.formations.splice(index + 1, 0, formationCopy);
+    
+    // Generate a new formation name for the duplicated formation
+    const originalName = this.formationNames[index] || `F${index + 1}`;
+    this.formationNames.splice(index + 1, 0, `${originalName} duplicate`);
+    
     // Copy the duration
     this.formationDurations.splice(index + 1, 0, this.formationDurations[index]);
     // Copy the transition duration (or set a default if not present)
@@ -5430,6 +5454,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     // Force change detection
     this.formations = [...this.formations];
+    this.formationNames = [...this.formationNames];
     this.formationDurations = [...this.formationDurations];
     this.animationDurations = [...this.animationDurations];
     
@@ -5734,6 +5759,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftFormationDurations.push(draftDuration);
     this.draftFormationStartTimes.push(draftStartTime); // Store draft formation start time
     
+    // Generate a draft name
+    const draftName = `Draft ${this.draftFormations.length}`;
+    this.draftNames.push(draftName);
+    
     // Store the origin of this draft (created from main formation)
     this.draftOrigins.push({ type: 'main', sourceIndex: formationIndex });
     
@@ -5821,6 +5850,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftFormations.push(sourceDraftFormation);
     this.draftFormationDurations.push(sourceDraftDuration);
     this.draftFormationStartTimes.push(newDraftStartTime);
+    
+    // Generate a draft name
+    const draftName = `Draft ${this.draftFormations.length}`;
+    this.draftNames.push(draftName);
     
     // Store the origin of this draft (created from another draft)
     this.draftOrigins.push({ type: 'draft', sourceIndex: draftIndex });
@@ -8480,6 +8513,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Create a deep copy of the current state
     const currentState: SegmentState = {
       formations: this.formations.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } }))),
+      formationNames: [...this.formationNames],
       formationDurations: [...this.formationDurations],
       animationDurations: [...this.animationDurations],
       currentFormationIndex: this.currentFormationIndex,
@@ -8490,6 +8524,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       draftExitTransitionDurations: [...this.draftExitTransitionDurations],
       draftFormationStartTimes: [...this.draftFormationStartTimes],
       draftOrigins: [...this.draftOrigins],
+      draftNames: [...this.draftNames],
       timestamp: Date.now(),
       action: action
     };
@@ -8512,6 +8547,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   private restoreState(state: SegmentState) {
     // Restore the state
     this.formations = state.formations.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } })));
+    this.formationNames = [...(state.formationNames || [])];
     this.formationDurations = [...state.formationDurations];
     this.animationDurations = [...state.animationDurations];
     this.currentFormationIndex = state.currentFormationIndex;
@@ -8523,9 +8559,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftExitTransitionDurations = [...(state.draftExitTransitionDurations || [])];
     this.draftFormationStartTimes = [...(state.draftFormationStartTimes || [])];
     this.draftOrigins = [...(state.draftOrigins || [])];
+    this.draftNames = [...(state.draftNames || [])];
 
     // Force change detection
     this.formations = [...this.formations];
+    this.formationNames = [...this.formationNames];
     this.formationDurations = [...this.formationDurations];
     this.animationDurations = [...this.animationDurations];
 
@@ -8552,6 +8590,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Save current state to redo stack before undoing
     const currentState: SegmentState = {
       formations: this.formations.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } }))),
+      formationNames: [...this.formationNames],
       formationDurations: [...this.formationDurations],
       animationDurations: [...this.animationDurations],
       currentFormationIndex: this.currentFormationIndex,
@@ -8562,6 +8601,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       draftExitTransitionDurations: [...this.draftExitTransitionDurations],
       draftFormationStartTimes: [...this.draftFormationStartTimes],
       draftOrigins: [...this.draftOrigins],
+      draftNames: [...this.draftNames],
       timestamp: Date.now(),
       action: 'Current state before undo'
     };
@@ -8583,6 +8623,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Save current state to undo stack before redoing
     const currentState: SegmentState = {
       formations: this.formations.map(formation => formation.map(performer => ({ ...performer, skillLevels: { ...performer.skillLevels } }))),
+      formationNames: [...this.formationNames],
       formationDurations: [...this.formationDurations],
       animationDurations: [...this.animationDurations],
       currentFormationIndex: this.currentFormationIndex,
@@ -8593,6 +8634,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       draftExitTransitionDurations: [...this.draftExitTransitionDurations],
       draftFormationStartTimes: [...this.draftFormationStartTimes],
       draftOrigins: [...this.draftOrigins],
+      draftNames: [...this.draftNames],
       timestamp: Date.now(),
       action: 'Current state before redo'
     };
@@ -8630,7 +8672,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onControlBarDuplicateFormation() {
-    if (this.currentFormationIndex !== null) {
+    // If we're in draft mode and a draft is selected, duplicate the draft
+    if (this.selectedFormationType === 'draft' && this.currentDraftFormationIndex >= 0) {
+      this.duplicateDraftFormation(this.currentDraftFormationIndex);
+    } else if (this.currentFormationIndex !== null) {
+      // Otherwise duplicate the main formation
       this.duplicateFormation(this.currentFormationIndex);
     }
   }
@@ -8761,6 +8807,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   duplicateDraftFormation(draftIndex: number) {
     if (!this.isCaptain || this.draftFormations.length === 0) return;
     
+    console.log('🔍 DUPLICATE DRAFT FORMATION DEBUG:', {
+      draftIndex,
+      currentDraftOrigins: [...this.draftOrigins],
+      currentDraftFormationsLength: this.draftFormations.length
+    });
+    
     // Save state before making changes
     this.saveState(`Duplicate draft formation ${draftIndex + 1}`);
     
@@ -8791,8 +8843,29 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const newStartTime = originalStartTime + originalDuration + exitTransitionDuration;
     this.draftFormationStartTimes.splice(draftIndex + 1, 0, newStartTime);
     
-    // Copy the origin
+    // Generate a new draft name for the duplicated draft
+    const originalDraftName = this.draftNames[draftIndex] || `Draft ${draftIndex + 1}`;
+    this.draftNames.splice(draftIndex + 1, 0, `${originalDraftName} duplicate`);
+    
+    // Set the origin of the duplicated draft to point to the original draft
     this.draftOrigins.splice(draftIndex + 1, 0, { type: 'draft', sourceIndex: draftIndex });
+    
+    // Update origins of all subsequent drafts that were pointing to the original draft
+    // to now point to the duplicated draft instead
+    for (let i = draftIndex + 2; i < this.draftOrigins.length; i++) {
+      const origin = this.draftOrigins[i];
+      if (origin.type === 'draft' && origin.sourceIndex === draftIndex) {
+        // This draft was connected to the original draft, now connect it to the duplicate
+        this.draftOrigins[i] = { type: 'draft', sourceIndex: draftIndex + 1 };
+      } else if (origin.type === 'draft' && origin.sourceIndex > draftIndex) {
+        // This draft was connected to a draft that came after the original
+        // We need to shift its source index by 1 since we inserted a new draft
+        this.draftOrigins[i] = { type: 'draft', sourceIndex: origin.sourceIndex + 1 };
+      }
+    }
+    
+    // Recalculate start times for all drafts that come after the duplicated draft
+    this.recalculateConnectedDraftStartTimes(draftIndex + 1);
     
     // Force change detection
     this.draftFormations = [...this.draftFormations];
@@ -8801,6 +8874,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.draftExitTransitionDurations = [...this.draftExitTransitionDurations];
     this.draftFormationStartTimes = [...this.draftFormationStartTimes];
     this.draftOrigins = [...this.draftOrigins];
+    this.draftNames = [...this.draftNames];
+    
+    console.log('✅ AFTER DRAFT DUPLICATION:', {
+      newDraftOrigins: [...this.draftOrigins],
+      newDraftFormationsLength: this.draftFormations.length,
+      duplicatedDraftIndex: draftIndex + 1,
+      originalDraftIndex: draftIndex
+    });
     
     // Trigger auto-save after duplicating draft formation
     this.triggerAutoSave();
@@ -8848,7 +8929,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (!this.isCaptain || formationIndex < 0 || formationIndex >= this.formations.length) return;
     
     // Save state before making changes
-    this.saveState(`Split formation ${formationIndex + 1}`);
+    this.saveState(`Split formation ${this.formationNames[formationIndex] || formationIndex + 1}`);
     
     // Get the current formation to split
     const currentFormation = this.formations[formationIndex];
@@ -8868,6 +8949,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Insert the new formation right after the current one
     this.formations.splice(formationIndex + 1, 0, newFormation);
     
+    // Generate a new formation name for the split formation
+    const nextFormationNumber = this.formations.length;
+    this.formationNames.splice(formationIndex + 1, 0, `F${nextFormationNumber}`);
+    
     // Set duration for the new formation (copy from original)
     const originalDuration = this.formationDurations[formationIndex] || 5;
     this.formationDurations.splice(formationIndex + 1, 0, originalDuration);
@@ -8882,6 +8967,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Force change detection
     this.formations = [...this.formations];
+    this.formationNames = [...this.formationNames];
     this.formationDurations = [...this.formationDurations];
     this.animationDurations = [...this.animationDurations];
     
@@ -8892,7 +8978,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.triggerAutoSave();
     }
     
-    console.log(`Split formation ${formationIndex + 1} - created formation ${formationIndex + 2} with 2s transition`);
+    console.log(`Split formation ${this.formationNames[formationIndex] || formationIndex + 1} - created formation ${this.formationNames[formationIndex + 1] || formationIndex + 2} with 2s transition`);
   }
 
   onControlBarDeleteFormation() {
@@ -9196,8 +9282,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       // We're viewing a draft formation - show "Draft F X" using the draft index
       return `Draft F ${this.currentDraftFormationIndex + 1}`;
     } else {
-      // We're viewing a main formation - show "F X"
-      return `F ${this.playingFormationIndex + 1}`;
+      // We're viewing a main formation - show the formation name
+      return this.formationNames[this.playingFormationIndex] || `F ${this.playingFormationIndex + 1}`;
     }
   }
 

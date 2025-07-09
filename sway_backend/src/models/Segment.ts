@@ -35,6 +35,7 @@ interface Segment extends Document {
   formations: Position[][];
   formationDurations: number[];
   animationDurations: number[];
+  formationNames: string[]; // Persistent formation names (e.g., "F1", "F2", etc.)
   
   // Draft timeline (new independent timeline)
   draftFormations: Position[][];
@@ -44,6 +45,7 @@ interface Segment extends Document {
   draftExitTransitionDurations: number[]; // Exit transition durations for draft formations
   draftFormationStartTimes: number[]; // Individual start times for each draft formation
   draftOrigins: { type: 'main' | 'draft', sourceIndex: number }[]; // Origin of each draft formation
+  draftNames: string[]; // Persistent draft formation names
   
   // Playback mode
   currentPlaybackMode: 'main' | 'draft';
@@ -98,6 +100,7 @@ const SegmentSchema = new Schema<Segment>({
   formations: [[PositionSchema]],
   formationDurations: [{ type: Number, default: 4 }],
   animationDurations: [{ type: Number, default: 1 }],
+  formationNames: [{ type: String }], // Persistent formation names
   
   // Draft timeline
   draftFormations: [[PositionSchema]],
@@ -110,6 +113,7 @@ const SegmentSchema = new Schema<Segment>({
     type: { type: String, enum: ['main', 'draft'], required: true },
     sourceIndex: { type: Number, required: true }
   }], // Origin of each draft formation
+  draftNames: [{ type: String }], // Persistent draft formation names
   
   // Playback mode
   currentPlaybackMode: { type: String, enum: ['main', 'draft'], default: 'main' },

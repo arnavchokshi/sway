@@ -23,6 +23,7 @@ export interface ISegment {
   formations: any[][];
   formationDurations: number[];
   animationDurations: number[];
+  formationNames: string[]; // Persistent formation names
   
   // Draft timeline (new independent timeline)
   draftFormations: any[][];
