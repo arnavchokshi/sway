@@ -880,17 +880,15 @@ export class DashboardComponent implements OnInit {
   shareJoinCode() {
     const codeToShare = this.editJoinCodeValue || this.team?.joinCode;
     if (codeToShare && navigator.share) {
+      const shareUrl = `https://swayformations.com`;
       navigator.share({
-        title: 'Join my team on Sway',
-        text: `Join my team using this code: ${codeToShare}`,
-        url: 'https://swayformations.com'
+        text: `Join team on Sway using code: ${codeToShare}`,
+        url: shareUrl
       }).catch(err => {
         console.error('Failed to share join code:', err);
-        // Fallback to copying
         this.copyJoinCode();
       });
     } else {
-      // Fallback to copying if Web Share API is not available
       this.copyJoinCode();
     }
   }
