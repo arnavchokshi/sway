@@ -166,6 +166,24 @@ export class ControlBarComponent {
            this.currentFormationIndex < this.draftFormations.length;
   }
 
+  getDraftButtonText(): string {
+    // If a draft formation is selected, create a connected draft
+    if (this.isDraftSelected) {
+      return 'Create Connected Draft';
+    }
+    // Otherwise, create a new unconnected draft from main formation
+    return 'Create Draft';
+  }
+
+  getDraftButtonIcon(): string {
+    // If a draft formation is selected, use an outlined circle with plus for connected draft
+    if (this.isDraftSelected) {
+      return 'add_circle_outline'; // Outlined circle with plus for connected draft
+    }
+    // Otherwise, use the regular note_add icon for new draft from main formation
+    return 'note_add';
+  }
+
 
 
   formatTime(time: number): string {

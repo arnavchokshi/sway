@@ -165,6 +165,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   teamStyles: Style[] = [];
   editIsPublic: boolean = true; // Add this property for the modal
   editModalError: string = ''; // Add error message property for the modal
+  draftCreationError: string = ''; // Add error message for draft creation conflicts
 
   selectedAddPerformer: any = null;
 
@@ -5492,9 +5493,19 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     console.log(`Created draft for formation ${formationIndex + 1}:`, newDraft);
   }
 
-  // Check if a formation has a draft
+  // Check if a formation has a draft (legacy system)
   hasDraft(formationIndex: number): boolean {
     return !!this.formationDrafts[formationIndex];
+  }
+
+  // Check if a formation has a draft in the new timeline system
+  hasDraftInTimeline(formationIndex: number): boolean {
+    const formationStartTime = this.getFormationStartTime(formationIndex);
+    return this.draftFormations.some((draft, index) => {
+      const draftStartTime = this.draftFormationStartTimes[index] || 0;
+      // Check if this draft corresponds to the same formation (same start time)
+      return Math.abs(draftStartTime - formationStartTime) < 0.1; // Allow small floating point differences
+    });
   }
 
   // Check if any formation has drafts (for expanding timeline height)
@@ -5670,6 +5681,31 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       return;
     }
 
+    // Calculate when the main formation starts (where the draft would be created)
+    const formationStartTime = this.getFormationStartTime(formationIndex);
+    const formationDuration = this.formationDurations[formationIndex];
+    const entryTransitionDuration = formationIndex > 0 ? this.animationDurations[formationIndex - 1] || 1 : 1;
+    const exitTransitionDuration = this.animationDurations[formationIndex] || 1;
+    
+    // Calculate the full time range for the new draft (including transitions)
+    const newDraftStartTime = formationStartTime - entryTransitionDuration;
+    const newDraftEndTime = formationStartTime + formationDuration + exitTransitionDuration;
+    
+    // Check if there's any draft content overlapping with the new draft's time range
+    if (this.hasDraftContentOverlapping(newDraftStartTime, newDraftEndTime)) {
+      this.draftCreationError = `Cant create draft: Overlapping time conflict for new draft formation`;
+      console.error(this.draftCreationError);
+      
+      // Clear the error after 5 seconds
+      setTimeout(() => {
+        this.draftCreationError = '';
+        this.cdr.detectChanges();
+      }, 5000);
+      
+      this.cdr.detectChanges();
+      return;
+    }
+
     // Check if a draft already exists for this formation
     const existingDraftIndex = this.draftFormations.findIndex((draft, index) => {
       const draftStartTime = this.draftFormationStartTimes[index] || 0;
@@ -5690,9 +5726,6 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const draftDuration = this.formationDurations[formationIndex];
     
     // For independent drafts (created from main formations), start them at the same time as the main formation
-    // Calculate when the main formation starts
-    const formationStartTime = this.getFormationStartTime(formationIndex);
-    
     // The draft starts at the same time as the main formation
     let draftStartTime = formationStartTime;
     
@@ -5709,10 +5742,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // For independent drafts (created from main formations), give them proper entry/exit transitions
     // Entry transition duration - use the formation's entry transition duration (from previous formation)
-    const entryTransitionDuration = formationIndex > 0 ? this.animationDurations[formationIndex - 1] || 1 : 1;
-    
     // Exit transition uses the formation's own exit transition duration
-    const exitTransitionDuration = this.animationDurations[formationIndex] || 1;
     
     this.draftAnimationDurations.push(exitTransitionDuration); // Legacy
     this.draftEntryTransitionDurations.push(entryTransitionDuration); // Entry transition
@@ -5750,6 +5780,42 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     // Create new draft that starts after the source draft
     const newDraftStartTime = sourceDraftStartTime + sourceDraftDuration + (this.draftExitTransitionDurations[draftIndex] || 1);
+    const newDraftDuration = sourceDraftDuration;
+    const newDraftExitTransitionDuration = this.draftExitTransitionDurations[draftIndex] || 1;
+    
+    // Calculate the full time range for the new connected draft (including transitions)
+    const newDraftEntryTransitionDuration = this.draftEntryTransitionDurations[draftIndex] || 1;
+    const newDraftFullStartTime = newDraftStartTime - newDraftEntryTransitionDuration;
+    const newDraftFullEndTime = newDraftStartTime + newDraftDuration + newDraftExitTransitionDuration;
+    
+    // Check if the new connected draft would overlap with any other unconnected draft
+    for (let i = 0; i < this.draftFormations.length; i++) {
+      if (i === draftIndex) continue; // Skip the source draft
+      
+      const otherDraftStartTime = this.draftFormationStartTimes[i] || 0;
+      const otherDraftDuration = this.draftFormationDurations[i] || 4;
+      const otherDraftEntryTransitionDuration = this.draftEntryTransitionDurations[i] || 1;
+      const otherDraftExitTransitionDuration = this.draftExitTransitionDurations[i] || 1;
+      
+      // Calculate the full time range for the other draft (including transitions)
+      const otherDraftFullStartTime = otherDraftStartTime - otherDraftEntryTransitionDuration;
+      const otherDraftFullEndTime = otherDraftStartTime + otherDraftDuration + otherDraftExitTransitionDuration;
+      
+      // Check if the new draft's time range overlaps with the other draft's time range
+      if (newDraftFullStartTime < otherDraftFullEndTime && newDraftFullEndTime > otherDraftFullStartTime) {
+        this.draftCreationError = `Cannot create connected draft: The new draft would overlap with another draft's time range.`;
+        console.error(this.draftCreationError);
+        
+        // Clear the error after 5 seconds
+        setTimeout(() => {
+          this.draftCreationError = '';
+          this.cdr.detectChanges();
+        }, 5000);
+        
+        this.cdr.detectChanges();
+        return;
+      }
+    }
     
     // Add to draft timeline
     this.draftFormations.push(sourceDraftFormation);
@@ -5832,6 +5898,64 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     
     return null;
+  }
+
+  /**
+   * Check if there's any draft content (formation or transition) at a specific time
+   */
+  hasDraftContentAtTime(time: number): boolean {
+    if (this.draftFormations.length === 0) return false;
+    
+    // Check if time is within any draft formation's time range (including transitions)
+    for (let i = 0; i < this.draftFormations.length; i++) {
+      const formationStartTime = this.draftFormationStartTimes[i] || 0;
+      const formationDuration = this.draftFormationDurations[i] || 4;
+      const entryTransitionDuration = this.draftEntryTransitionDurations[i] || 1;
+      const exitTransitionDuration = this.draftExitTransitionDurations[i] || 1;
+      
+      // Check if time is within entry transition (before formation starts)
+      if (time >= formationStartTime - entryTransitionDuration && time < formationStartTime) {
+        return true;
+      }
+      
+      // Check if time is within this formation
+      if (time >= formationStartTime && time < formationStartTime + formationDuration) {
+        return true;
+      }
+      
+      // Check if time is within exit transition (after formation ends)
+      if (time >= formationStartTime + formationDuration && time < formationStartTime + formationDuration + exitTransitionDuration) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Check if there's any draft content overlapping with a time range
+   */
+  hasDraftContentOverlapping(startTime: number, endTime: number): boolean {
+    if (this.draftFormations.length === 0) return false;
+    
+    // Check if the time range overlaps with any draft formation's time range (including transitions)
+    for (let i = 0; i < this.draftFormations.length; i++) {
+      const formationStartTime = this.draftFormationStartTimes[i] || 0;
+      const formationDuration = this.draftFormationDurations[i] || 4;
+      const entryTransitionDuration = this.draftEntryTransitionDurations[i] || 1;
+      const exitTransitionDuration = this.draftExitTransitionDurations[i] || 1;
+      
+      // Calculate the full time range for this draft (including transitions)
+      const draftStartTime = formationStartTime - entryTransitionDuration;
+      const draftEndTime = formationStartTime + formationDuration + exitTransitionDuration;
+      
+      // Check for overlap: if the ranges overlap at all
+      if (startTime < draftEndTime && endTime > draftStartTime) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   /**
@@ -8542,6 +8666,41 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     this.contextMenuPosition = { x, y };
     this.selectedFormationIndex = formationIndex;
+    this.selectedFormationType = 'main';
+    this.showFormationContextMenu = true;
+  }
+
+  onDraftFormationRightClick(event: MouseEvent, draftIndex: number) {
+    if (!this.isCaptain) return;
+    
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Calculate menu position to keep it on screen
+    const menuWidth = 180; // Compact menu width
+    const menuHeight = 160; // Compact menu height
+    const padding = 10; // Padding from screen edges
+    
+    let x = event.clientX;
+    let y = event.clientY;
+    
+    // Keep menu within screen bounds
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - padding;
+    }
+    if (x < padding) {
+      x = padding;
+    }
+    if (y + menuHeight > window.innerHeight) {
+      y = window.innerHeight - menuHeight - padding;
+    }
+    if (y < padding) {
+      y = padding;
+    }
+    
+    this.contextMenuPosition = { x, y };
+    this.selectedFormationIndex = draftIndex;
+    this.selectedFormationType = 'draft';
     this.showFormationContextMenu = true;
   }
 
@@ -8557,6 +8716,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   onContextMenuDuplicate() {
     this.duplicateFormation(this.selectedFormationIndex);
+    this.closeFormationContextMenu();
+  }
+
+  onContextMenuMakeDraft() {
+    this.createDraft(this.selectedFormationIndex);
     this.closeFormationContextMenu();
   }
 
@@ -8579,6 +8743,104 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Jump to the formation first
     this.jumpToFormation(this.selectedFormationIndex, false);
     this.pastePerformers();
+    this.closeFormationContextMenu();
+  }
+
+  onContextMenuDelete() {
+    this.deleteFormation(this.selectedFormationIndex);
+    this.closeFormationContextMenu();
+  }
+
+  // Draft formation context menu methods
+  onContextMenuDuplicateDraft() {
+    // For draft formations, we duplicate within the draft timeline
+    this.duplicateDraftFormation(this.selectedFormationIndex);
+    this.closeFormationContextMenu();
+  }
+
+  duplicateDraftFormation(draftIndex: number) {
+    if (!this.isCaptain || this.draftFormations.length === 0) return;
+    
+    // Save state before making changes
+    this.saveState(`Duplicate draft formation ${draftIndex + 1}`);
+    
+    // Deep copy the draft formation
+    const draftFormationCopy = this.draftFormations[draftIndex].map(p => ({ ...p }));
+    this.draftFormations.splice(draftIndex + 1, 0, draftFormationCopy);
+    
+    // Copy the duration
+    this.draftFormationDurations.splice(draftIndex + 1, 0, this.draftFormationDurations[draftIndex]);
+    
+    // Copy the transition durations
+    if (this.draftEntryTransitionDurations[draftIndex]) {
+      this.draftEntryTransitionDurations.splice(draftIndex + 1, 0, this.draftEntryTransitionDurations[draftIndex]);
+    } else {
+      this.draftEntryTransitionDurations.splice(draftIndex + 1, 0, 1);
+    }
+    
+    if (this.draftExitTransitionDurations[draftIndex]) {
+      this.draftExitTransitionDurations.splice(draftIndex + 1, 0, this.draftExitTransitionDurations[draftIndex]);
+    } else {
+      this.draftExitTransitionDurations.splice(draftIndex + 1, 0, 1);
+    }
+    
+    // Copy the start time (will be recalculated)
+    const originalStartTime = this.draftFormationStartTimes[draftIndex];
+    const originalDuration = this.draftFormationDurations[draftIndex];
+    const exitTransitionDuration = this.draftExitTransitionDurations[draftIndex] || 1;
+    const newStartTime = originalStartTime + originalDuration + exitTransitionDuration;
+    this.draftFormationStartTimes.splice(draftIndex + 1, 0, newStartTime);
+    
+    // Copy the origin
+    this.draftOrigins.splice(draftIndex + 1, 0, { type: 'draft', sourceIndex: draftIndex });
+    
+    // Force change detection
+    this.draftFormations = [...this.draftFormations];
+    this.draftFormationDurations = [...this.draftFormationDurations];
+    this.draftEntryTransitionDurations = [...this.draftEntryTransitionDurations];
+    this.draftExitTransitionDurations = [...this.draftExitTransitionDurations];
+    this.draftFormationStartTimes = [...this.draftFormationStartTimes];
+    this.draftOrigins = [...this.draftOrigins];
+    
+    // Trigger auto-save after duplicating draft formation
+    this.triggerAutoSave();
+    
+    // Update zoom limits after formation change
+    setTimeout(() => {
+      this.updateMinTimelineZoom();
+      this.updateMaxTimelineZoom();
+    }, 100);
+  }
+
+  onContextMenuCreateDraftFromDraft() {
+    // Create a new draft from the selected draft formation
+    this.createDraftFromDraft(this.selectedFormationIndex);
+    this.closeFormationContextMenu();
+  }
+
+  onContextMenuCopyDraft() {
+    // Jump to the draft formation first to ensure we're copying from the right formation
+    this.jumpToFormation(this.selectedFormationIndex, true);
+    
+    // Copy all performers in the draft formation (select all first)
+    const currentDraftFormation = this.draftFormations[this.selectedFormationIndex];
+    this.selectedPerformerIds.clear();
+    currentDraftFormation.forEach(performer => {
+      this.selectedPerformerIds.add(performer.id);
+    });
+    
+    this.copySelectedPerformers();
+    this.closeFormationContextMenu();
+  }
+
+  onContextMenuDeleteDraft() {
+    console.log('🗑️ Delete draft button clicked!', {
+      selectedFormationIndex: this.selectedFormationIndex,
+      selectedFormationType: this.selectedFormationType,
+      draftFormationsLength: this.draftFormations.length,
+      isCaptain: this.isCaptain
+    });
+    this.deleteDraftFormation(this.selectedFormationIndex);
     this.closeFormationContextMenu();
   }
 
@@ -9848,5 +10110,27 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   /**
    * Toggle formation suggestions panel
    */
+
+  hasNextConnectedDraft(draftIndex: number): boolean {
+    // Check if there's a draft that starts immediately after this draft's exit transition
+    const currentDraftEndTime = this.draftFormationStartTimes[draftIndex] + 
+                               this.draftFormationDurations[draftIndex] + 
+                               this.draftExitTransitionDurations[draftIndex];
+    
+    return this.draftFormations.some((_, index) => {
+      if (index === draftIndex) return false; // Skip self
+      const otherDraftStartTime = this.draftFormationStartTimes[index];
+      // Check if this draft starts right after the current draft's exit transition
+      return Math.abs(otherDraftStartTime - currentDraftEndTime) < 0.1;
+    });
+  }
+
+  onCreateConnectedDraftFromDraft(draftIndex: number, event: Event) {
+    event.stopPropagation();
+    console.log('➕ Creating connected draft from draft', draftIndex);
+    
+    // Create a connected draft after the selected draft
+    this.createDraftFromDraft(draftIndex);
+  }
 }
  

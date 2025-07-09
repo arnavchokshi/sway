@@ -1357,6 +1357,39 @@ app.get('/api/teams/:id/membership-active', async (req: Request, res: Response) 
   }
 });
 
+// Feedback endpoint
+app.post('/api/feedback', async (req: Request, res: Response) => {
+  try {
+    const { message, type, rating, email } = req.body;
+    
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Feedback message is required' });
+    }
+
+    // Log the feedback (you can extend this to save to database or send email)
+    console.log('Feedback received:', {
+      message: message.trim(),
+      type: type || 'general',
+      rating: rating || 0,
+      email: email || 'anonymous',
+      timestamp: new Date().toISOString()
+    });
+
+    // Here you could:
+    // 1. Save to database
+    // 2. Send email notification
+    // 3. Integrate with external feedback services
+    
+    res.status(200).json({ 
+      message: 'Feedback received successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error('Error processing feedback:', error);
+    res.status(500).json({ error: error.message || 'Failed to process feedback' });
+  }
+});
+
 app.listen(port, () => {
     console.log(`Server is running at: http://localhost:${port}`);
 });

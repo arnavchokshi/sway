@@ -463,6 +463,12 @@
       </ng-template>
     </div>
     <div class="content-area">
+      <!-- Draft Creation Error Message -->
+      <div class="draft-error-message" *ngIf="draftCreationError">
+        <span class="material-icons">error</span>
+        <span>{{ draftCreationError }}</span>
+      </div>
+      
       <div class="stage-container">
         <div #stageRef class="stage-area" *ngIf="!is3DView" 
              (click)="onStageClick($event)"
@@ -636,7 +642,8 @@
     (createDraftFromCurrent)="onControlBarCreateDraftFromCurrent($event)"
     (deleteDraftFormation)="onControlBarDeleteDraftFormation()"
     >
-  </app-control-bar>
+        </app-control-bar>
+      
       <div class="bottom-panel" [ngClass]="{ 'has-audio': signedMusicUrl, 'has-drafts': hasAnyDrafts() }">
         <div class="timeline-audio-stack" 
              [class.no-audio]="!signedMusicUrl"
@@ -700,6 +707,7 @@
                   <div class="formation-timeline-box draft-formation"
                        [class.active]="currentPlaybackMode === 'draft' && currentFormationIndex === i"
                        (click)="handleDraftFormationClick(i)"
+                       (contextmenu)="onDraftFormationRightClick($event, i)"
                        (mouseenter)="hoveredFormationIndex = i"
                        (mouseleave)="hoveredFormationIndex = null">
                     <div class="formation-label">Draft F {{ i + 1 }}</div>
@@ -717,6 +725,15 @@
                     <span class="transition-label">{{ draftExitTransitionDurations[i] | number:'1.1-1' }}s</span>
                     <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onDraftTransitionResizeStart($event, i)"></div>
                   </div>
+                </div>
+                
+                <!-- Plus button for creating connected draft (only if this exit transition doesn't connect to another draft) -->
+                <div *ngIf="isCaptain && !hasNextConnectedDraft(i)" 
+                     class="draft-plus-button"
+                     [style.left.px]="((draftFormationStartTimes[i] + draftFormationDurations[i] + draftExitTransitionDurations[i]) * pixelsPerSecond * timelineZoom) + 10"
+                     (click)="onCreateConnectedDraftFromDraft(i, $event)"
+                     title="Create Connected Draft">
+                  <span class="material-icons">add</span>
                 </div>
               </ng-container>
             </div>
@@ -956,22 +973,54 @@
          [style.left.px]="contextMenuPosition.x" 
          [style.top.px]="contextMenuPosition.y"
          (click)="$event.stopPropagation()">
-      <button class="context-menu-item" (click)="onContextMenuSplit()">
-        <span class="material-icons">content_cut</span>
-        <span>Split</span>
-      </button>
-      <button class="context-menu-item" (click)="onContextMenuDuplicate()">
-        <span class="material-icons">content_copy</span>
-        <span>Duplicate</span>
-      </button>
-      <button class="context-menu-item" (click)="onContextMenuCopy()" [disabled]="formations[selectedFormationIndex].length === 0">
-        <span class="material-icons">file_copy</span>
-        <span>Copy</span>
-      </button>
-      <button class="context-menu-item" (click)="onContextMenuPaste()" [disabled]="!hasCopiedPerformers">
-        <span class="material-icons">content_paste</span>
-        <span>Paste</span>
-      </button>
+      
+      <!-- Main Formation Options -->
+      <ng-container *ngIf="selectedFormationType === 'main'">
+        <button class="context-menu-item" (click)="onContextMenuDuplicate()">
+          <span class="material-icons">content_copy</span>
+          <span>Duplicate</span>
+        </button>
+        <button class="context-menu-item make-draft" (click)="onContextMenuMakeDraft()" [disabled]="hasDraftInTimeline(selectedFormationIndex)">
+          <span class="material-icons">edit</span>
+          <span>Make Draft</span>
+        </button>
+        <button class="context-menu-item" (click)="onContextMenuCopy()" [disabled]="formations[selectedFormationIndex].length === 0">
+          <span class="material-icons">file_copy</span>
+          <span>Copy Perfomers</span>
+        </button>
+        <button class="context-menu-item" (click)="onContextMenuPaste()" [disabled]="!hasCopiedPerformers">
+          <span class="material-icons">content_paste</span>
+          <span>Paste Perfomers</span>
+        </button>
+        <button class="context-menu-item delete-formation" (click)="onContextMenuDelete()" [disabled]="formations.length <= 1">
+          <span class="material-icons">delete</span>
+          <span>Delete Formation</span>
+        </button>
+      </ng-container>
+
+      <!-- Draft Formation Options -->
+      <ng-container *ngIf="selectedFormationType === 'draft'">
+        <button class="context-menu-item" (click)="onContextMenuDuplicateDraft()">
+          <span class="material-icons">content_copy</span>
+          <span>Duplicate</span>
+        </button>
+        <button class="context-menu-item make-draft" (click)="onContextMenuCreateDraftFromDraft()">
+          <span class="material-icons">edit</span>
+          <span>Create Connected Draft</span>
+        </button>
+        <button class="context-menu-item" (click)="onContextMenuCopyDraft()" [disabled]="draftFormations[selectedFormationIndex].length === 0">
+          <span class="material-icons">file_copy</span>
+          <span>Copy Perfomers</span>
+        </button>
+        <button class="context-menu-item" (click)="onContextMenuPaste()" [disabled]="!hasCopiedPerformers">
+          <span class="material-icons">content_paste</span>
+          <span>Paste Perfomers</span>
+        </button>
+        <button class="context-menu-item delete-formation delete-draft" (click)="onContextMenuDeleteDraft()" [disabled]="draftFormations.length === 0">
+          <span class="material-icons">delete</span>
+          <span>Delete Draft</span>
+        </button>
+      </ng-container>
     </div>
   </div>
 

@@ -94,8 +94,8 @@
         <span class="custom-tooltip">Auto Move Mirrors</span>
       </button>
       <button class="control-btn action-btn draft-btn tooltip-parent" (click)="onCreateDraftFromCurrent()" [disabled]="totalFormations === 0" *ngIf="currentFormationIndex >= 0">
-        <span class="material-icons">note_add</span>
-        <span class="custom-tooltip">Create Draft</span>
+        <span class="material-icons">{{ getDraftButtonIcon() }}</span>
+        <span class="custom-tooltip">{{ getDraftButtonText() }}</span>
       </button>
       <button class="control-btn action-btn duplicate-btn tooltip-parent" (click)="onDuplicateFormation()" [disabled]="totalFormations === 0">
         <span class="material-icons">content_copy</span>

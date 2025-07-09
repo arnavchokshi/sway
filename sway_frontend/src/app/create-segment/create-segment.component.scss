@@ -1074,6 +1074,36 @@ body {
     }
   }
 
+  .draft-plus-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    background: #c68aff65;
+    border: 1.5px solid #a955f7;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(168, 85, 247, 0.3);
+
+    &:hover {
+      background: #c084fcb6;
+      transform: translateY(-50%) scale(1.1);
+      box-shadow: 0 4px 8px rgba(168, 85, 247, 0.4);
+    }
+
+    .material-icons {
+      color: rgb(250, 238, 255);
+      font-size: 10px;
+      font-weight: bold;
+    }
+  }
+
   .audio-player-bar,
   .waveform-container {
     width: 100% !important;
@@ -4694,6 +4724,44 @@ body {
   }
 }
 
+/* Draft Creation Error Message */
+.draft-error-message {
+  position: fixed;
+  top: 20px; /* Much higher position, right below the top panel */
+  left: 49%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(239, 68, 68, 0.95);
+  border: 1px solid rgba(239, 68, 68, 0.8);
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  animation: fadeInDown 0.3s ease-out;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+
+  .material-icons {
+    font-size: 1.1rem;
+    color: #ffffff;
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* iPhone-specific styles to ensure bottom panel is at the bottom of the screen */
 @media (max-width: 480px) {
   .segment-page-container {
@@ -5301,6 +5369,87 @@ body {
     
     span:last-child {
       font-weight: 500;
+    }
+
+    &.delete-formation {
+      color: #ef4444;
+      
+      &:hover:not(:disabled) {
+        background: rgba(239, 68, 68, 0.15);
+        color: #fca5a5;
+        
+        .material-icons {
+          color: #ef4444;
+        }
+      }
+      
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        color: #64748b;
+        
+        .material-icons {
+          color: #64748b;
+        }
+      }
+      
+      .material-icons {
+        color: #ef4444;
+      }
+    }
+
+    &.make-draft {
+      color: #a855f7;
+      
+      &:hover:not(:disabled) {
+        background: rgba(168, 85, 247, 0.15);
+        color: #c084fc;
+        
+        .material-icons {
+          color: #a855f7;
+        }
+      }
+      
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        color: #64748b;
+        
+        .material-icons {
+          color: #64748b;
+        }
+      }
+      
+      .material-icons {
+        color: #a855f7;
+      }
+    }
+
+    &.delete-draft {
+      color: #a855f7;
+      
+      &:hover:not(:disabled) {
+        background: rgba(168, 85, 247, 0.15);
+        color: #c084fc;
+        
+        .material-icons {
+          color: #a855f7;
+        }
+      }
+      
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        color: #64748b;
+        
+        .material-icons {
+          color: #64748b;
+        }
+      }
+      
+      .material-icons {
+        color: #a855f7;
+      }
     }
   }
 }
