@@ -477,6 +477,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   isHoveringSeekBar = false;
 
   editablePerformerName: string = '';
+  isEditingPerformerName: boolean = false;
+
+  // Formation name editing properties
+  editingFormationIndex: number | null = null;
+  editingFormationName: string = '';
+  editingFormationType: 'main' | 'draft' = 'main';
+  isEditingStageFormationTitle: boolean = false;
+  editingStageFormationName: string = '';
 
   onSeekBarMouseEnter() {
     this.isHoveringSeekBar = true;
@@ -520,43 +528,34 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   get performers(): Performer[] {
-    // During playback or animation, use the appropriate formation data
-    if (this.isPlaying || this.inTransition) {
-      // Check if we're currently viewing a draft formation
-      if (this.currentDraftFormationIndex !== -1) {
-        // We're playing a draft formation
-        const draftPerformers = this.draftFormations[this.currentDraftFormationIndex] || [];
-        
-        if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
-          // Return animated positions during transition
-          return draftPerformers.map(p => ({
-            ...p,
-            ...this.animatedPositions[p.id]
-          }));
-        }
-        return draftPerformers;
+    // When not playing, show the currently selected formation
+    if (!this.isPlaying && !this.inTransition) {
+      if (this.selectedFormationType === 'draft' && this.currentDraftFormationIndex >= 0) {
+        return this.draftFormations[this.currentDraftFormationIndex] || [];
       } else {
-        // We're playing a main formation
-        const mainPerformers = this.formations[this.playingFormationIndex] || [];
-        
-        if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
-          // Return animated positions during transition
-          return mainPerformers.map(p => ({
-            ...p,
-            ...this.animatedPositions[p.id]
-          }));
-        }
-        return mainPerformers;
+        return this.formations[this.currentFormationIndex] || [];
       }
     }
     
-    // When not playing, check if we're currently viewing a draft formation
+    // During playback, use the playing formation logic
     if (this.currentDraftFormationIndex !== -1) {
-      // We're viewing a draft formation - return the draft data
-      return this.draftFormations[this.currentDraftFormationIndex] || [];
+      const draftPerformers = this.draftFormations[this.currentDraftFormationIndex] || [];
+      if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
+        return draftPerformers.map(p => ({
+          ...p,
+          ...this.animatedPositions[p.id]
+        }));
+      }
+      return draftPerformers;
     } else {
-      // We're viewing a main formation - return the main data
-      return this.formations[this.currentFormationIndex] || [];
+      const mainPerformers = this.formations[this.playingFormationIndex] || [];
+      if (this.inTransition && Object.keys(this.animatedPositions).length > 0) {
+        return mainPerformers.map(p => ({
+          ...p,
+          ...this.animatedPositions[p.id]
+        }));
+      }
+      return mainPerformers;
     }
   }
 
@@ -973,6 +972,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           this.draftExitTransitionDurations = this.segment.draftExitTransitionDurations || [];
           this.draftFormationStartTimes = this.segment.draftFormationStartTimes || [];
           this.draftOrigins = this.segment.draftOrigins || [];
+          this.draftNames = this.segment.draftNames || [];
           this.draftStartTime = this.segment.draftStartTime || 0;
           this.currentPlaybackMode = this.segment.currentPlaybackMode || 'main';
         }
@@ -1330,18 +1330,137 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   // jumpToFormation method moved below with draft support
 
-  async prevFormation() {
-    if (this.currentFormationIndex > 0 && !this.inTransition) {
-      await this.animateFormationTransition(this.currentFormationIndex, this.currentFormationIndex - 1);
-      this.goToFormation(this.currentFormationIndex - 1);
+  // New context-aware navigation methods
+  getNextFormationInContext(): {timeline: 'main' | 'draft', formationIndex: number} {
+    if (this.selectedFormationType === 'draft' && this.currentDraftFormationIndex >= 0) {
+      // Currently viewing a draft - first try to find next connected draft
+      const nextConnectedDraft = this.getNextConnectedDraft(this.currentDraftFormationIndex);
+      if (nextConnectedDraft !== -1) {
+        return {timeline: 'draft', formationIndex: nextConnectedDraft};
+      }
+      
+      // If no connected draft, try next draft in sequence
+      const nextDraftIndex = this.currentDraftFormationIndex + 1;
+      if (nextDraftIndex < this.draftFormations.length) {
+        return {timeline: 'draft', formationIndex: nextDraftIndex};
+      }
+      
+      // No more drafts, switch to main timeline
+      return {timeline: 'main', formationIndex: 0};
+    } else {
+      // Currently viewing main formation - navigate to next main
+      const nextMainIndex = this.currentFormationIndex + 1;
+      if (nextMainIndex < this.formations.length) {
+        return {timeline: 'main', formationIndex: nextMainIndex};
+      }
+      // Check if there are drafts to switch to
+      if (this.draftFormations.length > 0) {
+        return {timeline: 'draft', formationIndex: 0};
+      }
+      return {timeline: 'main', formationIndex: this.currentFormationIndex};
     }
   }
 
-  async onNextFormationClick() {
-    if (this.currentFormationIndex < this.formations.length - 1 && !this.inTransition) {
-      await this.animateFormationTransition(this.currentFormationIndex, this.currentFormationIndex + 1);
-      this.goToFormation(this.currentFormationIndex + 1);
+  getPrevFormationInContext(): {timeline: 'main' | 'draft', formationIndex: number} {
+    if (this.selectedFormationType === 'draft' && this.currentDraftFormationIndex >= 0) {
+      // Currently viewing a draft - try to find previous connected draft
+      const prevConnectedDraft = this.getPrevConnectedDraft(this.currentDraftFormationIndex);
+      if (prevConnectedDraft !== -1) {
+        return {timeline: 'draft', formationIndex: prevConnectedDraft};
+      }
+      
+      // If no connected draft, try previous draft in sequence
+      const prevDraftIndex = this.currentDraftFormationIndex - 1;
+      if (prevDraftIndex >= 0) {
+        return {timeline: 'draft', formationIndex: prevDraftIndex};
+      }
+      
+      // No previous drafts, switch to main timeline
+      return {timeline: 'main', formationIndex: this.formations.length - 1};
+    } else {
+      // Currently viewing main formation - navigate to previous main
+      const prevMainIndex = this.currentFormationIndex - 1;
+      if (prevMainIndex >= 0) {
+        return {timeline: 'main', formationIndex: prevMainIndex};
+      }
+      // Check if there are drafts to switch to
+      if (this.draftFormations.length > 0) {
+        return {timeline: 'draft', formationIndex: this.draftFormations.length - 1};
+      }
+      return {timeline: 'main', formationIndex: this.currentFormationIndex};
     }
+  }
+
+  // New unified navigation method
+  async navigateToFormation(timeline: 'main' | 'draft', formationIndex: number) {
+    if (timeline === 'draft') {
+      this.selectedFormationType = 'draft';
+      this.currentDraftFormationIndex = formationIndex;
+      // Find corresponding main formation for proper indexing
+      const draftStartTime = this.draftFormationStartTimes[formationIndex] || 0;
+      const mainFormationIndex = this.formations.findIndex((_, i) => {
+        const formationStartTime = this.getFormationStartTime(i);
+        return Math.abs(draftStartTime - formationStartTime) < 0.1;
+      });
+      this.currentFormationIndex = mainFormationIndex !== -1 ? mainFormationIndex : 0;
+    } else {
+      this.selectedFormationType = 'main';
+      this.currentFormationIndex = formationIndex;
+      this.currentDraftFormationIndex = -1;
+    }
+    
+    this.playingFormationIndex = this.currentFormationIndex;
+    this.lastClickedFormationIndex = this.currentFormationIndex;
+    
+    // Force change detection
+    this.cdr.detectChanges();
+    
+    console.log(`🎯 NAVIGATE TO FORMATION:`, {
+      timeline,
+      formationIndex: formationIndex + 1,
+      selectedFormationType: this.selectedFormationType,
+      currentFormationIndex: this.currentFormationIndex + 1,
+      currentDraftFormationIndex: this.currentDraftFormationIndex + 1
+    });
+  }
+
+  // Add method to find previous connected draft
+  getPrevConnectedDraft(currentDraftIndex: number): number {
+    // Find drafts that this draft was created from
+    for (let i = 0; i < this.draftOrigins.length; i++) {
+      const origin = this.draftOrigins[i];
+      if (origin && origin.type === 'draft' && origin.sourceIndex === currentDraftIndex) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  // Add method to find next connected draft
+  getNextConnectedDraft(currentDraftIndex: number): number {
+    // Find drafts that were created from this draft
+    for (let i = 0; i < this.draftOrigins.length; i++) {
+      const origin = this.draftOrigins[i];
+      if (origin && origin.type === 'draft' && origin.sourceIndex === currentDraftIndex) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  // Update existing arrow key navigation methods
+  async prevFormation() {
+    if (this.inTransition) return;
+    
+    const prevFormation = this.getPrevFormationInContext();
+    await this.navigateToFormation(prevFormation.timeline, prevFormation.formationIndex);
+  }
+
+  async onNextFormationClick() {
+    if (this.inTransition) return;
+    
+    const nextFormation = this.getNextFormationInContext();
+    await this.navigateToFormation(nextFormation.timeline, nextFormation.formationIndex);
   }
 
   addFormation() {
@@ -2454,21 +2573,60 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       return null;
     }
     
-    // If we're on the first formation, there's no previous formation to show
-    if (this.currentFormationIndex === 0) return null;
-    
-    const prevFormation = this.formations[this.currentFormationIndex - 1];
     // For dummy performers, we need to match by name since IDs might be regenerated
     const currentPerformer = this.performers.find(p => p.id === performerId);
     if (!currentPerformer) return null;
     
-    const prevPerformer = prevFormation.find(p => 
-      // Match by ID for real performers
-      p.id === performerId || 
-      // Match by name for dummy performers
-      (currentPerformer.id.startsWith('dummy-') && p.name === currentPerformer.name)
-    );
-    return prevPerformer ? { x: prevPerformer.x, y: prevPerformer.y } : null;
+    // Check if we're currently viewing a draft formation
+    if (this.selectedFormationType === 'draft' && this.currentDraftFormationIndex >= 0) {
+      const currentDraftIndex = this.currentDraftFormationIndex;
+      const currentDraftOrigin = this.draftOrigins[currentDraftIndex];
+      
+      if (currentDraftOrigin && currentDraftOrigin.type === 'draft') {
+        // This draft's origin is another draft, so show the previous draft's positions
+        const previousDraftIndex = currentDraftOrigin.sourceIndex;
+        const previousDraftFormation = this.draftFormations[previousDraftIndex];
+        
+        if (previousDraftFormation) {
+          const prevPerformer = previousDraftFormation.find(p => 
+            // Match by ID for real performers
+            p.id === performerId || 
+            // Match by name for dummy performers
+            (currentPerformer.id.startsWith('dummy-') && p.name === currentPerformer.name)
+          );
+          return prevPerformer ? { x: prevPerformer.x, y: prevPerformer.y } : null;
+        }
+      } else if (currentDraftOrigin && currentDraftOrigin.type === 'main') {
+        // This draft's origin is a main formation, so show the main formation's positions
+        const mainFormationIndex = currentDraftOrigin.sourceIndex;
+        const mainFormation = this.formations[mainFormationIndex];
+        
+        if (mainFormation) {
+          const prevPerformer = mainFormation.find(p => 
+            // Match by ID for real performers
+            p.id === performerId || 
+            // Match by name for dummy performers
+            (currentPerformer.id.startsWith('dummy-') && p.name === currentPerformer.name)
+          );
+          return prevPerformer ? { x: prevPerformer.x, y: prevPerformer.y } : null;
+        }
+      }
+    } else {
+      // We're viewing a main formation, show the previous main formation's positions
+      // If we're on the first formation, there's no previous formation to show
+      if (this.currentFormationIndex === 0) return null;
+      
+      const prevFormation = this.formations[this.currentFormationIndex - 1];
+      const prevPerformer = prevFormation.find(p => 
+        // Match by ID for real performers
+        p.id === performerId || 
+        // Match by name for dummy performers
+        (currentPerformer.id.startsWith('dummy-') && p.name === currentPerformer.name)
+      );
+      return prevPerformer ? { x: prevPerformer.x, y: prevPerformer.y } : null;
+    }
+    
+    return null;
   }
 
   getSpotlightStyle() {
@@ -2556,15 +2714,34 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const totalPosition = this.getPerformerTotalPosition({ id: performerId, name: '', x: prevPos.x, y: prevPos.y, skillLevels: {} });
     
     // Use proportional positioning with total stage width
-    const left = (totalPosition.x / (this.width + 2 * this.offstageWidth)) * this.totalStageWidthPx - performerSize / 2;
-    const top = (prevPos.y / this.depth) * this.stageHeightPx - performerSize / 2;
+    const left = (totalPosition.x / (this.width + 2 * this.offstageWidth)) * this.totalStageWidthPx - (performerSize * 0.8) / 2;
+    const top = (prevPos.y / this.depth) * this.stageHeightPx - (performerSize * 0.8) / 2;
 
-    return {
+    // Only show purple styling when viewing a draft formation
+    const isViewingDraft = this.selectedFormationType === 'draft' && this.currentDraftFormationIndex >= 0;
+    
+    const baseStyle = {
       left: `${left}px`,
       top: `${top}px`,
+      width: `${performerSize * 0.75}px`,
+      height: `${performerSize * 0.75}px`,
       opacity: 0.5,
-      zIndex: 5
+      zIndex: 5,
+      borderRadius: '50%'
     };
+
+    // Add purple background only when viewing a draft formation
+    if (isViewingDraft) {
+      return {
+        ...baseStyle,
+        backgroundColor: '#8b5cf6' // Purple color for previous positions when viewing drafts
+      };
+    } else {
+      return {
+        ...baseStyle,
+        backgroundColor: '#3b82f6' // Blue color for previous positions when viewing main formations
+      };
+    }
   }
 
   openEditModal() {
@@ -2757,6 +2934,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       draftExitTransitionDurations: this.draftExitTransitionDurations,
       draftFormationStartTimes: this.draftFormationStartTimes, // Add individual start times
       draftOrigins: this.draftOrigins, // Add draft origins
+      draftNames: this.draftNames, // Add draft names
       draftStartTime: this.draftStartTime,
       currentPlaybackMode: this.currentPlaybackMode,
       roster: this.segmentRoster.map(user => user._id),
@@ -2845,6 +3023,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       draftExitTransitionDurations: this.draftExitTransitionDurations,
       draftFormationStartTimes: this.draftFormationStartTimes, // Add individual start times
       draftOrigins: this.draftOrigins, // Add draft origins
+      draftNames: this.draftNames, // Add draft names
       draftStartTime: this.draftStartTime,
       currentPlaybackMode: this.currentPlaybackMode,
       stylesInSegment: this.segment.stylesInSegment || [],
@@ -5533,6 +5712,23 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     });
   }
 
+  // Get the draft name for a specific formation index
+  getDraftNameForFormation(formationIndex: number): string {
+    const formationStartTime = this.getFormationStartTime(formationIndex);
+    const draftIndex = this.draftFormations.findIndex((draft, index) => {
+      const draftStartTime = this.draftFormationStartTimes[index] || 0;
+      // Check if this draft corresponds to the same formation (same start time)
+      return Math.abs(draftStartTime - formationStartTime) < 0.1; // Allow small floating point differences
+    });
+    
+    if (draftIndex !== -1 && this.draftNames[draftIndex]) {
+      return this.draftNames[draftIndex];
+    }
+    
+    // Fallback to default name
+    return `Draft ${formationIndex + 1}`;
+  }
+
   // Check if any formation has drafts (for expanding timeline height)
   hasAnyDrafts(): boolean {
     // Check both legacy formationDrafts and new draftFormations systems
@@ -5562,17 +5758,18 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.playingFormationIndex = index;
     this.lastClickedFormationIndex = index; // Track the last clicked formation
     
-    // Clear draft formation index when jumping to main formation
-    if (!isDraft) {
+    // Handle draft formation index
+    if (isDraft) {
+      // Find the draft index that corresponds to this main formation
+      const formationStartTime = this.getFormationStartTime(index);
+      const draftIndex = this.draftFormations.findIndex((_, i) => {
+        const draftStartTime = this.draftFormationStartTimes[i] || 0;
+        return Math.abs(draftStartTime - formationStartTime) < 0.1;
+      });
+      this.currentDraftFormationIndex = draftIndex !== -1 ? draftIndex : -1;
+    } else {
       this.currentDraftFormationIndex = -1;
     }
-    
-    // DO NOT automatically switch playback mode - only the mode button should do this
-    // The mode should remain whatever the user has set it to
-    
-    // If jumping to a draft formation, we need to show the draft data
-    // The performers getter will handle showing the correct formation data
-    // based on what formation we're viewing
     
     // Force change detection to update the stage immediately
     this.formations = [...this.formations];
@@ -5594,7 +5791,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       currentPlaybackMode: this.currentPlaybackMode,
       hasDraftForIndex: this.hasDraft(index),
       currentPerformersCount: this.performers.length,
-      performersSource: isDraft ? 'DRAFT' : 'MAIN'
+      performersSource: isDraft ? 'DRAFT' : 'MAIN',
+      currentDraftFormationIndex: this.currentDraftFormationIndex + 1
     });
   }
 
@@ -6358,43 +6556,33 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   handleDraftFormationClick(index: number) {
     if (index < 0 || index >= this.draftFormations.length) return;
     
-    // Set the selected formation type to draft
+    // Set draft context
     this.selectedFormationType = 'draft';
-    this.currentDraftFormationIndex = index; // Always set this to the draft index
+    this.currentDraftFormationIndex = index;
     
-    // DO NOT automatically switch playback mode - only the mode button should do this
-    // The mode should remain whatever the user has set it
-    
-    // Find which main formation this draft corresponds to
+    // Find corresponding main formation for proper indexing
     const draftStartTime = this.draftFormationStartTimes[index] || 0;
     const mainFormationIndex = this.formations.findIndex((_, i) => {
       const formationStartTime = this.getFormationStartTime(i);
       return Math.abs(draftStartTime - formationStartTime) < 0.1;
     });
     
-    if (mainFormationIndex !== -1) {
-      // Use jumpToFormation to properly update both indices
-      this.jumpToFormation(mainFormationIndex, true); // true = isDraft
-    } else {
-      // Fallback: use the draft index as formation index
-      this.currentFormationIndex = index;
-      this.playingFormationIndex = index;
-      // this.currentDraftFormationIndex = index; // Already set above
-      
-      // Force change detection to update the stage immediately
-      this.cdr.detectChanges();
-      
-      // Update selection rectangle for selected performers in the new formation
-      if (this.selectedPerformerIds.size > 0) {
-        this.calculateSelectionRectangle();
-      }
+    this.currentFormationIndex = mainFormationIndex !== -1 ? mainFormationIndex : 0;
+    this.playingFormationIndex = this.currentFormationIndex;
+    this.lastClickedFormationIndex = this.currentFormationIndex;
+    
+    // Force change detection
+    this.cdr.detectChanges();
+    
+    // Update selection rectangle for selected performers in the new formation
+    if (this.selectedPerformerIds.size > 0) {
+      this.calculateSelectionRectangle();
     }
     
     console.log(`🎯 DRAFT FORMATION CLICK:`, {
-      index: index + 1,
-      currentPlaybackMode: this.currentPlaybackMode,
-      currentFormationIndex: this.currentFormationIndex,
-      draftFormationsCount: this.draftFormations.length,
+      draftIndex: index + 1,
+      mainFormationIndex: this.currentFormationIndex + 1,
+      selectedFormationType: this.selectedFormationType,
       performersCount: this.performers.length
     });
   }
@@ -9009,35 +9197,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // If a draft is selected, add a connected draft after it
     if (this.selectedFormationType === 'draft' && this.currentDraftFormationIndex >= 0 && this.currentDraftFormationIndex < this.draftFormations.length) {
       const draftIdx = this.currentDraftFormationIndex;
-      // Copy the selected draft formation as the new draft
-      const newDraftFormation = this.draftFormations[draftIdx].map(p => ({...p}));
-      const newDraftDuration = this.draftFormationDurations[draftIdx];
-      // The new draft starts after the selected draft's duration and exit transition
-      const prevDraftStart = this.draftFormationStartTimes[draftIdx];
-      const prevDraftDuration = this.draftFormationDurations[draftIdx];
-      const prevDraftExit = this.draftExitTransitionDurations[draftIdx] || 1;
-      const newDraftStart = prevDraftStart + prevDraftDuration + prevDraftExit;
-      // The new draft uses the previous draft's exit transition as its entry transition
-      // So we set entry transition to 0 (no separate entry transition)
-      const entryTransition = 0; // No separate entry transition
-      const exitTransition = prevDraftExit; // Use same exit transition as previous draft
-      // Insert the new draft after the selected draft
-      this.draftFormations.splice(draftIdx + 1, 0, newDraftFormation);
-      this.draftFormationDurations.splice(draftIdx + 1, 0, newDraftDuration);
-      this.draftFormationStartTimes.splice(draftIdx + 1, 0, newDraftStart);
-      this.draftEntryTransitionDurations.splice(draftIdx + 1, 0, entryTransition);
-      this.draftExitTransitionDurations.splice(draftIdx + 1, 0, exitTransition);
-      this.draftAnimationDurations.splice(draftIdx + 1, 0, exitTransition); // legacy
       
-      // Add the draft origin information for the connected draft
-      this.draftOrigins.splice(draftIdx + 1, 0, { type: 'draft', sourceIndex: draftIdx });
+      // Use the same method as the context menu/plus button for consistent behavior
+      this.createDraftFromDraft(draftIdx);
       
-      // Select the new draft
-      this.currentDraftFormationIndex = draftIdx + 1;
+      // Select the new draft (it will be at the end of the array)
+      this.currentDraftFormationIndex = this.draftFormations.length - 1;
       this.selectedFormationType = 'draft';
-      // Save state and auto-save
-      this.saveState(`Add connected draft after draft F${draftIdx + 1}`);
-      this.triggerAutoSave();
       return;
     }
     // Otherwise, use the passed formation index to create draft for the correct formation
@@ -9279,8 +9445,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   getCurrentFormationTitle(): string {
     // Check if we're currently viewing a draft formation using the new tracking property
     if (this.currentDraftFormationIndex !== -1) {
-      // We're viewing a draft formation - show "Draft F X" using the draft index
-      return `Draft F ${this.currentDraftFormationIndex + 1}`;
+      // We're viewing a draft formation - show the actual draft name
+      return this.draftNames[this.currentDraftFormationIndex] || `Draft F ${this.currentDraftFormationIndex + 1}`;
     } else {
       // We're viewing a main formation - show the formation name
       return this.formationNames[this.playingFormationIndex] || `F ${this.playingFormationIndex + 1}`;
@@ -9685,6 +9851,86 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.triggerAutoSave();
   }
 
+  // Formation name editing methods
+  startEditingFormationName(index: number, event: Event, formationType: 'main' | 'draft' = 'main') {
+    if (!this.isCaptain) return;
+    
+    event.stopPropagation();
+    this.editingFormationIndex = index;
+    this.editingFormationType = formationType;
+    
+    if (formationType === 'draft') {
+      this.editingFormationName = this.draftNames[index] || `Draft ${index + 1}`;
+    } else {
+      this.editingFormationName = this.formationNames[index] || `F${index + 1}`;
+    }
+    
+    // Force change detection and focus after view updates
+    this.cdr.detectChanges();
+    setTimeout(() => {
+      const input = document.getElementById(`formation-name-input-${index}`) as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 10);
+  }
+
+  commitFormationNameEdit() {
+    if (this.editingFormationIndex !== null && this.editingFormationName.trim()) {
+      if (this.editingFormationType === 'draft') {
+        this.draftNames[this.editingFormationIndex] = this.editingFormationName.trim();
+      } else {
+        this.formationNames[this.editingFormationIndex] = this.editingFormationName.trim();
+      }
+      
+      this.editingFormationIndex = null;
+      this.editingFormationName = '';
+      this.editingFormationType = 'main';
+      this.triggerAutoSave();
+    }
+  }
+
+  startEditingStageFormationTitle(event: Event) {
+    if (!this.isCaptain) return;
+    
+    event.stopPropagation();
+    this.isEditingStageFormationTitle = true;
+    this.editingStageFormationName = this.getCurrentFormationTitle();
+    
+    // Force change detection and focus after view updates
+    this.cdr.detectChanges();
+    setTimeout(() => {
+      const input = document.getElementById('stage-formation-title-input') as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 10);
+  }
+
+  commitStageFormationTitleEdit() {
+    if (this.isEditingStageFormationTitle && this.editingStageFormationName.trim()) {
+      const currentIndex = this.currentDraftFormationIndex !== -1 ? this.currentDraftFormationIndex : this.playingFormationIndex;
+      
+      if (this.currentDraftFormationIndex !== -1) {
+        // Editing draft formation name
+        this.draftNames[currentIndex] = this.editingStageFormationName.trim();
+        // Force change detection to update the timeline immediately
+        this.cdr.detectChanges();
+      } else {
+        // Editing main formation name
+        this.formationNames[currentIndex] = this.editingStageFormationName.trim();
+        // Force change detection to update the timeline immediately
+        this.cdr.detectChanges();
+      }
+      
+      this.isEditingStageFormationTitle = false;
+      this.editingStageFormationName = '';
+      this.triggerAutoSave();
+    }
+  }
+
   // Handles clicking on a formation in the timeline
   handleFormationClick(index: number, isDraft: boolean = false) {
     console.log('🔍 handleFormationClick called with index:', index, 'isDraft:', isDraft);
@@ -9697,17 +9943,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.playbackTime = this.getFormationStartTimelineTime(index);
       this.currentFormationIndex = index;
       this.playingFormationIndex = index;
-      this.currentDraftFormationIndex = -1; // Clear draft formation index when clicking main formation
+      
+      if (isDraft) {
+        this.currentDraftFormationIndex = index;
+      } else {
+        this.currentDraftFormationIndex = -1; // Clear draft formation index when clicking main formation
+      }
+      
       this.lastClickedFormationIndex = index; // Track the last clicked formation
       
-      console.log('🔍 No audio - set currentFormationIndex to:', index);
-      
-      // DO NOT automatically switch playback mode - only the mode button should do this
-      // The mode should remain whatever the user has set it to
-      
-      // If clicking on a draft formation, we need to show the draft data
-      // The performers getter will handle showing the correct formation data
-      // based on what formation we're viewing
+      console.log('🔍 No audio - set currentFormationIndex to:', index, 'isDraft:', isDraft);
       
       this.cdr.detectChanges();
       

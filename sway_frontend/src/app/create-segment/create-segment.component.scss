@@ -900,6 +900,37 @@ body {
   letter-spacing: 0.04em;
   text-align: center;
   transition: color 0.5s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.formation-edit-icon {
+  font-size: 0.6rem;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+  margin-top: 0.2rem;
+}
+
+.formation-title:hover .formation-edit-icon {
+  opacity: 1;
+}
+
+.formation-title-input {
+  color: #ffd700 !important;
+  font-size: 1.4rem !important;
+  font-weight: 700 !important;
+  margin-bottom: 0.2rem !important;
+  letter-spacing: 0.04em !important;
+  text-align: center !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  font-family: inherit !important;
+  width: 100% !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
 }
 
 .stage-label {
@@ -1055,9 +1086,24 @@ body {
       }
 
       .formation-label {
-        color: #8b5cf6;
-        font-weight: 600;
-      }
+  color: #8b5cf6;
+  font-weight: 600;
+}
+
+.formation-label-input {
+  color: #8b5cf6 !important;
+  font-weight: 600 !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  width: 100% !important;
+  text-align: center !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
 
       .formation-duration {
         color: #a78bfa;

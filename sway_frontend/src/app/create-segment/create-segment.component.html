@@ -476,9 +476,23 @@
              [style.height.px]="stageGridHeightPx"
              [style.transform]="getStageTransform()">
           <div class="stage-header-center">
-            <div class="formation-title" *ngIf="getCurrentFormationTitle()">
+            <div class="formation-title" 
+                 *ngIf="getCurrentFormationTitle() && !isEditingStageFormationTitle"
+                 (click)="startEditingStageFormationTitle($event)"
+                 [style.cursor]="isCaptain ? 'pointer' : 'default'"
+                 [title]="isCaptain ? 'Click to edit formation name' : ''">
               {{ getCurrentFormationTitle() }}
+              <i *ngIf="isCaptain" class="fas fa-pencil-alt formation-edit-icon"></i>
             </div>
+            <input *ngIf="isEditingStageFormationTitle"
+                   type="text"
+                   [(ngModel)]="editingStageFormationName"
+                   (blur)="commitStageFormationTitleEdit()"
+                   (keyup.enter)="commitStageFormationTitleEdit()"
+                   (keyup.escape)="isEditingStageFormationTitle = false; editingStageFormationName = ''"
+                   id="stage-formation-title-input"
+                   class="formation-title-input"
+                   style="background: transparent; border: none; outline: none; color: inherit; font: inherit; width: 100%; text-align: center; font-size: 1.4rem; font-weight: 700; margin-bottom: 0.2rem; letter-spacing: 0.04em;">
             <div class="stage-label">{{ isStageFlipped ? 'FRONTSTAGE' : 'BACKSTAGE' }}</div>
           </div>
           <div class="stage-grid-outer"
@@ -705,7 +719,7 @@
                      [style.left.px]="draftFormationStartTimes[i] * pixelsPerSecond * timelineZoom"
                      style="position: absolute;">
                   <div class="formation-timeline-box draft-formation"
-                       [class.active]="currentPlaybackMode === 'draft' && currentFormationIndex === i"
+                       [class.active]="selectedFormationType === 'draft' && currentDraftFormationIndex === i"
                        (click)="handleDraftFormationClick(i)"
                        (contextmenu)="onDraftFormationRightClick($event, i)"
                        (mouseenter)="hoveredFormationIndex = i"
@@ -749,11 +763,13 @@
                        class="formation-timeline-box"
                        [class.draft-formation]="isDraftFormationDraftColored(i)"
                        [class.main-formation-colored-as-draft]="!isDraftFormationDraftColored(i)"
-                       [class.active]="currentFormationIndex === i && currentPlaybackMode === 'draft'"
+                       [class.active]="currentFormationIndex === i && selectedFormationType === 'draft'"
                        (click)="handleFormationClick(i, true)"
                        (mouseenter)="hoveredFormationIndex = i"
                        (mouseleave)="hoveredFormationIndex = null">
-                    <div class="formation-label">{{ draftNames[i] || 'Draft ' + (i + 1) }}</div>
+                    <div class="formation-label">
+                      {{ getDraftNameForFormation(i) }}
+                    </div>
                     <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
                     
                     <!-- Draft controls - TEMPORARILY HIDDEN -->
@@ -774,13 +790,15 @@
                   <!-- Main formation box -->
                   <div class="formation-timeline-box main-formation"
                        [class.main-formation-colored-as-draft]="isMainFormationDraftColored(i)"
-                       [class.active]="currentFormationIndex === i && currentPlaybackMode === 'main'"
+                       [class.active]="currentFormationIndex === i && selectedFormationType === 'main'"
                        [class.has-draft]="hasDraft(i)"
                        (click)="handleFormationClick(i, false)"
                        (contextmenu)="onFormationRightClick($event, i)"
                        (mouseenter)="hoveredFormationIndex = i"
                        (mouseleave)="hoveredFormationIndex = null">
-                    <div class="formation-label">{{ formationNames[i] || 'F' + (i + 1) }}</div>
+                    <div class="formation-label">
+                      {{ formationNames[i] || 'F' + (i + 1) }}
+                    </div>
                     <div class="formation-duration">{{ formationDurations[i] | number:'1.1-1' }}s</div>
                     <div *ngIf="isCaptain" class="formation-drag-handle" (mousedown)="onFormationResizeStart($event, i)"></div>
                   </div>
