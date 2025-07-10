@@ -7,6 +7,8 @@ import { SegmentService } from '../services/segment.service';
 import { LimitsService, LimitsStatus } from '../services/limits.service';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../environments/environment';
 
 @Component({
   selector: 'app-dashboard',
@@ -84,13 +86,22 @@ export class DashboardComponent implements OnInit {
   editJoinCodeValue = '';
   joinCodeError = '';
 
+  // Feedback modal state
+  showFeedbackModal = false;
+  feedbackMessage = '';
+  feedbackSending = false;
+  feedbackSuccess = false;
+  feedbackError = '';
+  feedbackModalClosing = false;
+
   constructor(
     private authService: AuthService, 
     private teamService: TeamService,
     private setService: SetService,
     private segmentService: SegmentService,
     public limitsService: LimitsService,
-    private router: Router
+    private router: Router,
+    private http: HttpClient
   ) {}
 
   ngOnInit() {
@@ -953,6 +964,49 @@ export class DashboardComponent implements OnInit {
         } else {
           this.joinCodeError = err.error?.error || 'Failed to update join code. Please try again.';
         }
+      }
+    });
+  }
+
+  openFeedbackModal() {
+    this.showFeedbackModal = true;
+    this.feedbackMessage = '';
+    this.feedbackSending = false;
+    this.feedbackSuccess = false;
+    this.feedbackError = '';
+    this.feedbackModalClosing = false;
+  }
+
+  closeFeedbackModal() {
+    this.feedbackModalClosing = true;
+    setTimeout(() => {
+      this.showFeedbackModal = false;
+      this.feedbackModalClosing = false;
+    }, 220); // match the close animation duration
+  }
+
+  submitFeedback() {
+    if (!this.feedbackMessage.trim()) return;
+    this.feedbackSending = true;
+    this.feedbackSuccess = false;
+    this.feedbackError = '';
+    const userName = this.currentUser?.name || 'Unknown';
+    const teamName = this.team?.name || 'Unknown';
+    const email = this.currentUser?.email || '';
+    this.http.post(`${environment.apiUrl}/feedback`, {
+      message: this.feedbackMessage,
+      userName,
+      teamName,
+      email
+    }).subscribe({
+      next: () => {
+        this.feedbackSending = false;
+        this.feedbackSuccess = true;
+        this.feedbackMessage = '';
+      },
+      error: (err) => {
+        this.feedbackSending = false;
+        this.feedbackError = err.error?.error || 'Failed to send feedback.';
       }
     });
   }

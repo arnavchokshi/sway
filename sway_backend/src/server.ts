@@ -1376,7 +1376,7 @@ app.get('/api/teams/:id/membership-active', async (req: Request, res: Response) 
 // Feedback endpoint
 app.post('/api/feedback', async (req: Request, res: Response) => {
   try {
-    const { message, type, rating, email } = req.body;
+    const { message, type, rating, email, userName, teamName } = req.body;
     
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Feedback message is required' });
@@ -1388,6 +1388,8 @@ app.post('/api/feedback', async (req: Request, res: Response) => {
       type: type || 'general',
       rating: rating || 0,
       email: email || 'anonymous',
+      userName: userName || 'Unknown',
+      teamName: teamName || 'Unknown',
       timestamp: new Date().toISOString()
     });
 
@@ -1401,6 +1403,8 @@ app.post('/api/feedback', async (req: Request, res: Response) => {
           <h2>New Feedback Received</h2>
           <p><strong>Type:</strong> ${type || 'General'}</p>
           <p><strong>Rating:</strong> ${rating || 'Not provided'}</p>
+          <p><strong>User Name:</strong> ${userName || 'Unknown'}</p>
+          <p><strong>Team Name:</strong> ${teamName || 'Unknown'}</p>
           <p><strong>User Email:</strong> ${email || 'Anonymous'}</p>
           <p><strong>Message:</strong></p>
           <p>${message.trim()}</p>

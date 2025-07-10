@@ -35,6 +35,7 @@ export class ControlBarComponent {
   @Input() draftAnimationDurations: number[] = [];
   @Input() draftStartTime: number = 0;
   @Input() isDraftSelected: boolean = false;
+  @Input() isProAccount: boolean = false;
 
   // Delete confirmation state
   private deleteConfirmationTimeout: any = null;
@@ -193,9 +194,7 @@ export class ControlBarComponent {
     return `${minutes}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
   }
 
-  getTimelineZoomPercentage(): number {
-    return Math.round(this.timelineZoom * 100);
-  }
+
 
   @HostListener('window:keydown', ['$event'])
   onKeyDown(event: KeyboardEvent) {

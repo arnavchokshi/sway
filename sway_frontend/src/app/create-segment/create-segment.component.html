@@ -638,6 +638,7 @@
     [draftAnimationDurations]="draftAnimationDurations"
     [draftStartTime]="draftStartTime"
     [isDraftSelected]="isDraftSelected()"
+    [isProAccount]="isProAccount"
     (prevFormation)="onControlBarPrevFormation()"
     (playPause)="onControlBarPlayPause()"
     (nextFormation)="onControlBarNextFormation()"
@@ -698,8 +699,7 @@
             <!-- Draft Timeline Row (NEW) -->
             <div *ngIf="hasDraftTimeline()" 
                  class="draft-timeline-row" 
-                 [style.width.px]="getTimelinePixelWidth()" 
-                 style="position: relative;">
+                 [style.width.px]="getTimelinePixelWidth()">
               <ng-container *ngFor="let formation of draftFormations; let i = index">
                 <!-- Entry transition (before the formation) -->
                 <div *ngIf="isIndependentDraft(i)" 
@@ -708,7 +708,9 @@
                      [style.left.px]="(draftFormationStartTimes[i] - (draftEntryTransitionDurations[i] || 1)) * pixelsPerSecond * timelineZoom"
                      style="position: absolute;">
                   <div class="timeline-transition-bar draft-transition">
-                    <span class="transition-label">{{ draftEntryTransitionDurations[i] | number:'1.1-1' }}s</span>
+                    <span class="transition-label" 
+                          [class.truncate-transition]="getDraftEntryTransitionPixelWidth(i) < 80"
+                          [class.narrow-transition]="getDraftEntryTransitionPixelWidth(i) < 50">{{ draftEntryTransitionDurations[i] | number:'1.1-1' }}s</span>
                     <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onDraftEntryTransitionResizeStart($event, i)"></div>
                   </div>
                 </div>
@@ -736,15 +738,18 @@
                      [style.left.px]="(draftFormationStartTimes[i] + draftFormationDurations[i]) * pixelsPerSecond * timelineZoom"
                      style="position: absolute;">
                   <div class="timeline-transition-bar draft-transition">
-                    <span class="transition-label">{{ draftExitTransitionDurations[i] | number:'1.1-1' }}s</span>
+                    <span class="transition-label" 
+                          [class.truncate-transition]="getDraftExitTransitionPixelWidth(i) < 80"
+                          [class.narrow-transition]="getDraftExitTransitionPixelWidth(i) < 50">{{ draftExitTransitionDurations[i] | number:'1.1-1' }}s</span>
                     <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onDraftTransitionResizeStart($event, i)"></div>
                   </div>
                 </div>
                 
                 <!-- Plus button for creating connected draft (only if this exit transition doesn't connect to another draft) -->
-                <div *ngIf="isCaptain && !hasNextConnectedDraft(i)" 
+                <div *ngIf="isCaptain && isProAccount && !hasNextConnectedDraft(i)" 
                      class="draft-plus-button"
                      [style.left.px]="((draftFormationStartTimes[i] + draftFormationDurations[i] + draftExitTransitionDurations[i]) * pixelsPerSecond * timelineZoom) + 10"
+                     [style.top.px]="32"
                      (click)="onCreateConnectedDraftFromDraft(i, $event)"
                      title="Create Connected Draft">
                   <span class="material-icons">add</span>
@@ -809,14 +814,18 @@
                     <!-- Draft transition (appears only if current and next formations have drafts) -->
                     <div *ngIf="hasDraft(i) && hasDraft(i + 1)" 
                          class="timeline-transition-bar draft-transition">
-                      <span class="transition-label">{{ animationDurations[i] | number:'1.1-1' }}s</span>
+                      <span class="transition-label" 
+                            [class.truncate-transition]="getTransitionPixelWidth(i) < 80"
+                            [class.narrow-transition]="getTransitionPixelWidth(i) < 50">{{ animationDurations[i] | number:'1.1-1' }}s</span>
                       <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onTransitionResizeStart($event, i)"></div>
                     </div>
                     
                     <!-- Main transition -->
                     <div class="timeline-transition-bar main-transition" 
                          [class.has-draft-above]="hasDraft(i) && hasDraft(i + 1)">
-                      <span class="transition-label">{{ animationDurations[i] | number:'1.1-1' }}s</span>
+                      <span class="transition-label" 
+                            [class.truncate-transition]="getTransitionPixelWidth(i) < 80"
+                            [class.narrow-transition]="getTransitionPixelWidth(i) < 50">{{ animationDurations[i] | number:'1.1-1' }}s</span>
                       <div *ngIf="isCaptain" class="transition-drag-handle" (mousedown)="onTransitionResizeStart($event, i)"></div>
                     </div>
                   </div>
@@ -998,7 +1007,7 @@
           <span class="material-icons">content_copy</span>
           <span>Duplicate</span>
         </button>
-        <button class="context-menu-item make-draft" (click)="onContextMenuMakeDraft()" [disabled]="hasDraftInTimeline(selectedFormationIndex)">
+        <button class="context-menu-item make-draft" (click)="onContextMenuMakeDraft()" [disabled]="hasDraftInTimeline(selectedFormationIndex)" *ngIf="isProAccount">
           <span class="material-icons">edit</span>
           <span>Make Draft</span>
         </button>
@@ -1022,7 +1031,7 @@
           <span class="material-icons">content_copy</span>
           <span>Duplicate</span>
         </button>
-        <button class="context-menu-item make-draft" (click)="onContextMenuCreateDraftFromDraft()">
+        <button class="context-menu-item make-draft" (click)="onContextMenuCreateDraftFromDraft()" *ngIf="isProAccount">
           <span class="material-icons">edit</span>
           <span>Create Connected Draft</span>
         </button>

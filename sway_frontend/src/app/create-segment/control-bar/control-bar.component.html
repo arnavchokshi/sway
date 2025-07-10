@@ -22,7 +22,7 @@
     </div>
 
     <!-- Draft Timeline Controls - Moved here -->
-    <div class="draft-timeline-controls" *ngIf="isCaptain">
+    <div class="draft-timeline-controls" *ngIf="isCaptain && isProAccount">
       <div class="timeline-mode-selector" *ngIf="hasDraftTimeline()">
         <button class="control-btn timeline-mode-btn" 
                 [class.active]="currentPlaybackMode === 'main'"
@@ -72,7 +72,6 @@
              (input)="onZoomChange($event)"
              class="zoom-slider">
       <span class="material-icons zoom-icon">zoom_in</span>
-      <span class="zoom-percentage">{{ getTimelineZoomPercentage() }}%</span>
     </div>
 
     <!-- Action Buttons -->
@@ -93,7 +92,7 @@
         </svg>
         <span class="custom-tooltip">Auto Move Mirrors</span>
       </button>
-      <button class="control-btn action-btn draft-btn tooltip-parent" (click)="onCreateDraftFromCurrent()" [disabled]="totalFormations === 0" *ngIf="currentFormationIndex >= 0">
+      <button class="control-btn action-btn draft-btn tooltip-parent" (click)="onCreateDraftFromCurrent()" [disabled]="totalFormations === 0" *ngIf="currentFormationIndex >= 0 && isProAccount">
         <span class="material-icons">{{ getDraftButtonIcon() }}</span>
         <span class="custom-tooltip">{{ getDraftButtonText() }}</span>
       </button>

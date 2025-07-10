@@ -191,6 +191,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   signedMusicUrl: string | null = null;
   waveSurfer: WaveSurfer | null = null;
   isPlaying = false;
+  private justStartedPlaying = false;
+  private autoScrollTimer: any = null;
 
   private waveformInitializedForUrl: string | null = null;
 
@@ -3270,6 +3272,26 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       return;
     }
 
+    // Check audio duration for free accounts (3-minute limit)
+    if (!this.isProAccount) {
+      try {
+        const duration = await this.getAudioDuration(file);
+        const maxDurationSeconds = 3 * 60; // 3 minutes in seconds
+        
+        if (duration > maxDurationSeconds) {
+          console.error('Audio file too long for free account:', duration, 'seconds');
+          this.uploadError = 'Audio files must be under 3 minutes for free accounts. Upgrade to Pro for longer audio files.';
+          setTimeout(() => this.uploadError = null, 5000);
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking audio duration:', error);
+        this.uploadError = 'Unable to verify audio file duration. Please try again.';
+        setTimeout(() => this.uploadError = null, 5000);
+        return;
+      }
+    }
+
     this.isUploadingMusic = true;
     try {
       this.segmentService.getMusicPresignedUrl(this.segment._id, file.name, file.type).subscribe({
@@ -3328,6 +3350,26 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       setTimeout(() => this.uploadError = null, 5000);
       this.isUploadingMusic = false;
     }
+  }
+
+  // Helper method to get audio duration from file
+  private getAudioDuration(file: File): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const audio = new Audio();
+      const url = URL.createObjectURL(file);
+      
+      audio.addEventListener('loadedmetadata', () => {
+        URL.revokeObjectURL(url);
+        resolve(audio.duration);
+      });
+      
+      audio.addEventListener('error', (error) => {
+        URL.revokeObjectURL(url);
+        reject(error);
+      });
+      
+      audio.src = url;
+    });
   }
 
   // Add method to get signed URL for playing music
@@ -3448,6 +3490,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       if (this.playbackTimer) {
         cancelAnimationFrame(this.playbackTimer);
         this.playbackTimer = null;
+      }
+      if (this.autoScrollTimer) {
+        clearInterval(this.autoScrollTimer);
+        this.autoScrollTimer = null;
       }
       this.isPlaying = false;
       this.hoveredTimelineTime = null;
@@ -3669,6 +3715,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
       this.isPlaying = true;
       this.playbackTimer = requestAnimationFrame(updatePlayback);
+      
+      // Start dedicated autoscroll timer for more responsive scrolling
+      this.autoScrollTimer = setInterval(() => {
+        if (this.isPlaying && !this.isIntensiveTouchGesture && !this.justStartedPlaying) {
+          this.autoScrollToPlayhead();
+        }
+      }, 50); // Run every 50ms (20fps) for more responsive autoscroll
 
     }
   }
@@ -3857,6 +3910,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.playbackTimer = null;
     }
     
+    // Clean up autoscroll timer
+    if (this.autoScrollTimer) {
+      clearInterval(this.autoScrollTimer);
+      this.autoScrollTimer = null;
+    }
+    
     // Clean up refresh-related properties
     if (this.refreshTimeout) {
       clearTimeout(this.refreshTimeout);
@@ -3974,15 +4033,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (this.waveSurfer && this.waveSurfer.getDuration && this.waveSurfer.getDuration() > 0) {
       return this.waveSurfer.getDuration();
     }
-    // Fallback to sum of formation and transition durations
-    let total = 0;
+    
+    // Calculate main timeline duration
+    let mainTotal = 0;
     for (let i = 0; i < this.formations.length; i++) {
-      total += this.formationDurations[i] || 4;
+      mainTotal += this.formationDurations[i] || 4;
       if (i < this.animationDurations.length) {
-        total += this.animationDurations[i] || 1;
+        mainTotal += this.animationDurations[i] || 1;
       }
     }
-    return Math.max(total, 1); // Ensure we never return 0 to avoid division by zero
+    
+    // Calculate draft timeline duration
+    const draftTotal = this.getDraftTimelineTotalDuration();
+    
+    // Return the maximum of main and draft timelines to ensure both rows align
+    return Math.max(mainTotal, draftTotal, 1); // Ensure we never return 0 to avoid division by zero
   }
 
   getFormationPercent(i: number): number {
@@ -4175,6 +4240,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       event.preventDefault();
     }
     
+    // Save the index before clearing
+    const changedIndex = this.resizingTransitionIndex;
     this.resizingTransitionIndex = null;
     window.removeEventListener('mousemove', this.onTransitionResizeMove);
     window.removeEventListener('mouseup', this.onTransitionResizeEnd);
@@ -4192,7 +4259,37 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.updateMinTimelineZoom();
       this.updateMaxTimelineZoom();
     }, 100);
+    
+    // --- NEW LOGIC: Update draft start times for affected drafts ---
+    if (typeof changedIndex === 'number' && changedIndex >= 0) {
+      this.updateDraftStartTimesForMainTransitionChange(changedIndex);
+    }
   };
+
+  /**
+   * Update draft formation start times for drafts affected by main transition duration changes
+   */
+  private updateDraftStartTimesForMainTransitionChange(transitionIndex: number) {
+    // For each draft, if its origin is a main formation with index > transitionIndex, update its entry transition anchor
+    // This is because changing a transition affects the start time of all subsequent formations
+    for (let i = 0; i < this.draftOrigins.length; i++) {
+      const origin = this.draftOrigins[i];
+      if (origin && origin.type === 'main' && origin.sourceIndex > transitionIndex) {
+        // Calculate the new end time of the previous main formation
+        const prevMainFormationIndex = origin.sourceIndex - 1;
+        const prevMainFormationStart = this.getFormationStartTime(prevMainFormationIndex);
+        const prevMainFormationDuration = this.formationDurations[prevMainFormationIndex] || 4;
+        const prevMainFormationEnd = prevMainFormationStart + prevMainFormationDuration;
+        // Align the START of the entry transition with the end of the previous main formation
+        const entryDuration = this.draftEntryTransitionDurations[i] || 1;
+        this.draftFormationStartTimes[i] = prevMainFormationEnd + entryDuration;
+        // Update all connected drafts as well
+        this.recalculateConnectedDraftStartTimes(i);
+      }
+    }
+    // Force change detection if needed
+    this.draftFormationStartTimes = [...this.draftFormationStartTimes];
+  }
 
   getTimelinePixelWidth(): number {
     // Get the container width dynamically
@@ -4217,7 +4314,17 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const baseWidth = totalDuration * this.pixelsPerSecond;
     
     // Apply zoom: timelineZoom = 1 means normal scale, > 1 means zoomed in, < 1 means zoomed out
-    return baseWidth * this.timelineZoom;
+    const contentWidth = baseWidth * this.timelineZoom;
+    
+    // Add extra padding when there are drafts to allow scrolling beyond the last element
+    let extraPadding = 0;
+    if (this.hasAnyDrafts()) {
+      extraPadding = 200; // Add 200px of extra space for scrolling beyond the last draft
+    }
+    
+    // Allow the timeline to be wider than the container when content requires it
+    // This enables proper scrolling when drafts are longer than main timeline
+    return Math.max(contentWidth + extraPadding, containerWidth);
   }
 
   getFormationPixelWidth(i: number): number {
@@ -4249,7 +4356,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
     const totalWidth = this.getTimelinePixelWidth();
     const totalDuration = this.getTimelineTotalDuration();
-    const basePosition = (currentTime / totalDuration) * totalWidth;
+    
+    // Calculate the content width (without the minimum container width constraint)
+    const container = this.timelineBarRef?.nativeElement;
+    const containerWidth = container?.offsetWidth || 0;
+    const contentWidth = Math.max(totalDuration * this.pixelsPerSecond * this.timelineZoom, containerWidth);
+    
+    // Use the content width for positioning, but ensure we don't exceed the total width
+    const basePosition = (currentTime / totalDuration) * contentWidth;
     return Math.max(0, Math.min(basePosition, totalWidth));
   }
 
@@ -4261,9 +4375,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (this.hoveredTimelineX !== null) {
       const totalWidth = this.getTimelinePixelWidth();
       const totalDuration = this.getTimelineTotalDuration();
+      
+      // Calculate the content width (without the minimum container width constraint)
+      const container = this.timelineBarRef?.nativeElement;
+      const containerWidth = container?.offsetWidth || 0;
+      const contentWidth = Math.max(totalDuration * this.pixelsPerSecond * this.timelineZoom, containerWidth);
+      
       if (this.hoveredTimelineTime !== null) {
         const timePercent = this.hoveredTimelineTime / totalDuration;
-        return timePercent * totalWidth;
+        return timePercent * contentWidth;
       }
       return Math.max(0, Math.min(this.hoveredTimelineX, totalWidth));
     }
@@ -4498,10 +4618,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (target.closest('.formation-timeline-box') || target.closest('.timeline-transition-bar')) return;
     const rect = bar.getBoundingClientRect();
     const x = event.clientX - rect.left + bar.scrollLeft;
-    this.hoveredTimelineX = x;
-    const totalWidth = this.getTimelinePixelWidth();
     const totalDuration = this.getTimelineTotalDuration();
-    const timePercent = Math.max(0, Math.min(1, x / totalWidth));
+    const containerWidth = bar.offsetWidth || 0;
+    const contentWidth = Math.max(totalDuration * this.pixelsPerSecond * this.timelineZoom, containerWidth);
+    const clampedX = Math.max(0, Math.min(x, contentWidth));
+    this.hoveredTimelineX = clampedX;
+    const timePercent = Math.max(0, Math.min(1, clampedX / contentWidth));
     this.hoveredTimelineTime = timePercent * totalDuration;
     let currentTime = 0;
     for (let i = 0; i < this.formations.length; i++) {
@@ -4529,7 +4651,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const rect = bar.getBoundingClientRect();
     const scrollLeft = bar.scrollLeft || 0;
     const x = event.clientX - rect.left + scrollLeft; // Add scroll offset to get correct position
-    const timelineTime = (x / this.getTimelinePixelWidth()) * this.getTimelineTotalDuration();
+    
+    // Calculate the content width (without the minimum container width constraint)
+    const containerWidth = bar.offsetWidth || 0;
+    const totalDuration = this.getTimelineTotalDuration();
+    const contentWidth = Math.max(totalDuration * this.pixelsPerSecond * this.timelineZoom, containerWidth);
+    
+    const timelineTime = (x / contentWidth) * this.getTimelineTotalDuration();
     if (timelineTime !== null) {
       // Handle audio seeking if available
       if (this.waveSurfer && this.waveSurfer.getDuration()) {
@@ -4655,7 +4783,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const rect = seekBar.getBoundingClientRect();
     const scrollLeft = this.timelineBarRef?.nativeElement?.scrollLeft || 0;
     const x = event.clientX - rect.left + scrollLeft; // Add scroll offset to get correct position
-    const timelineTime = (x / this.getTimelinePixelWidth()) * this.getTimelineTotalDuration();
+    
+    // Calculate the content width (without the minimum container width constraint)
+    const container = this.timelineBarRef?.nativeElement;
+    const containerWidth = container?.offsetWidth || 0;
+    const totalDuration = this.getTimelineTotalDuration();
+    const contentWidth = Math.max(totalDuration * this.pixelsPerSecond * this.timelineZoom, containerWidth);
+    
+    const timelineTime = (x / contentWidth) * this.getTimelineTotalDuration();
 
     if (timelineTime !== null) {
       // Handle audio seeking if available
@@ -5648,6 +5783,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   createFormationDraft(formationIndex: number) {
+    // Check if user has pro account
+    if (!this.isProAccount) {
+      console.log('❌ Draft creation requires Pro account');
+      this.showProPopup = true;
+      return;
+    }
+    
     if (!this.isCaptain || formationIndex < 0 || formationIndex >= this.formations.length) return;
     
     // Don't create draft if one already exists
@@ -5882,6 +6024,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
    * Create a draft from a main formation
    */
   createDraft(formationIndex: number) {
+    // Check if user has pro account
+    if (!this.isProAccount) {
+      console.log('❌ Draft creation requires Pro account');
+      this.showProPopup = true;
+      return;
+    }
+
     if (formationIndex < 0 || formationIndex >= this.formations.length) {
       console.error(`Invalid formation index: ${formationIndex}`);
       return;
@@ -5978,6 +6127,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
    * Create a draft from another draft (for connected drafts)
    */
   createDraftFromDraft(draftIndex: number) {
+    // Check if user has pro account
+    if (!this.isProAccount) {
+      console.log('❌ Draft creation requires Pro account');
+      this.showProPopup = true;
+      return;
+    }
+
     if (draftIndex < 0 || draftIndex >= this.draftFormations.length) {
       console.error(`Invalid draft index: ${draftIndex}`);
       return;
@@ -6384,9 +6540,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     for (let i = 0; i < this.draftFormations.length; i++) {
       const formationStartTime = this.draftFormationStartTimes[i] || 0;
       const formationDuration = this.draftFormationDurations[i] || 4;
-      const transitionDuration = this.draftAnimationDurations[i] || 1;
+      const exitTransitionDuration = this.draftExitTransitionDurations[i] || 1;
       
-      const formationEndTime = formationStartTime + formationDuration + transitionDuration;
+      const formationEndTime = formationStartTime + formationDuration + exitTransitionDuration;
       maxEndTime = Math.max(maxEndTime, formationEndTime);
     }
     
@@ -6562,7 +6718,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (this.resizingFormationIndex === null) return;
     
     const deltaX = event.clientX - this.resizingStartX;
-    const deltaSeconds = deltaX / this.pixelsPerSecond;
+    // Account for zoom level in the calculation
+    const deltaSeconds = deltaX / (this.pixelsPerSecond * this.timelineZoom);
     const newDuration = Math.max(0.5, this.resizingStartDuration + deltaSeconds);
     
     this.draftFormationDurations[this.resizingFormationIndex] = newDuration;
@@ -6889,7 +7046,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     const i = this.resizingEntryTransitionIndex;
     const deltaX = event.clientX - this.resizingEntryTransitionStartX;
-    const deltaSeconds = deltaX / this.pixelsPerSecond;
+    // Account for zoom level in the calculation
+    const deltaSeconds = deltaX / (this.pixelsPerSecond * this.timelineZoom);
     const newDuration = Math.max(0.1, this.resizingEntryTransitionStartDuration + deltaSeconds);
     
     console.log('🔍 Entry transition resize move:', {
@@ -8804,7 +8962,21 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onControlBarPlayPause() {
-    this.toggleUnifiedPlay();
+    // If we're about to start playing, scroll to playhead first
+    if (!this.isPlaying) {
+      this.justStartedPlaying = true;
+      this.scrollToPlayheadOnPlay();
+      // Add a small delay before starting playback to allow scroll to complete
+      setTimeout(() => {
+        this.toggleUnifiedPlay();
+        // Reset the flag after a short delay
+        setTimeout(() => {
+          this.justStartedPlaying = false;
+        }, 500);
+      }, 100);
+    } else {
+      this.toggleUnifiedPlay();
+    }
   }
 
   onControlBarPrevFormation() {
@@ -8915,6 +9087,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onContextMenuMakeDraft() {
+    // Check if user has pro account
+    if (!this.isProAccount) {
+      console.log('❌ Draft creation requires Pro account');
+      this.showProPopup = true;
+      this.closeFormationContextMenu();
+      return;
+    }
+    
     this.createDraft(this.selectedFormationIndex);
     this.closeFormationContextMenu();
   }
@@ -8954,6 +9134,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   duplicateDraftFormation(draftIndex: number) {
+    // Check if user has pro account
+    if (!this.isProAccount) {
+      console.log('❌ Draft creation requires Pro account');
+      this.showProPopup = true;
+      return;
+    }
+    
     if (!this.isCaptain || this.draftFormations.length === 0) return;
     
     console.log('🔍 DUPLICATE DRAFT FORMATION DEBUG:', {
@@ -9043,6 +9230,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onContextMenuCreateDraftFromDraft() {
+    // Check if user has pro account
+    if (!this.isProAccount) {
+      console.log('❌ Draft creation requires Pro account');
+      this.showProPopup = true;
+      this.closeFormationContextMenu();
+      return;
+    }
+    
     // Create a new draft from the selected draft formation
     this.createDraftFromDraft(this.selectedFormationIndex);
     this.closeFormationContextMenu();
@@ -9152,6 +9347,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onControlBarCreateDraftFromCurrent(formationIndex: number) {
+    // Check if user has pro account
+    if (!this.isProAccount) {
+      console.log('❌ Draft creation requires Pro account');
+      this.showProPopup = true;
+      return;
+    }
+    
     console.log('🔍 Main component onControlBarCreateDraftFromCurrent called with formationIndex:', formationIndex);
     console.log('🔍 Current state - currentFormationIndex:', this.currentFormationIndex, 'selectedFormationType:', this.selectedFormationType);
     
@@ -9294,6 +9496,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
           this.loadTeamRosterAndMapFormations(currentUser.team._id);
         }
         
+        // Set timeline zoom to maximum zoom out when opening a segment
+        setTimeout(() => {
+          this.updateMinTimelineZoom();
+          this.timelineZoom = this.minTimelineZoom;
+          this.cdr.detectChanges();
+        }, 100);
+        
         // Force change detection
         this.cdr.detectChanges();
       },
@@ -9313,6 +9522,13 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     this.currentFormationIndex = 0;
     this.playingFormationIndex = 0;
     this.segmentName = 'New Segment';
+    
+    // Set timeline zoom to maximum zoom out when creating a new segment
+    setTimeout(() => {
+      this.updateMinTimelineZoom();
+      this.timelineZoom = this.minTimelineZoom;
+      this.cdr.detectChanges();
+    }, 100);
   }
 
   // Helper method to clear segment-specific state when navigating
@@ -9599,6 +9815,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Update max zoom dynamically based on content
     this.updateMaxTimelineZoom();
     
+    // Auto-fit to show all formations when opening the segment
+    this.autoFitTimelineToFormations();
+    
     // Clamp current zoom if needed
     if (this.timelineZoom < this.minTimelineZoom) {
       this.timelineZoom = this.minTimelineZoom;
@@ -9608,35 +9827,44 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     }
   }
 
-  // Calculate dynamic max zoom based on audio and formation content
-  updateMaxTimelineZoom() {
+  // Auto-fit timeline to show all formations in the visible area
+  private autoFitTimelineToFormations() {
+    // Only auto-fit if this is the initial load (timelineZoom is still at default value of 1)
+    // and we haven't already set it to minTimelineZoom for new segments
+    if (this.timelineZoom !== 1) return;
+    
     const container = this.timelineBarRef?.nativeElement;
     if (!container) return;
     
     const containerWidth = container.offsetWidth;
     const totalDuration = this.getTimelineTotalDuration();
     
-    if (this.signedMusicUrl && this.waveSurfer && this.waveSurfer.getDuration() > 0) {
-      // With audio: max zoom should allow audio to take up the entire bottom panel
-      const audioDuration = this.waveSurfer.getDuration();
-      const timelineWidthAtZoom1 = audioDuration * this.pixelsPerSecond;
-      
-      // Calculate zoom level where audio takes up the full container width
-      const maxZoomForAudio = containerWidth / timelineWidthAtZoom1;
-      
-      // Set a reasonable maximum (4x zoom) but allow audio to fill the panel
-      this.maxTimelineZoom = Math.max(4.5, maxZoomForAudio);
-    } else {
-      // No audio: max zoom should allow formations to take up 80% of the bottom panel
-      const timelineWidthAtZoom1 = totalDuration * this.pixelsPerSecond;
-      
-      // Calculate zoom level where formations take up 80% of container width
-      const targetWidth = containerWidth * 0.8;
-      const maxZoomForFormations = targetWidth / timelineWidthAtZoom1;
-      
-      // Set a reasonable maximum (4x zoom) but allow formations to fill 80% of panel
-      this.maxTimelineZoom = Math.max(4.5, maxZoomForFormations);
-    }
+    if (totalDuration <= 0) return;
+    
+    // Calculate the optimal zoom to fit all formations in the container
+    // Leave some padding (10% of container width) for better visual appearance
+    const targetWidth = containerWidth * 0.9;
+    const timelineWidthAtZoom1 = totalDuration * this.pixelsPerSecond;
+    const optimalZoom = targetWidth / timelineWidthAtZoom1;
+    
+    // Set the zoom to fit all formations, but respect min/max bounds
+    const newZoom = Math.max(this.minTimelineZoom, Math.min(this.maxTimelineZoom, optimalZoom));
+    this.timelineZoom = newZoom;
+    
+    console.log('Auto-fit timeline zoom:', {
+      containerWidth,
+      totalDuration,
+      timelineWidthAtZoom1,
+      optimalZoom,
+      newZoom,
+      minZoom: this.minTimelineZoom,
+      maxZoom: this.maxTimelineZoom
+    });
+  }
+
+  // Set max zoom to fixed 4.5
+  updateMaxTimelineZoom() {
+    this.maxTimelineZoom = 2.5;
   }
 
   // Cursor drag methods
@@ -9665,11 +9893,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const rect = seekBar.getBoundingClientRect();
     const scrollLeft = this.timelineBarRef?.nativeElement?.scrollLeft || 0;
     const x = event.clientX - rect.left + scrollLeft; // Add scroll offset to match getPlayheadPixel logic
-    const totalWidth = this.getTimelinePixelWidth();
+    
+    // Calculate the content width (without the minimum container width constraint)
+    const container = this.timelineBarRef?.nativeElement;
+    const containerWidth = container?.offsetWidth || 0;
     const totalDuration = this.getTimelineTotalDuration();
+    const contentWidth = Math.max(totalDuration * this.pixelsPerSecond * this.timelineZoom, containerWidth);
     
     // Calculate new time based on mouse position
-    const timePercent = Math.max(0, Math.min(1, x / totalWidth));
+    const timePercent = Math.max(0, Math.min(1, x / contentWidth));
     const newTime = timePercent * totalDuration;
     
     // Update playback time
@@ -9744,8 +9976,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Disable auto-scroll to prevent forced screen movement during touch gestures
     if (this.isIntensiveTouchGesture) return;
     
-    // Disable auto-scroll to prevent forced screen movement (currently disabled)
-    return;
+    // Don't auto-scroll if we just started playing (let the initial scroll complete)
+    if (this.justStartedPlaying) return;
     
     if (!this.isPlaying || !this.timelineBarRef?.nativeElement) return;
     
@@ -9754,18 +9986,48 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     const containerWidth = container.offsetWidth;
     const scrollLeft = container.scrollLeft;
     
-    // Check if playhead is out of view (with some padding)
-    const padding = 50; // pixels of padding
+    // Use padding-based approach for smooth autoscroll during playback
+    const basePadding = 150;
+    const zoomFactor = Math.max(1, this.timelineZoom);
+    const padding = basePadding * zoomFactor;
+    
     const playheadLeft = playheadPixel;
     const playheadRight = playheadPixel + 4; // playhead width
     
+    let targetScrollLeft = scrollLeft;
+    
+    // Only scroll if playhead is getting close to the edges
     if (playheadLeft < scrollLeft + padding) {
       // Playhead is too far left, scroll left
-      container.scrollLeft = Math.max(0, playheadLeft - padding);
+      targetScrollLeft = Math.max(0, playheadLeft - padding);
     } else if (playheadRight > scrollLeft + containerWidth - padding) {
       // Playhead is too far right, scroll right
-      container.scrollLeft = playheadRight - containerWidth + padding;
+      targetScrollLeft = playheadRight - containerWidth + padding;
     }
+    
+    // Use instant scroll for responsiveness, but only when needed
+    if (targetScrollLeft !== scrollLeft) {
+      container.scrollLeft = targetScrollLeft;
+    }
+  }
+
+  // Scroll to playhead when play button is pressed
+  private scrollToPlayheadOnPlay() {
+    if (!this.timelineBarRef?.nativeElement) return;
+    
+    const container = this.timelineBarRef.nativeElement;
+    const playheadPixel = this.getPlayheadPixel();
+    const containerWidth = container.offsetWidth;
+    
+    // Always center the playhead in the visible area for consistent behavior
+    const centerOffset = containerWidth / 2;
+    const targetScrollLeft = playheadPixel - centerOffset;
+    
+    // Use smooth scroll for initial scroll to playhead
+    container.scrollTo({
+      left: Math.max(0, targetScrollLeft),
+      behavior: 'smooth'
+    });
   }
 
   // Dismiss upload error popup
@@ -10419,6 +10681,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
   onCreateConnectedDraftFromDraft(draftIndex: number, event: Event) {
     event.stopPropagation();
+    
+    // Check if user has pro account
+    if (!this.isProAccount) {
+      console.log('❌ Draft creation requires Pro account');
+      this.showProPopup = true;
+      return;
+    }
+    
     console.log('➕ Creating connected draft from draft', draftIndex);
     
     // Create a connected draft after the selected draft
