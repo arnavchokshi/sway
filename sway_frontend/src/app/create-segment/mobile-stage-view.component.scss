@@ -1,0 +1,352 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+.mobile-stage-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: linear-gradient(135deg, #161647 0%, #1c0404f2 50%, #18184d 100%);
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  overflow: hidden;
+}
+
+.mobile-top-bar {
+  display: flex;
+  align-items: center;
+  height: 56px;
+  background: rgba(15, 23, 42, 0.95);
+  padding: 0 1rem;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+  z-index: 10;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: #ffd700;
+  font-size: 1.1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  transition: background 0.2s;
+  &:hover {
+    background: rgba(255, 215, 0, 0.08);
+  }
+  .material-icons {
+    font-size: 1.3rem;
+  }
+}
+
+.mobile-stage-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  height: 100vh;
+  width: 100%;
+  position: relative;
+  overflow: auto !important;
+  background: none;
+}
+
+.stage-header-on-stage {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.9);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.stage-header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.formation-title {
+  color: #ffd700;
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 0.1rem;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.stage-label {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: bold;
+  letter-spacing: 0.15em;
+  text-shadow: 0 2px 12px rgba(59,130,246,0.08);
+  margin: 0;
+  text-align: center;
+}
+
+.stage-grid-outer {
+  width: 960px !important;
+  height: 480px !important;
+  min-width: 960px !important;
+  min-height: 480px !important;
+  max-width: none !important;
+  max-height: none !important;
+  box-sizing: content-box;
+  flex: none !important;
+  display: block;
+  position: relative;
+  overflow: visible !important;
+}
+
+.stage-border {
+  position: absolute;
+  inset: 0;
+  border: 3.5px solid #3b82f6;
+  border-radius: 0;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow: 0 0 24px 0 rgba(59,130,246,0.10);
+}
+
+.performer {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #23263a;
+  border: 2px solid #ffd700;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.08);
+  z-index: 3;
+  .performer-label {
+    white-space: nowrap;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.18);
+  }
+}
+
+.mobile-formation-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  background: rgba(24, 24, 27, 0.7);
+  border-radius: 8px;
+  padding: 0.5rem 0.2rem;
+  margin: 0.5rem 0 0.5rem 0;
+  overflow-x: auto;
+}
+
+.formation-chip {
+  background: none;
+  color: #ffd700;
+  border: 1.5px solid #ffd700;
+  border-radius: 16px;
+  padding: 0.3rem 1.1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  cursor: default;
+  opacity: 0.8;
+  transition: background 0.2s, color 0.2s;
+  &.active {
+    background: #ffd700;
+    color: #18184d;
+    opacity: 1;
+  }
+}
+
+.mobile-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5rem;
+  padding: 1.2rem 0 1.5rem 0;
+  background: none;
+}
+
+.play-btn {
+  background: linear-gradient(135deg, #ffd700 0%, #ffe066 100%);
+  color: #18184d;
+  border: none;
+  border-radius: 50%;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.18);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  &:active {
+    transform: scale(0.96);
+  }
+  .material-icons {
+    font-size: 2.2rem;
+  }
+}
+
+.nav-btn {
+  background: #23263a;
+  color: #ffd700;
+  border: none;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.7rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.08);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  &:active {
+    transform: scale(0.97);
+  }
+  .material-icons {
+    font-size: 1.7rem;
+  }
+}
+
+// Add grid lines
+.stage-grid-vertical {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(59,130,246,0.25);
+  z-index: 1;
+}
+
+.stage-grid-horizontal {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(59,130,246,0.25);
+  z-index: 1;
+}
+
+// Add side stage areas
+.side-stage {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12%;
+  background: rgba(255, 215, 0, 0.08);
+  z-index: 0;
+  &.left {
+    left: 0;
+    border-right: 2px dashed #ffd700;
+  }
+  &.right {
+    /* No left here, use Angular [style.left.px] */
+  }
+}
+
+.main-vertical, .main-horizontal {
+  position: absolute;
+  background: #3b82f6;
+  z-index: 1;
+  opacity: 0.95;
+  box-shadow: 0 0 8px 0 rgba(59,130,246,0.10);
+  transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+
+.main-vertical {
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 2px;
+}
+
+.main-horizontal {
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.sub-vertical, .sub-horizontal {
+  position: absolute;
+  background: #3b82f6;
+  opacity: 0.13;
+  z-index: 1;
+  box-shadow: 0 0 4px 0 rgba(59,130,246,0.08);
+  transition: background 0.5s ease, opacity 0.5s ease, box-shadow 0.5s ease;
+}
+
+.sub-vertical {
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+}
+
+.sub-horizontal {
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.offstage-area {
+  position: absolute;
+  top: 0;
+  background: linear-gradient(135deg, rgba(125, 164, 227, 0.2) 0%, rgba(55, 65, 81, 0.2) 100%);
+  backdrop-filter: blur(20px);
+  z-index: 1;
+  .offstage-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    color: rgba(156, 163, 175, 0.8);
+    font-size: 1.25rem;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    letter-spacing: 1px;
+  }
+  &.left-offstage {
+    left: 0;
+    border-right: 2px solid rgba(59, 130, 246, 0.3);
+  }
+  &.right-offstage {
+    border-left: 2px solid rgba(59, 130, 246, 0.3);
+  }
+}
+
+@media (max-width: 480px) {
+  .mobile-stage-container {
+    min-height: 100vh;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .stage-grid-outer {
+    width: 98vw;
+    max-width: 99vw;
+    height: 52vw;
+    max-height: 220px;
+  }
+} 

@@ -1,0 +1,70 @@
+<div class="mobile-stage-container">
+  <div class="mobile-top-bar">
+    <button class="back-btn" (click)="backToDashboard.emit()">
+      <span class="material-icons">arrow_back</span> Dashboard
+    </button>
+  </div>
+
+  <div class="mobile-stage-area">
+    <!-- Stage grid and performer positions -->
+    <div class="stage-grid-outer"
+         [style.width.px]="totalStageWidthPx"
+         [style.height.px]="stageHeightPx"
+         [style.transform]="getStageTransform()">
+      
+      <!-- Stage header positioned on the stage -->
+      <div class="stage-header-on-stage">
+        <div class="formation-title">
+          {{ formations[currentFormationIndex]?.name || 'Formation' }}
+        </div>
+        <div class="stage-label">{{ stageData?.isStageFlipped ? 'FRONTSTAGE' : 'BACKSTAGE' }}</div>
+      </div>
+      
+      <!-- Offstage area left -->
+      <div class="offstage-area left-offstage"
+           [style.left.px]="0"
+           [style.width.px]="offstageWidthPx"
+           [style.height.px]="stageHeightPx">
+        <div class="offstage-label">OFFSTAGE LEFT</div>
+      </div>
+      <!-- Main grid lines: vertical -->
+      <div *ngFor="let x of mainVerticals" class="main-vertical" [style.left.px]="x + offstageWidthPx"></div>
+      <!-- Main grid lines: horizontal -->
+      <div *ngFor="let y of mainHorizontals" class="main-horizontal" [style.top.px]="y"></div>
+      <!-- Subgrid lines: vertical -->
+      <div *ngFor="let x of subVerticals" class="sub-vertical" [style.left.px]="x + offstageWidthPx"></div>
+      <!-- Subgrid lines: horizontal -->
+      <div *ngFor="let y of subHorizontals" class="sub-horizontal" [style.top.px]="y"></div>
+      <!-- Offstage area right -->
+      <div class="offstage-area right-offstage"
+           [style.left.px]="offstageWidthPx + stageWidthPx"
+           [style.width.px]="offstageWidthPx"
+           [style.height.px]="stageHeightPx">
+        <div class="offstage-label">OFFSTAGE RIGHT</div>
+      </div>
+      <!-- Render performers -->
+      <div *ngFor="let performer of performers" class="performer" [ngStyle]="getPerformerStyle(performer)">
+        <span class="performer-label">{{ performer.name }}</span>
+      </div>
+      <div class="stage-border"></div>
+    </div>
+  </div>
+
+  <div class="mobile-formation-row">
+    <div class="formation-chip" *ngFor="let formation of formations; let i = index" [class.active]="i === currentFormationIndex">
+      {{ formation.name }}
+    </div>
+  </div>
+
+  <div class="mobile-controls">
+    <button class="nav-btn" (click)="prev.emit()">
+      <span class="material-icons">chevron_left</span>
+    </button>
+    <button class="play-btn" (click)="play.emit()">
+      <span class="material-icons">play_arrow</span>
+    </button>
+    <button class="nav-btn" (click)="next.emit()">
+      <span class="material-icons">chevron_right</span>
+    </button>
+  </div>
+</div> 

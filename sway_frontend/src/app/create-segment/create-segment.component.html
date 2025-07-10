@@ -1,3 +1,16 @@
+<app-mobile-stage-view
+  *ngIf="showMobileMemberView"
+  [performers]="performers"
+  [formations]="formations"
+  [currentFormationIndex]="currentFormationIndex"
+  [stageData]="{ isStageFlipped: isStageFlipped }"
+  (play)="onControlBarPlayPause()"
+  (prev)="onControlBarPrevFormation()"
+  (next)="onControlBarNextFormation()"
+  (backToDashboard)="navigateToDashboard()"
+></app-mobile-stage-view>
+
+<div *ngIf="!showMobileMemberView">
 <div class="segment-page-container">
   <div class="top-panel" *ngIf="isCaptain">
     <div class="top-panel-left">

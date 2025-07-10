@@ -15,6 +15,7 @@ import { debounceTime } from 'rxjs/operators';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { MobileStageViewComponent } from './mobile-stage-view.component';
 
 interface Performer {
   id: string;
@@ -71,7 +72,7 @@ import { ControlBarComponent } from './control-bar/control-bar.component';
   templateUrl: './create-segment.component.html',
   styleUrls: ['./create-segment.component.scss'],
   standalone: true,
-  imports: [CommonModule, FormsModule, ControlBarComponent],
+  imports: [CommonModule, FormsModule, ControlBarComponent, MobileStageViewComponent],
   animations: [
     trigger('movePerformer', [
       transition('* => *', [
@@ -511,6 +512,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   resizingEntryTransitionOriginalPosition: number = 0;
   resizingEntryTransitionOriginalFormationStartTime: number = 0;
 
+  showMobileMemberView = false;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -681,6 +684,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.checkConsistencyWarnings();
       this.checkFormationPositioningTips();
     }, 2000);
+
+    this.route.queryParams.subscribe(params => {
+      const viewAsMember = params['viewAsMemeber'] === 'true';
+      const isMobile = /iPhone|iPod|Android.*Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+      this.showMobileMemberView = viewAsMember && isMobile;
+    });
   }
 
   // Method to refresh data when component is activated
@@ -1426,6 +1435,20 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     });
   }
 
+  async navigateToFormationWithAnimation(timeline: 'main' | 'draft', formationIndex: number) {
+    // Store the current formation index before navigation
+    const fromFormationIndex = this.currentFormationIndex;
+    
+    // First navigate to the new formation (this sets up the target state)
+    await this.navigateToFormation(timeline, formationIndex);
+    
+    // If we're navigating between main formations and they're different, animate the transition
+    if (timeline === 'main' && fromFormationIndex !== formationIndex && fromFormationIndex >= 0 && formationIndex >= 0) {
+      // Animate from the previous formation to the new formation
+      await this.animateFormationTransition(fromFormationIndex, formationIndex);
+    }
+  }
+
   // Add method to find previous connected draft
   getPrevConnectedDraft(currentDraftIndex: number): number {
     // Find drafts that this draft was created from
@@ -1455,14 +1478,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     if (this.inTransition) return;
     
     const prevFormation = this.getPrevFormationInContext();
-    await this.navigateToFormation(prevFormation.timeline, prevFormation.formationIndex);
+    await this.navigateToFormationWithAnimation(prevFormation.timeline, prevFormation.formationIndex);
   }
 
   async onNextFormationClick() {
     if (this.inTransition) return;
     
     const nextFormation = this.getNextFormationInContext();
-    await this.navigateToFormation(nextFormation.timeline, nextFormation.formationIndex);
+    await this.navigateToFormationWithAnimation(nextFormation.timeline, nextFormation.formationIndex);
   }
 
   addFormation() {
@@ -2015,13 +2038,12 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
               // If we don't have initial position stored, use current position
               const xMatch = Math.abs(p.x - expectedMirrorX) <= tolerance;
               const yMatch = Math.abs(p.y - selectedInitialPos.y) <= tolerance;
-              console.log(`  📊 DRAG Checking ${p.name} (current): x=${p.x} vs ${expectedMirrorX}, y=${p.y} vs ${selectedInitialPos.y}, xMatch=${xMatch}, yMatch=${yMatch}`);
               return xMatch && yMatch;
             } else {
               // Use initial positions for comparison
               const xMatch = Math.abs(pInitialPos.x - expectedMirrorX) <= tolerance;
               const yMatch = Math.abs(pInitialPos.y - selectedInitialPos.y) <= tolerance;
-              console.log(`  📊 DRAG Checking ${p.name} (initial): x=${pInitialPos.x} vs ${expectedMirrorX}, y=${pInitialPos.y} vs ${selectedInitialPos.y}, xMatch=${xMatch}, yMatch=${yMatch}`);
+
               return xMatch && yMatch;
             }
           });
@@ -5873,8 +5895,11 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
 
 
   // Updated jumpToFormation to handle draft viewing
-  jumpToFormation(index: number, isDraft: boolean = false) {
+  jumpToFormation(index: number, isDraft: boolean = false, animate: boolean = false) {
     if (index < 0 || index >= this.formations.length) return;
+    
+    // Store the current formation index before navigation for animation
+    const fromFormationIndex = this.currentFormationIndex;
     
     // Set the selected formation type based on what was clicked
     this.selectedFormationType = isDraft ? 'draft' : 'main';
@@ -5910,9 +5935,15 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.calculateSelectionRectangle();
     }
     
+    // If animation is requested and we're navigating between main formations, animate the transition
+    if (animate && !isDraft && fromFormationIndex !== index && fromFormationIndex >= 0 && index >= 0) {
+      this.animateFormationTransition(fromFormationIndex, index);
+    }
+    
     console.log(`🎯 JUMP TO FORMATION:`, {
       index: index + 1,
       isDraft,
+      animate,
       currentPlaybackMode: this.currentPlaybackMode,
       hasDraftForIndex: this.hasDraft(index),
       currentPerformersCount: this.performers.length,
@@ -8968,14 +8999,27 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.scrollToPlayheadOnPlay();
       // Add a small delay before starting playback to allow scroll to complete
       setTimeout(() => {
-        this.toggleUnifiedPlay();
-        // Reset the flag after a short delay
-        setTimeout(() => {
-          this.justStartedPlaying = false;
-        }, 500);
-      }, 100);
+        if (this.signedMusicUrl && this.waveSurfer) {
+          this.togglePlay();
+        } else {
+          // No audio: animate formations
+          this.startFormationPlayback();
+        }
+      }, 200);
     } else {
-      this.toggleUnifiedPlay();
+      // Pause logic
+      if (this.waveSurfer) {
+        this.waveSurfer.pause();
+      }
+      if (this.videoElement) {
+        this.videoElement.pause();
+      }
+      if (this.playbackTimer) {
+        cancelAnimationFrame(this.playbackTimer);
+        this.playbackTimer = null;
+      }
+      this.isPlaying = false;
+      this.hoveredTimelineTime = null;
     }
   }
 
@@ -9426,9 +9470,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       // Must be at mirror X position and same Y position (with tiny tolerance for precision)
       const xMatch = Math.abs(p.x - mirrorX) <= tolerance;
       const yMatch = Math.abs(p.y - performer.y) <= tolerance;
-      
-      console.log(`  📊 Checking ${p.name}: x=${p.x}, y=${p.y}, xDiff=${Math.abs(p.x - mirrorX)}, yDiff=${Math.abs(p.y - performer.y)}, xMatch=${xMatch}, yMatch=${yMatch}`);
-      
+     
       return xMatch && yMatch;
     });
     
@@ -9953,7 +9995,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       return;
     }
     console.log('🔍 Audio connected - calling jumpToFormation with index:', effectiveTimeline.formationIndex);
-    this.jumpToFormation(effectiveTimeline.formationIndex, effectiveTimeline.timeline === 'draft');
+    this.jumpToFormation(effectiveTimeline.formationIndex, effectiveTimeline.timeline === 'draft', true); // Enable animation for timeline clicks
     // Force change detection to ensure control bar gets updated currentFormationIndex
     this.cdr.detectChanges();
   }
