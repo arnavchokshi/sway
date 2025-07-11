@@ -1008,6 +1008,7 @@ body {
   }
 
   .formation-timeline-bar {
+    /* width: 100% !important; */
     width: 100% !important;
     max-width: 100%;
     min-width: unset;
@@ -1037,7 +1038,7 @@ body {
     flex-direction: row;
     flex-wrap: nowrap;
     align-items: stretch;
-    min-width: 100%;
+    /* min-width: 100%; */
     width: max-content;
     background: transparent;
     gap: 0;
@@ -1056,7 +1057,7 @@ body {
     flex-direction: row;
     flex-wrap: nowrap;
     align-items: stretch;
-    min-width: 100%;
+    /* min-width: 100%; */
     width: max-content;
     background: rgba(139, 92, 246, 0.1);
     gap: 0;
@@ -2124,51 +2125,16 @@ body {
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: stretch;
-  min-width: 100%;
+  /* min-width: 100%; */
   width: max-content;
   background: transparent;
   gap: 0;
   margin: 0;
   padding: 0;
   position: relative;
-  height: 50px;
+  height: 40px; /* Reduced from 50px */
   overflow-y: visible !important;
-  overflow-x: auto;
-  transition: all 0.3s ease;
-  cursor: pointer;
-
-  &.draft-row {
-    background: rgba(139, 92, 246, 0.1);
-    border: 2px solid rgba(139, 92, 246, 0.3);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    
-    &.active {
-      background: rgba(139, 92, 246, 0.2);
-      border-color: rgba(139, 92, 246, 0.6);
-    }
-  }
-
-  &.main-row {
-    background: rgba(59, 130, 246, 0.1);
-    border: 2px solid rgba(59, 130, 246, 0.3);
-    border-radius: 8px;
-    
-    &.active {
-      background: rgba(59, 130, 246, 0.2);
-      border-color: rgba(59, 130, 246, 0.6);
-    }
-  }
-
-  .row-label {
-    position: absolute;
-    top: -25px;
-    left: 10px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #e2e8f0;
-    z-index: 10;
-  }
+  /* Removed overflow-x: auto - parent container handles scrolling */
 }
 
 .formation-timeline-column {
