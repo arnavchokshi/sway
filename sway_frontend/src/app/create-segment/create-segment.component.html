@@ -366,37 +366,37 @@
           </div>
           
         </div> <!-- end of .performer-details -->
-        <div class="bottom-actions">
-          <button class="conversion-btn" (click)="togglePerformerPairingDropdown()">
-            <span class="material-icons">swap_horiz</span>
-            Change Pairing
-          </button>
-          <button class="remove-performer-btn" (click)="removePerformer()">
-            <ng-container *ngIf="!confirmRemovePerformer">
-              <span class="material-icons">delete</span>
-            </ng-container>
-            <ng-container *ngIf="confirmRemovePerformer">
-              <span style="white-space:nowrap">Remove</span>
-            </ng-container>
-          </button>
-          <div class="performer-pairing-dropdown" *ngIf="showPerformerPairingDropdown">
-            <div class="dropdown-content">
-              <button class="dropdown-item" (click)="convertToDummy()">
-                <span class="material-icons">person_off</span>
-                Dummy
-              </button>
-              <button class="dropdown-item" *ngFor="let user of availableUsers" 
-                      (click)="convertToUser(user)">
-                <span class="material-icons">person</span>
-                {{ formatPerformerName(user.name) }}
-              </button>
-            </div>
+      </ng-container>
+      <div class="bottom-actions" *ngIf="sidePanelMode === 'performer' && selectedPerformer">
+        <button class="conversion-btn" (click)="togglePerformerPairingDropdown()">
+          <span class="material-icons">swap_horiz</span>
+          Change Pairing
+        </button>
+        <button class="remove-performer-btn" (click)="removePerformer()">
+          <ng-container *ngIf="!confirmRemovePerformer">
+            <span class="material-icons">delete</span>
+          </ng-container>
+          <ng-container *ngIf="confirmRemovePerformer">
+            <span style="white-space:nowrap">Remove</span>
+          </ng-container>
+        </button>
+        <div class="performer-pairing-dropdown" *ngIf="showPerformerPairingDropdown">
+          <div class="dropdown-content">
+            <button class="dropdown-item" (click)="convertToDummy()">
+              <span class="material-icons">person_off</span>
+              Dummy
+            </button>
+            <button class="dropdown-item" *ngFor="let user of availableUsers" 
+                    (click)="convertToUser(user)">
+              <span class="material-icons">person</span>
+              {{ formatPerformerName(user.name) }}
+            </button>
           </div>
         </div>
-        <ng-template #noPerformerSelected>
-          <div class="performer-details-empty">Select a performer to view details</div>
-        </ng-template>
-      </ng-container>
+      </div>
+      <ng-template #noPerformerSelected>
+        <div class="performer-details-empty">Select a performer to view details</div>
+      </ng-template>
       <ng-template #rosterPanel>
         <div class="roster-top-panel">
           <div class="roster-header-row">
@@ -890,8 +890,8 @@
             </div>
             
             <!-- Audio waveform inside the same scrollable container -->
-            <div *ngIf="signedMusicUrl" class="audio-waveform-container" [style.width.px]="getTimelinePixelWidth()">
-              <div id="waveform" [style.width.px]="getTimelinePixelWidth()"></div>
+            <div *ngIf="signedMusicUrl" class="audio-waveform-container" [style.width.px]="getAudioWaveformWidth()">
+              <div id="waveform" [style.width.px]="getAudioWaveformWidth()"></div>
             </div>
           </div>
         </div>

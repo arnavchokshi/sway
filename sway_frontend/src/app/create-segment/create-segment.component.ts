@@ -4362,6 +4362,24 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     return Math.max(contentWidth + extraPadding, containerWidth);
   }
 
+  getAudioWaveformWidth(): number {
+    // Use the same calculation as the seek bar and playhead for proper alignment
+    const totalDuration = this.getTimelineTotalDuration();
+    
+    if (totalDuration <= 0) {
+      const container = this.timelineBarRef?.nativeElement;
+      const containerWidth = container?.offsetWidth || 0;
+      return containerWidth * this.timelineZoom; // Fallback
+    }
+    
+    // Calculate the content width (without the minimum container width constraint)
+    const container = this.timelineBarRef?.nativeElement;
+    const containerWidth = container?.offsetWidth || 0;
+    const contentWidth = Math.max(totalDuration * this.pixelsPerSecond * this.timelineZoom, containerWidth);
+    
+    return contentWidth;
+  }
+
   getFormationPixelWidth(i: number): number {
     const duration = this.formationDurations[i] || 4;
     const totalTimelineDuration = this.getTimelineTotalDuration();
