@@ -3151,6 +3151,27 @@ body {
   padding: 1.2rem;
   background: rgba(24, 24, 27, 0);
   border-radius: 12px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.3) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.3);
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.5);
+  }
 }
 
 .performer-details-empty {
@@ -5666,5 +5687,446 @@ body {
     }
   }
 }
+// ... existing code ...
+
+// Location Information
+.location-info {
+  margin-bottom: 1.5rem;
+  
+  .info-group {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: rgba(24, 24, 27, 0.1);
+    border-radius: 8px;
+    border: 1px solid rgba(59, 130, 246, 0.1);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+
+    label {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      font-weight: 500;
+      min-width: 60px;
+    }
+
+    .position-display {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+
+      .position-label {
+        color: #94a3b8;
+        font-size: 0.83rem;
+        font-weight: 500;
+      }
+
+      .position-value {
+        color: #3b82f6;
+        font-size: 0.83rem;
+        font-weight: 600;
+        background: rgba(59, 130, 246, 0.1);
+        padding: 0.2rem 0.3rem;
+        border-radius: 4px;
+      }
+    }
+  }
+}
+
+// Skills Dropdown Section
+.skills-dropdown-section {
+  margin-bottom: 1.5rem;
+
+  .skills-dropdown-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: rgba(24, 24, 27, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(24, 24, 27, 0.2);
+      border-color: rgba(59, 130, 246, 0.2);
+    }
+
+    label {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+
+    .dropdown-icon {
+      color: #3b82f6;
+      font-size: 1.2rem;
+      transition: transform 0.2s ease;
+    }
+  }
+
+  .skills-dropdown-content {
+    margin-top: 0.5rem;
+    padding: 1rem;
+    background: rgba(24, 24, 27, 0.05);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+    border-radius: 8px;
+    animation: slideDownPanel 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+
+    .skill-group {
+      background: rgba(24, 24, 27, 0.1);
+      border-radius: 8px;
+      padding: 0.8rem;
+      border: 1px solid rgba(59, 130, 246, 0.1);
+      margin-bottom: 0.8rem;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .skill-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.6rem;
+
+        label {
+          color: #94a3b8;
+          font-size: 0.95rem;
+          font-weight: 500;
+        }
+
+        .skill-value {
+          color: #3b82f6;
+          font-size: 0.9rem;
+          font-weight: 600;
+          background: rgba(59, 130, 246, 0.1);
+          padding: 0.2rem 0.5rem;
+          border-radius: 4px;
+        }
+      }
+
+      .skill-slider {
+        width: 100%;
+        height: 3px;
+        background: none;
+        border-radius: 3px;
+        outline: 1px solid #fefcff1b;
+        -webkit-appearance: none;
+        transition: all 0.2s ease;
+
+        &::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 16px;
+          height: 16px;
+          background: #3b82f6;
+          border-radius: 50%;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+          &:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+          }
+        }
+
+        &:focus {
+          &::-webkit-slider-thumb {
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+          }
+        }
+      }
+    }
+  }
+}
+
+// Segments Section
+.segments-section {
+  margin-bottom: 1.5rem;
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: rgba(24, 24, 27, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(24, 24, 27, 0.2);
+      border-color: rgba(59, 130, 246, 0.2);
+    }
+
+    h3 {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      font-weight: 500;
+      margin: 0;
+    }
+
+    .dropdown-icon {
+      color: #3b82f6;
+      font-size: 1.2rem;
+      transition: transform 0.2s ease;
+    }
+  }
+
+  .segments-content {
+    margin-top: 0.5rem;
+    padding: 1rem;
+    background: rgba(24, 24, 27, 0.05);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+    border-radius: 8px;
+    animation: slideDownPanel 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+
+    .segment-item {
+      display: flex;
+      align-items: center;
+      padding: 0.6rem 0.8rem;
+      margin-bottom: 0.5rem;
+      background: rgba(24, 24, 27, 0.2);
+      border-radius: 6px;
+      border: 1px solid rgba(59, 130, 246, 0.1);
+      transition: all 0.2s ease;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      &:hover {
+        background: rgba(24, 24, 27, 0.3);
+        border-color: rgba(59, 130, 246, 0.2);
+      }
+
+      .segment-name {
+        color: #e2e8f0;
+        font-size: 0.9rem;
+        font-weight: 500;
+      }
+    }
+
+    .no-segments {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.8rem;
+      color: #94a3b8;
+      font-size: 0.9rem;
+      font-style: italic;
+      text-align: center;
+      justify-content: center;
+
+      .material-icons {
+        font-size: 1rem;
+        color: #94a3b8;
+      }
+    }
+  }
+}
+
+// Segments Panel (legacy)
+.segments-panel {
+  margin-bottom: 1.5rem;
+
+  .segments-header {
+    margin-bottom: 0.8rem;
+
+    label {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+  }
+
+  .segments-list {
+    background: rgba(24, 24, 27, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+    border-radius: 8px;
+    padding: 0.8rem;
+
+    .segment-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 0.8rem;
+      margin-bottom: 0.5rem;
+      background: rgba(24, 24, 27, 0.2);
+      border-radius: 6px;
+      border: 1px solid rgba(59, 130, 246, 0.1);
+      transition: all 0.2s ease;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      &:hover {
+        background: rgba(24, 24, 27, 0.3);
+        border-color: rgba(59, 130, 246, 0.2);
+      }
+
+      .segment-name {
+        color: #e2e8f0;
+        font-size: 0.9rem;
+        font-weight: 500;
+      }
+
+      .segment-order {
+        color: #3b82f6;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background: rgba(59, 130, 246, 0.1);
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+      }
+    }
+
+    .no-segments {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.8rem;
+      color: #94a3b8;
+      font-size: 0.9rem;
+      font-style: italic;
+      text-align: center;
+      justify-content: center;
+
+      .material-icons {
+        font-size: 1rem;
+        color: #94a3b8;
+      }
+    }
+  }
+}
+
+// Bottom Action Buttons
+.bottom-actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background: rgba(24, 24, 27, 0.2); /* transparent */
+  backdrop-filter: blur(20px); /* high blur */
+  /* keep all existing styles below */
+  display: flex;
+  gap: 0.8rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(59, 130, 246, 0.1);
+  position: sticky;
+  bottom: 0;
+  background: rgba(24, 24, 27, 0.95);
+  backdrop-filter: blur(10px);
+  z-index: 10;
+  padding-bottom: 1rem;
+
+  .conversion-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.6rem 0.8rem;
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    .material-icons {
+      font-size: 1.1rem;
+    }
+  }
+
+  .remove-performer-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.6rem 0.8rem;
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 80px;
+
+    &:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .material-icons {
+      font-size: 1.1rem;
+    }
+  }
+
+  .performer-pairing-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background: rgba(24, 24, 27, 0.95);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 8px;
+    margin-top: 0.5rem;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    animation: slideDownPanel 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+
+    .dropdown-content {
+      padding: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+
+      .dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        width: 100%;
+        padding: 0.75rem 0.7rem;
+        background: none;
+        border: none;
+        text-align: left;
+        cursor: pointer;
+        color: #e2e8f0;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        transition: background 0.18s, color 0.18s;
+
+        &:hover {
+          background: rgba(59, 130, 246, 0.1);
+          color: #fff;
+        }
+
+        .material-icons {
+          font-size: 1.1rem;
+          color: #3b82f6;
+        }
+      }
+    }
+  }
+}
+
 // ... existing code ...
 

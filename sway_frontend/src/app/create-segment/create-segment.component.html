@@ -246,35 +246,21 @@
         <div class="performer-details" *ngIf="selectedPerformer; else noPerformerSelected">
           <div class="performer-header">
             <input type="text" class="performer-name" [(ngModel)]="editablePerformerName" (blur)="commitPerformerNameEdit()" (keydown.enter)="commitPerformerNameEdit()">
-            <button class="remove-performer-btn" (click)="removePerformer()">
-              <ng-container *ngIf="!confirmRemovePerformer">
-                <span class="material-icons">delete</span>
-              </ng-container>
-              <ng-container *ngIf="confirmRemovePerformer">
-                <span style="white-space:nowrap">Remove from segment</span>
-              </ng-container>
-            </button>
           </div>
-          <div class="performer-info">
+          
+          <!-- Location Information -->
+          <div class="location-info" *ngIf="!selectedPerformer.isDummy">
             <div class="info-group">
-              <button class="conversion-btn" (click)="togglePerformerPairingDropdown()">
-                <span class="material-icons">swap_horiz</span>
-                Change Performer Pairing
-              </button>
-              <div class="performer-pairing-dropdown" *ngIf="showPerformerPairingDropdown">
-                <div class="dropdown-content">
-                  <button class="dropdown-item" (click)="convertToDummy()">
-                    <span class="material-icons">person_off</span>
-                    Dummy
-                  </button>
-                  <button class="dropdown-item" *ngFor="let user of availableUsers" 
-                          (click)="convertToUser(user)">
-                    <span class="material-icons">person</span>
-                    {{ formatPerformerName(user.name) }}
-                  </button>
-                </div>
+              <div class="position-display">
+                <span class="position-label">Depth</span>
+                <span class="position-value">{{getPerformerDepth(selectedPerformer)}}</span>
+                <span class="position-label">Width</span>
+                <span class="position-value">{{ getPerformerWidth(selectedPerformer) }}</span>
               </div>
             </div>
+          </div>
+          
+          <div class="performer-info">
             <div class="info-group" *ngIf="!selectedPerformer.isDummy">
               <label>Height</label>
               <div class="height-inputs">
@@ -307,19 +293,44 @@
               </div>
             </div>
           </div>
-          <div class="skill-levels" *ngIf="!selectedPerformer.isDummy">
-            <div class="skill-group" *ngFor="let style of segmentStyles">
-              <div class="skill-header">
-                <label>{{style.name}}</label>
-                <span class="skill-value">{{getSelectedUserSkillLevel(style.name.toLowerCase())}}/5</span>
+          
+          <!-- Skills Section as Dropdown -->
+          <div class="skills-dropdown-section" *ngIf="!selectedPerformer.isDummy">
+            <div class="skills-dropdown-header" (click)="toggleSkillsDropdown()">
+              <label>Skills</label>
+              <span class="material-icons dropdown-icon">{{showSkillsDropdown ? 'expand_less' : 'expand_more'}}</span>
+            </div>
+            <div class="skills-dropdown-content" *ngIf="showSkillsDropdown">
+              <div class="skill-group" *ngFor="let style of segmentStyles">
+                <div class="skill-header">
+                  <label>{{style.name}}</label>
+                  <span class="skill-value">{{getSelectedUserSkillLevel(style.name.toLowerCase())}}/5</span>
+                </div>
+                <input type="range" 
+                       class="skill-slider" 
+                       [ngModel]="getSelectedUserSkillLevel(style.name.toLowerCase())"
+                       (ngModelChange)="updatePerformerSkill(style.name, $event)"
+                       min="1" 
+                       max="5"
+                       [style.accent-color]="style.color">
               </div>
-              <input type="range" 
-                     class="skill-slider" 
-                     [ngModel]="getSelectedUserSkillLevel(style.name.toLowerCase())"
-                     (ngModelChange)="updatePerformerSkill(style.name, $event)"
-                     min="1" 
-                     max="5"
-                     [style.accent-color]="style.color">
+            </div>
+          </div>
+          
+          <!-- Segments Section -->
+          <div class="segments-section" *ngIf="!selectedPerformer.isDummy">
+            <div class="section-header" (click)="toggleSegmentsDropdown()">
+              <h3>Segments</h3>
+              <span class="material-icons dropdown-icon">{{showSegmentsDropdown ? 'expand_less' : 'expand_more'}}</span>
+            </div>
+            <div class="segments-content" *ngIf="showSegmentsDropdown">
+              <div class="segment-item" *ngFor="let segment of getUserSegments(selectedPerformer.id)">
+                <span class="segment-name">{{segment.name}}</span>
+              </div>
+              <div class="no-segments" *ngIf="getUserSegments(selectedPerformer.id).length === 0">
+                <span class="material-icons">info</span>
+                <span>Not in any other segments</span>
+              </div>
             </div>
           </div>
           
@@ -351,8 +362,34 @@
               </div>
             </div>
             <div class="color-info">
-
-
+            </div>
+          </div>
+          
+        </div> <!-- end of .performer-details -->
+        <div class="bottom-actions">
+          <button class="conversion-btn" (click)="togglePerformerPairingDropdown()">
+            <span class="material-icons">swap_horiz</span>
+            Change Pairing
+          </button>
+          <button class="remove-performer-btn" (click)="removePerformer()">
+            <ng-container *ngIf="!confirmRemovePerformer">
+              <span class="material-icons">delete</span>
+            </ng-container>
+            <ng-container *ngIf="confirmRemovePerformer">
+              <span style="white-space:nowrap">Remove</span>
+            </ng-container>
+          </button>
+          <div class="performer-pairing-dropdown" *ngIf="showPerformerPairingDropdown">
+            <div class="dropdown-content">
+              <button class="dropdown-item" (click)="convertToDummy()">
+                <span class="material-icons">person_off</span>
+                Dummy
+              </button>
+              <button class="dropdown-item" *ngFor="let user of availableUsers" 
+                      (click)="convertToUser(user)">
+                <span class="material-icons">person</span>
+                {{ formatPerformerName(user.name) }}
+              </button>
             </div>
           </div>
         </div>
@@ -584,13 +621,13 @@
             <div class="offstage-area left-offstage" 
                  [style.width.px]="offstageWidthPx"
                  [style.height.px]="stageHeightPx">
-              <div class="offstage-label">OFFSTAGE LEFT</div>
+              <div class="offstage-label">OFFSTAGE</div>
             </div>
             <div class="offstage-area right-offstage" 
                  [style.left.px]="stageWidthPx + offstageWidthPx"
                  [style.width.px]="offstageWidthPx"
                  [style.height.px]="stageHeightPx">
-              <div class="offstage-label">OFFSTAGE RIGHT</div>
+              <div class="offstage-label">OFFSTAGE</div>
             </div>
             
             <!-- Mirror line down the middle when mirror mode is enabled -->
