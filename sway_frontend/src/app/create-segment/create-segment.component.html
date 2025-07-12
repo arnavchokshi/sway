@@ -185,54 +185,17 @@
     <div class="positioning-tips-tab" *ngIf="isCaptain" [class.expanded]="showPositioningTips">
       <!-- Tab Handle -->
       <div class="tips-tab-handle" (click)="togglePositioningTips()">
-        <span class="tips-tab-label">Positioning Tips</span>
-        <div class="tips-badge" *ngIf="isProAccount && getAllCurrentTips().length > 0">
-          {{ getAllCurrentTips().length }}
-        </div>
+        <img src="assets/Screenshot 2025-07-11 at 11.16.34 PM.png" alt="AI Tips" class="tips-tab-image" />
       </div>
-      
-      <!-- Tips Panel -->
-      <div class="tips-panel" 
-           [class.visible]="showPositioningTips"
-           [style.opacity]="showPositioningTips ? '1' : '0'"
-           [style.visibility]="showPositioningTips ? 'visible' : 'hidden'">
-        <div class="tips-header">
-          <span class="material-icons warning-icon">info</span>
-          <span class="tips-title">Performer Positioning Tips</span>
-        </div>
-        <div class="tips-content">
-          <ng-container *ngIf="isProAccount; else upgradeToPro">
-            <div class="tips-empty" *ngIf="getAllCurrentTips().length === 0">
-              <span class="material-icons">check_circle</span>
-              <p>No positioning issues detected!</p>
-              <small>All performers are positioned optimally in this formation.</small>
-            </div>
-            <div class="warning-item" *ngFor="let tip of getAllCurrentTips()">
-              <div class="warning-message">{{ tip.message }}</div>
-              <div class="warning-details">
-                <span class="tip-type" [ngClass]="tip.type">
-                  <span class="material-icons" *ngIf="tip.type === 'consistency'">sync</span>
-                  <span class="material-icons" *ngIf="tip.type === 'mirror_height'">height</span>
-                  <span class="material-icons" *ngIf="tip.type === 'skill_position'">star</span>
-                  {{ tip.type === 'consistency' ? 'Consistency' : tip.type === 'mirror_height' ? 'Height Gap' : 'Skill Position' }}
-                </span>
-                <span class="segment-info" *ngIf="tip.type === 'consistency'">
-                  {{ tip.details.previousSegment }} → {{ tip.details.currentSegment }}
-                </span>
-                <span class="side-info" *ngIf="tip.type === 'consistency'">
-                  {{ tip.details.previousSide }} → {{ tip.details.currentSide }}
-                </span>
-              </div>
-            </div>
-          </ng-container>
-          <ng-template #upgradeToPro>
-            <div class="tips-empty">
-              <span class="material-icons">star</span>
-              <p>Upgrade to pro to use this feature</p>
-            </div>
-          </ng-template>
-        </div>
-      </div>
+      <!-- AI Tips Panel Swap -->
+      <app-ai-tips-panel
+        [performers]="performers"
+        [formations]="formations"
+        [currentFormationIndex]="currentFormationIndex"
+        [isProAccount]="isProAccount"
+        [tips]="getAllCurrentTips()"
+        [segment]="segment"
+      ></app-ai-tips-panel>
     </div>
 
     <div class="roster-sidebar" *ngIf="isCaptain">
@@ -400,7 +363,7 @@
       <ng-template #rosterPanel>
         <div class="roster-top-panel">
           <div class="roster-header-row">
-            <h3>Performers in Segment</h3>
+            <h3>Segment Roster</h3>
             <!-- View Options Icon Button -->
             <div class="view-options-dropdown">
               <button class="view-options-btn" (click)="toggleViewOptionsDropdown($event)">
@@ -1063,11 +1026,11 @@
         </button>
         <button class="context-menu-item" (click)="onContextMenuCopy()" [disabled]="formations[selectedFormationIndex].length === 0">
           <span class="material-icons">file_copy</span>
-          <span>Copy Perfomers</span>
+          <span>Copy Performers</span>
         </button>
         <button class="context-menu-item" (click)="onContextMenuPaste()" [disabled]="!hasCopiedPerformers">
           <span class="material-icons">content_paste</span>
-          <span>Paste Perfomers</span>
+          <span>Paste Performers</span>
         </button>
         <button class="context-menu-item delete-formation" (click)="onContextMenuDelete()" [disabled]="formations.length <= 1">
           <span class="material-icons">delete</span>
@@ -1087,11 +1050,11 @@
         </button>
         <button class="context-menu-item" (click)="onContextMenuCopyDraft()" [disabled]="draftFormations[selectedFormationIndex].length === 0">
           <span class="material-icons">file_copy</span>
-          <span>Copy Perfomers</span>
+          <span>Copy Performers</span>
         </button>
         <button class="context-menu-item" (click)="onContextMenuPaste()" [disabled]="!hasCopiedPerformers">
           <span class="material-icons">content_paste</span>
-          <span>Paste Perfomers</span>
+          <span>Paste Performers</span>
         </button>
         <button class="context-menu-item delete-formation delete-draft" (click)="onContextMenuDeleteDraft()" [disabled]="draftFormations.length === 0">
           <span class="material-icons">delete</span>

@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MobileStageViewComponent } from './mobile-stage-view.component';
+import { AiTipsPanelComponent } from '../ai-tips-panel/ai-tips-panel.component';
 
 interface Performer {
   id: string;
@@ -72,7 +73,7 @@ import { ControlBarComponent } from './control-bar/control-bar.component';
   templateUrl: './create-segment.component.html',
   styleUrls: ['./create-segment.component.scss'],
   standalone: true,
-  imports: [CommonModule, FormsModule, ControlBarComponent, MobileStageViewComponent],
+  imports: [CommonModule, FormsModule, ControlBarComponent, MobileStageViewComponent, AiTipsPanelComponent],
   animations: [
     trigger('movePerformer', [
       transition('* => *', [
@@ -515,6 +516,8 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   resizingEntryTransitionOriginalFormationStartTime: number = 0;
 
   showMobileMemberView = false;
+
+  private positioningTipsInterval: any = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -3207,6 +3210,19 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
    */
   togglePositioningTips() {
     this.showPositioningTips = !this.showPositioningTips;
+    if (this.showPositioningTips) {
+      // Panel opened: update immediately and start interval
+      this.checkFormationPositioningTips();
+      this.positioningTipsInterval = setInterval(() => {
+        this.checkFormationPositioningTips();
+      }, 1000); // Update every 1s while open
+    } else {
+      // Panel closed: stop updates
+      if (this.positioningTipsInterval) {
+        clearInterval(this.positioningTipsInterval);
+        this.positioningTipsInterval = null;
+      }
+    }
   }
 
   /**
@@ -4061,6 +4077,10 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.stageMouseUpListener = null;
     }
     window.removeEventListener('resize', this.updateMinTimelineZoom.bind(this));
+    if (this.positioningTipsInterval) {
+      clearInterval(this.positioningTipsInterval);
+      this.positioningTipsInterval = null;
+    }
   }
 
   getTimelineTotalDuration(): number {

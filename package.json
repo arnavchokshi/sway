@@ -1,6 +1,9 @@
 {
   "dependencies": {
     "@babylonjs/materials": "^8.12.1",
+    "@fortawesome/angular-fontawesome": "^2.0.1",
+    "@fortawesome/fontawesome-svg-core": "^6.7.2",
+    "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@google/generative-ai": "^0.24.1",
     "@stripe/stripe-js": "^7.4.0",
     "aws-sdk": "^2.1692.0",

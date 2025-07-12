@@ -1,0 +1,147 @@
+<div class="ai-tips-panel">
+  <div class="ai-tips-title-bar">
+    <div class="title-bar-bg"></div>
+    <span class="header-title">AI Performance Analysis</span>
+  </div>
+  <div class="ai-tips-tabs">
+    <button *ngFor="let tab of tabs"
+            [class.active]="isActiveTab(tab.id)"
+            (click)="setActiveTab(tab.id)"
+            class="tab-btn">
+      <div class="tab-icon-bg">
+        <span class="material-icons tab-icon">{{ tab.icon }}</span>
+      </div>
+      <span class="tab-label">{{ tab.label }}</span>
+    </button>
+  </div>
+
+  <!-- Content Area -->
+  <div class="ai-tips-content">
+    <ng-container *ngIf="activeTab === 'overview'">
+      <!-- Overview tab: Only show start/end position tips -->
+      <ng-container *ngIf="isProAccount; else upgradeToPro">
+        <div class="key-insights-section">
+          <div class="section-title">Performer Start/End Position Tips</div>
+          <div *ngIf="getStartEndPositionTips().length === 0" class="formation-tip-card info">
+            <span class="material-icons tip-icon">check_circle</span>
+            <span>No start/end position issues detected!</span>
+          </div>
+          <div *ngFor="let tip of getStartEndPositionTips()" class="formation-tip-card info">
+            <span class="material-icons tip-icon">info</span>
+            <span>{{ tip.message }}</span>
+          </div>
+        </div>
+        <div class="key-insights-section">
+          <div class="section-title">Stage Usage Heatmap</div>
+          <div class="mini-stage-heatmap" [style.width.px]="miniStageWidthPx" [style.height.px]="miniStageHeightPx">
+            <!-- Main grid lines: vertical -->
+            <div *ngFor="let x of getMiniMainVerticals()" class="main-vertical" [style.left.px]="x"></div>
+            <!-- Main grid lines: horizontal -->
+            <div *ngFor="let y of getMiniMainHorizontals()" class="main-horizontal" [style.top.px]="y"></div>
+            <!-- Subgrid lines: vertical -->
+            <div *ngFor="let x of getMiniSubVerticals()" class="sub-vertical" [style.left.px]="x"></div>
+            <!-- Subgrid lines: horizontal -->
+            <div *ngFor="let y of getMiniSubHorizontals()" class="sub-horizontal" [style.top.px]="y"></div>
+            <!-- Heatmap overlay: blurred circles for each performer position -->
+            <div *ngFor="let pos of getAllPerformerPositionsOnMiniStage()"
+                 class="heatmap-dot"
+                 [style.left.px]="pos.x - 18"
+                 [style.top.px]="pos.y - 18"></div>
+          </div>
+          <div class="heatmap-legend">
+            <span class="legend-box" style="background:rgba(80,180,255,0.2)"></span> Low
+            <span class="legend-box" style="background:#a78bfa"></span> High
+          </div>
+        </div>
+       
+        <div class="formation-patterns-card">
+          <div class="patterns-title">Formation Patterns</div>
+          <div class="patterns-row">
+            <span class="patterns-label">Clumped Formations</span>
+            <span class="patterns-value">{{ getClumpedPercent() }}%</span>
+          </div>
+          <div class="patterns-bar-bg">
+            <div class="patterns-bar-fill" [style.width.%]="getClumpedPercent()"></div>
+          </div>
+          
+          <div class="patterns-row" style="margin-top:1.1rem;">
+            <span class="patterns-label">Overall Symmetry</span>
+            <span class="patterns-value">{{ getSymmetricalPercent() }}%</span>
+          </div>
+          <div class="patterns-bar-bg">
+            <div class="patterns-bar-fill patterns-bar-fill-sym" [style.width.%]="getSymmetricalPercent()"></div>
+          </div>
+          
+        </div>
+      </ng-container>
+      <ng-template #upgradeToPro>
+        <div class="ai-tips-upgrade">
+          <span class="material-icons">star</span>
+          <p>Upgrade to pro to unlock AI tips and analysis!</p>
+        </div>
+      </ng-template>
+    </ng-container>
+    <ng-container *ngIf="activeTab === 'formation'">
+      <!-- Spacing tab: Heatmap + formation tips for selected formation -->
+      <ng-container *ngIf="isProAccount; else upgradeToPro">
+        <div class="formation-section">
+          <div class="section-title">Formation-Specific Tips</div>
+          <div *ngIf="getSpacingTipsForFormation(currentFormationIndex).length === 0" class="formation-tip-card info">
+            <span class="material-icons tip-icon">check_circle</span>
+            <span>No formation-specific issues detected!</span>
+          </div>
+          <div *ngFor="let tip of getSpacingTipsForFormation(currentFormationIndex)" class="formation-tip-card" [ngClass]="tip.type">
+            <span class="material-icons tip-icon" *ngIf="tip.type === 'height_block'">visibility_off</span>
+            <span class="material-icons tip-icon" *ngIf="tip.type === 'mirror_height'">compare_arrows</span>
+            <span class="material-icons tip-icon" *ngIf="tip.type === 'front_shorter'">height</span>
+            <span class="material-icons tip-icon" *ngIf="tip.type === 'front_lower_skill'">star_half</span>
+            <span>{{ tip.message }}</span>
+          </div>
+        </div>
+      </ng-container>
+      <ng-template #upgradeToPro>
+        <div class="ai-tips-upgrade">
+          <span class="material-icons">star</span>
+          <p>Upgrade to pro to unlock AI tips and analysis!</p>
+        </div>
+      </ng-template>
+    </ng-container>
+    <ng-container *ngIf="activeTab === 'transitions'">
+      <!-- Transitions tab: Transition analytics -->
+      <ng-container *ngIf="isProAccount; else upgradeToPro">
+        <div class="transitions-section">
+          <div class="section-title">Hardest Transitions</div>
+          <div class="transition-table spacious">
+            <div class="transition-table-header">
+              <span>Into</span>
+              <span>Performer</span>
+              <span>Dist.</span>
+              <span>Time</span>
+            </div>
+            <div *ngFor="let t of getTopTransitionsSimple(4)" class="transition-table-row spacious">
+              <span>F{{ t.to }}</span>
+              <span>{{ t.performer.split(' ')[0] }}</span>
+              <span>{{ t.dist | number:'1.1-2' }}ft</span>
+              <span>{{ t.time }}s</span>
+            </div>
+          </div>
+        </div>
+        <div class="transitions-section">
+          <div class="section-title">Conflicting Transitions</div>
+          <div *ngIf="recommendations.length === 0" class="ai-tips-section-card">
+            No conflicting transitions detected.
+          </div>
+          <div *ngFor="let rec of recommendations" class="ai-tips-section-card conflict-card">
+            {{ rec }}
+          </div>
+        </div>
+      </ng-container>
+      <ng-template #upgradeToPro>
+        <div class="ai-tips-upgrade">
+          <span class="material-icons">star</span>
+          <p>Upgrade to pro to unlock AI tips and analysis!</p>
+        </div>
+      </ng-template>
+    </ng-container>
+  </div>
+</div> 
