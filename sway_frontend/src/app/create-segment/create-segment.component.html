@@ -89,7 +89,7 @@
         <span class="material-icons loading-icon" *ngIf="isUploadingMusic">sync</span>
         Add Audio
       </button>
-      <input type="file" accept=".mp3,.wav,.ogg,.m4a,.aac,.flac,audio/mp3,audio/wav,audio/ogg,audio/mp4,audio/aac,audio/flac" (change)="onMusicFileSelected($event)" hidden #audioFileInput>
+      <input type="file" accept=".mp3,.wav,.ogg,.m4a,.aac,.flac,.mp4,.mov,audio/mp3,audio/wav,audio/ogg,audio/mp4,audio/aac,audio/flac,video/mp4,video/quicktime" (change)="onMusicFileSelected($event)" hidden #audioFileInput>
       
       <!-- Audio Upload Error Display -->
       <div class="upload-popup upload-error" *ngIf="uploadError">
@@ -331,10 +331,25 @@
         </div> <!-- end of .performer-details -->
       </ng-container>
       <div class="bottom-actions" *ngIf="sidePanelMode === 'performer' && selectedPerformer">
-        <button class="conversion-btn" (click)="togglePerformerPairingDropdown()">
-          <span class="material-icons">swap_horiz</span>
-          Change Pairing
-        </button>
+        <div class="pairing-dropdown-wrapper">
+          <button class="conversion-btn" (click)="togglePerformerPairingDropdown()">
+            <span class="material-icons">swap_horiz</span>
+            Change Pairing
+          </button>
+          <div class="performer-pairing-dropdown" *ngIf="showPerformerPairingDropdown" [class.show]="showPerformerPairingDropdown">
+            <div class="dropdown-content">
+              <button class="dropdown-item" (click)="convertToDummy()">
+                <span class="material-icons">person_off</span>
+                Dummy
+              </button>
+              <button class="dropdown-item" *ngFor="let user of availableUsers" 
+                      (click)="convertToUser(user)">
+                <span class="material-icons">person</span>
+                {{ formatPerformerName(user.name) }}
+              </button>
+            </div>
+          </div>
+        </div>
         <button class="remove-performer-btn" (click)="removePerformer()">
           <ng-container *ngIf="!confirmRemovePerformer">
             <span class="material-icons">delete</span>
@@ -343,19 +358,6 @@
             <span style="white-space:nowrap">Remove</span>
           </ng-container>
         </button>
-        <div class="performer-pairing-dropdown" *ngIf="showPerformerPairingDropdown">
-          <div class="dropdown-content">
-            <button class="dropdown-item" (click)="convertToDummy()">
-              <span class="material-icons">person_off</span>
-              Dummy
-            </button>
-            <button class="dropdown-item" *ngFor="let user of availableUsers" 
-                    (click)="convertToUser(user)">
-              <span class="material-icons">person</span>
-              {{ formatPerformerName(user.name) }}
-            </button>
-          </div>
-        </div>
       </div>
       <ng-template #noPerformerSelected>
         <div class="performer-details-empty">Select a performer to view details</div>

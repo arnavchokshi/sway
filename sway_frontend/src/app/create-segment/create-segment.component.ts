@@ -3310,15 +3310,16 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     // Validate file type
     const supportedTypes = [
       'audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/wave', 'audio/x-wav',
-      'audio/ogg', 'audio/oga', 'audio/mp4', 'audio/m4a', 'audio/aac', 'audio/flac'
+      'audio/ogg', 'audio/oga', 'audio/mp4', 'audio/m4a', 'audio/aac', 'audio/flac',
+      'video/mp4', 'video/quicktime'
     ];
     
-    const supportedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'];
+    const supportedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.mp4', '.mov'];
     const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
     
     if (!supportedTypes.includes(file.type) && !supportedExtensions.includes(fileExtension)) {
       console.error('Unsupported audio format:', file.type, fileExtension);
-      this.uploadError = 'Please select a supported audio file format: MP3, WAV, OGG, M4A, AAC, or FLAC';
+      this.uploadError = 'Please select a supported audio file format: MP3, WAV, OGG, M4A, AAC, FLAC, MP4, or MOV';
       setTimeout(() => this.uploadError = null, 5000); // Clear error after 5 seconds
       return;
     }
@@ -3406,20 +3407,40 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   // Helper method to get audio duration from file
   private getAudioDuration(file: File): Promise<number> {
     return new Promise((resolve, reject) => {
-      const audio = new Audio();
       const url = URL.createObjectURL(file);
       
-      audio.addEventListener('loadedmetadata', () => {
-        URL.revokeObjectURL(url);
-        resolve(audio.duration);
-      });
+      // Check if it's a video file
+      const isVideo = file.type.startsWith('video/') || file.name.toLowerCase().endsWith('.mp4') || file.name.toLowerCase().endsWith('.mov');
       
-      audio.addEventListener('error', (error) => {
-        URL.revokeObjectURL(url);
-        reject(error);
-      });
-      
-      audio.src = url;
+      if (isVideo) {
+        // Use video element for video files
+        const video = document.createElement('video');
+        video.addEventListener('loadedmetadata', () => {
+          URL.revokeObjectURL(url);
+          resolve(video.duration);
+        });
+        
+        video.addEventListener('error', (error) => {
+          URL.revokeObjectURL(url);
+          reject(error);
+        });
+        
+        video.src = url;
+      } else {
+        // Use audio element for audio files
+        const audio = new Audio();
+        audio.addEventListener('loadedmetadata', () => {
+          URL.revokeObjectURL(url);
+          resolve(audio.duration);
+        });
+        
+        audio.addEventListener('error', (error) => {
+          URL.revokeObjectURL(url);
+          reject(error);
+        });
+        
+        audio.src = url;
+      }
     });
   }
 
@@ -5501,9 +5522,9 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   convertToUser(user: any) {
-    if (!this.selectedPerformer || !this.selectedPerformer.isDummy) return;
+    if (!this.selectedPerformer) return;
 
-    const dummyUserId = this.selectedPerformer.id;
+    const prevPerformerId = this.selectedPerformer.id;
     const userPerformer: Performer = {
       id: user._id,
       name: user.name,
@@ -5514,25 +5535,22 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       isDummy: false
     };
 
-    // Replace dummy performer with real user in all formations
+    // Replace the selected performer with the new user in all formations
     this.formations = this.formations.map(formation =>
-      formation.map(p => p.id === dummyUserId ? userPerformer : p)
+      formation.map(p => p.id === prevPerformerId ? userPerformer : p)
     );
 
     // Update selection
-    this.selectedPerformerIds.delete(dummyUserId);
+    this.selectedPerformerIds.delete(prevPerformerId);
     this.selectedPerformerIds.add(userPerformer.id);
     this.selectedPerformerId = userPerformer.id;
     
     // Update previous position tracking
-    this.selectedPerformersForPreviousPosition.delete(dummyUserId);
+    this.selectedPerformersForPreviousPosition.delete(prevPerformerId);
     this.selectedPerformersForPreviousPosition.add(userPerformer.id);
 
     // Close the dropdown
     this.showPerformerPairingDropdown = false;
-
-    // Note: Dummy templates are now handled automatically by the backend
-    // No need to manually delete dummy users
 
     this.triggerAutoSave();
   }
