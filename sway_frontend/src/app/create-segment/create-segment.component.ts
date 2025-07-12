@@ -840,11 +840,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
               } else if (p.user) {
                     // Handle real performers
                     const performerId = p.user;
-                    console.log('🔍 DEBUG Mapping performer:', { 
-                      original: p, 
-                      performerId, 
-                      hasUser: !!p.user
-                    });
+
                     
                     const user = this.teamRoster.find(m => String(m._id) === String(performerId)) || 
                                 this.segmentRoster.find(m => String(m._id) === String(performerId));
@@ -7028,14 +7024,14 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
     
     while (toCheck.length > 0) {
       const currentDraft = toCheck.shift()!;
-      console.log('🔍 Checking draft:', currentDraft);
+      
       
       // Find all drafts that were created from this draft
       for (let i = 0; i < this.draftOrigins.length; i++) {
         const origin = this.draftOrigins[i];
-        console.log('🔍 Checking origin for draft', i, ':', origin);
+       
         if (origin && origin.type === 'draft' && origin.sourceIndex === currentDraft) {
-          console.log('🔍 Found connected draft:', i, 'created from draft:', currentDraft);
+          
           if (!connectedDrafts.includes(i)) {
             connectedDrafts.push(i);
             toCheck.push(i);
@@ -7140,7 +7136,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       
       // Allow small floating point differences (increased tolerance for resizing)
       if (difference < 2.1) {
-        console.log('✅ Draft is independent (matches formation start time)');
+        
         return true; // This is an independent draft created from main formation
       }
     }
@@ -8920,7 +8916,7 @@ export class CreateSegmentComponent implements OnInit, AfterViewInit, AfterViewC
       this.selectedPerformerInches = 6;
     }
     
-    console.log('✅ DEBUG setSelectedPerformer completed for:', performer.name);
+    
     // Set editable name
     this.editablePerformerName = performer.name;
   }
